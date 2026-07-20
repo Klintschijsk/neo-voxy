@@ -1,0 +1,35 @@
+From 3ca7f60a725debac96f7b0b833f6fc0cd1504705 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E8=87=AA=E5=BE=8B?=
+ <110465696+JohnSnow14284@users.noreply.github.com>
+Date: Mon, 27 Jul 2026 10:45:05 +0800
+Subject: [PATCH 12/23] Update README with Neo-Voxy installation notes
+
+Added important notes regarding Neo-Voxy installation and configuration.
+---
+ README.md | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/README.md b/README.md
+index b9899ca1..cacdff71 100644
+--- a/README.md
++++ b/README.md
+@@ -11,6 +11,7 @@ The Sable, Create, and EclipticSeasons compatibility implementations originate f
+ > [!IMPORTANT]
+ > If Neo-Voxy behaves incorrectly after an update, delete the Neo-Voxy configuration file and the
+ > Voxy cache stored inside the affected world, then launch the game again.
++> The branch "Merge1.21.1neo": Both the server and the client need to be installed, "1211" and "2612" only need the client.
+ 
+ > [!CAUTION]
+ > **Do not enable Neo-Voxy's circular LOD fade together with a shader pack that already implements
+@@ -27,6 +28,8 @@ Neo-Voxy 为远距离地形提供高性能 LOD 渲染，并针对 NeoForge、Sod
+ 
+ > [!IMPORTANT]
+ > **更新 Neo-Voxy 后若出现问题，请删除 Neo-Voxy 配置文件和对应存档中的 Voxy 缓存，再重新进入游戏。**
++> Merge1.21.1neo分支需要双端安装，其余分支仅客户端需装。
++> 推荐安装Voxy Serve Side进行数据共享。
+ 
+ ### 版本与功能对比
+ 
+-- 
+2.53.0.windows.1
+

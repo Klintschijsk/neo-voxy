@@ -1,0 +1,739 @@
+From a7e519d7a69ba5f455a20814aa3e8466d8e1fb46 Mon Sep 17 00:00:00 2001
+From: JohnSnow <110465696+JohnSnow14284@users.noreply.github.com>
+Date: Sun, 2 Aug 2026 22:04:13 +0800
+Subject: [PATCH 18/23] Add remote contraption pose sync & rendering tweaks
+
+Introduce remote contraption pose sampling and client-side interpolation for Create contraptions, including a new ContraptionPose/ContraptionPosesPayload protocol and server-side sampling in CreateTrainSampler. Update DistantContraptionManager to store and apply remote poses, expose pose freshness check to the renderer, and skip stale local snapshots. Add entity join/leave tracking and safe sampling. Adjust beacon beam width curve and LOD fade/contraption/beacon docs in README. Change config defaults (subDivisionSize -> 123, farPlayerAnimationDistance -> 0) and update config menu/NeoForge spec and language strings to reflect the new animation-distance semantics. Misc cleanup and snapshot lifecycle fixes across related classes.
+---
+ README.md                                     |  17 ++
+ src/main/java/me/cortex/voxy/Voxy.java        |   9 +
+ .../create/DistantContraptionManager.java     | 168 ++++++++----------
+ .../create/DistantContraptionRenderer.java    |   4 +-
+ .../cortex/voxy/client/config/VoxyConfig.java |   8 +-
+ .../voxy/client/config/VoxyConfigMenu.java    |   4 +-
+ .../client/config/VoxyNeoForgeConfig.java     |   6 +-
+ .../core/beacon/DistantBeaconRenderer.java    |  11 +-
+ .../compat/create/CreateTrainSampler.java     | 107 +++++++++++
+ .../compat/create/DistantTrainConfig.java     |  15 ++
+ .../compat/create/DistantTrainProtocol.java   |  31 ++++
+ .../voxy/compat/far/FarEntityRenderer.java    |   3 +-
+ .../resources/assets/voxy/lang/en_us.json     |   2 +-
+ .../resources/assets/voxy/lang/zh_cn.json     |   2 +-
+ 14 files changed, 277 insertions(+), 110 deletions(-)
+
+diff --git a/README.md b/README.md
+index e8a0f7e8..1712714d 100644
+--- a/README.md
++++ b/README.md
+@@ -46,6 +46,12 @@ Neo-Voxy 为远距离地形提供高性能 LOD 渲染，并针对 NeoForge、Sod
+ 
+ `—` 表示该分支尚未提供专项实现，不代表对应模组一定无法与基础地形 LOD 同时运行。
+ 
++### 近期渲染优化
++
++- **LOD 淡入：** 圆形交接按渲染类型处理，并为树叶、流体、熔岩和信标采用独立规则，减少透明重现、接缝、近距离虚影及高空观察时的空洞。
++- **Create 动态结构：** 已加载区块中的结构持续更新远景姿态；区块加载器维持加载时，服务端仅低频同步运动结构的位置和旋转，客户端复用已有模型并插值，不重复烘焙。
++- **信标光柱：** 保留正确颜色和 LOD 遮挡，并使用有上限的距离宽度曲线，使远处仍可辨认且不会过粗。
++
+ ### 模组兼容性
+ 
+ | 模组或组件 | 1.21.1 | 26.1.2 | 兼容说明 |
+@@ -116,6 +122,17 @@ compatibility implementations originate from **NHblock**.
+ `—` means that no dedicated implementation exists in that branch. It does not necessarily mean the
+ mod cannot run alongside basic terrain LOD rendering.
+ 
++### Recent rendering improvements
++
++- **LOD fade:** The circular handoff handles render types separately and gives leaves, fluids, lava,
++  and beacon beams dedicated rules, reducing transparency pop, seams, near-range ghosts, and
++  high-altitude holes.
++- **Create contraptions:** Contraptions in loaded chunks keep their distant pose updated. When a chunk
++  loader keeps them active, the server sends only low-rate movement poses; the client interpolates
++  the existing cached model without rebaking it.
++- **Beacon beams:** Correct colours and LOD occlusion are retained, while a capped distance-width curve
++  keeps beams visible at long range without becoming excessively thick.
++
+ ### Mod compatibility
+ 
+ | Mod or component | 1.21.1 | 26.1.2 | Compatibility notes |
+diff --git a/src/main/java/me/cortex/voxy/Voxy.java b/src/main/java/me/cortex/voxy/Voxy.java
+index 522d7915..a5c41db9 100644
+--- a/src/main/java/me/cortex/voxy/Voxy.java
++++ b/src/main/java/me/cortex/voxy/Voxy.java
+@@ -129,6 +129,15 @@ public class Voxy {
+                         ctx.enqueueWork(() -> me.cortex.voxy.client.compat.create.DistantTrainManager.handlePoses(payload));
+                     }
+                 });
++        registrar.playToClient(
++                me.cortex.voxy.commonImpl.compat.create.DistantTrainProtocol.ContraptionPosesPayload.TYPE,
++                me.cortex.voxy.commonImpl.compat.create.DistantTrainProtocol.ContraptionPosesPayload.CODEC,
++                (payload, ctx) -> {
++                    if (FMLLoader.getDist() == Dist.CLIENT && ModList.get().isLoaded("create")) {
++                        ctx.enqueueWork(() -> me.cortex.voxy.client.compat.create.DistantContraptionManager
++                                .handleRemotePoses(payload));
++                    }
++                });
+     }
+ 
+     private void registerFarEntityPayloads(net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent event) {
+diff --git a/src/main/java/me/cortex/voxy/client/compat/create/DistantContraptionManager.java b/src/main/java/me/cortex/voxy/client/compat/create/DistantContraptionManager.java
+index ceaa77e9..02179992 100644
+--- a/src/main/java/me/cortex/voxy/client/compat/create/DistantContraptionManager.java
++++ b/src/main/java/me/cortex/voxy/client/compat/create/DistantContraptionManager.java
+@@ -5,6 +5,8 @@ import com.simibubi.create.content.contraptions.AbstractContraptionEntity;
+ import com.simibubi.create.content.contraptions.Contraption;
+ import com.simibubi.create.content.trains.entity.CarriageContraptionEntity;
+ import me.cortex.voxy.client.config.VoxyConfig;
++import me.cortex.voxy.commonImpl.compat.create.DistantTrainProtocol.ContraptionPose;
++import me.cortex.voxy.commonImpl.compat.create.DistantTrainProtocol.ContraptionPosesPayload;
+ import me.cortex.voxy.commonImpl.compat.create.DistantTrainProtocol.ShapeBlock;
+ import net.minecraft.client.Minecraft;
+ import net.minecraft.client.multiplayer.ClientLevel;
+@@ -20,13 +22,7 @@ import java.util.Map;
+ import java.util.UUID;
+ import java.util.concurrent.ConcurrentHashMap;
+ 
+-//Client-side "leave-behind snapshot" store for distant Create contraptions (bearings/windmills,
+-//pistons, gantries, mounted/minecart contraptions). Unlike trains - which the server streams because
+-//they run in unloaded chunks - a contraption is an entity the player necessarily walked past, so the
+-//data is already client-side. While a contraption sits inside the render distance we keep its baked
+-//block mesh and its live world transform up to date; once it crosses out (or its chunk unloads) the
+-//snapshot freezes and DistantContraptionRenderer draws it statically, holding the pose/rotation it
+-//had when the player left. Pure client, no server sampling, no protocol.
++//Caches Create contraption meshes and applies either a live entity transform or a low-rate remote pose.
+ public final class DistantContraptionManager {
+     private DistantContraptionManager() {}
+ 
+@@ -64,8 +60,6 @@ public final class DistantContraptionManager {
+         //Set once a bake ran on a non-empty contraption but produced no drawable mesh (all non-MODEL
+         //blocks); stops the per-tick 64KB re-bake retry for structures that can never draw.
+         boolean bakeGaveNothing;
+-        //Bearing/piston-driven: pose froze at the reach boundary (one refresh on the crossing tick)
+-        boolean frozenControlled;
+         //The entity's world position changed between the last two refreshes. An anchored contraption
+         //(bearing) freezes with only its angle stale; a translating one (gantry, piston, minecart
+         //mount) freezes at a position the real structure immediately leaves, and every packet about
+@@ -74,6 +68,7 @@ public final class DistantContraptionManager {
+         //misplaced over loaded terrain; the renderer draws it only past the render distance, where a
+         //leave-behind is the only information there is.
+         boolean movedWhileSeen;
++        long remoteUpdatedAtNanos;
+         //Network id of the entity behind the last refresh, for the renderer's frame-time lookup -
+         //Level.getEntity(int) is the public O(1) path; the UUID re-check guards against id reuse
+         int entityId = -1;
+@@ -105,6 +100,16 @@ public final class DistantContraptionManager {
+     }
+ 
+     private static final Map<UUID, Snapshot> SNAPSHOTS = new ConcurrentHashMap<>();
++    private static final Map<UUID, RemotePose> REMOTE_POSES = new ConcurrentHashMap<>();
++    private static final long REMOTE_TIMEOUT_NANOS = 1_500_000_000L;
++
++    private static final class RemotePose {
++        ContraptionPose previous;
++        ContraptionPose current;
++        ResourceLocation dimension;
++        long receivedAtNanos;
++        long intervalNanos = 250_000_000L;
++    }
+     //Read from storage on world entry and baked a few per tick, nearest first, so re-entering a world
+     //with a lot of stored structures does not stall on one frame's worth of mesh uploads.
+     private static final int BAKES_PER_TICK = 2;
+@@ -120,13 +125,6 @@ public final class DistantContraptionManager {
+     //(the player walked away horizontally) simply drops out of entitiesForRendering, so its snapshot
+     //stops refreshing and freezes at the last pose. Only bounded by the LOD radius (past it we never
+     //draw). Runs on the client tick - applyLocalTransforms only reads entity state, no render context.
+-    //Did this controlled contraption's bearing/piston block just self-recapture its kinetic snapshot?
+-    //Consuming the notification re-freezes the structure pose on the same tick (drivetrain alignment).
+-    private static boolean anchorRecaptured(AbstractContraptionEntity ce) {
+-        var anchor = ((me.cortex.voxy.client.mixin.create.AccessorControlledContraptionEntity) ce).voxy$getControllerPos();
+-        return anchor != null && KineticSnapshots.consumeAnchorRecapture(anchor);
+-    }
+-
+     public static void update(ClientLevel level, double camX, double camY, double camZ, double maxDist) {
+         if (!VoxyConfig.CONFIG.isRenderingEnabled() || !VoxyConfig.CONFIG.distantContraptions) {
+             if (!SNAPSHOTS.isEmpty()) {
+@@ -138,6 +136,7 @@ public final class DistantContraptionManager {
+         long now = System.currentTimeMillis();
+         double maxDistSq = maxDist * maxDist;
+         var dimId = level.dimension().location();
++        applyRemotePoses(dimId, System.nanoTime(), now);
+ 
+         var seenThisTick = new java.util.HashSet<UUID>();
+         var liveBodies = new ArrayList<double[]>();
+@@ -213,82 +212,7 @@ public final class DistantContraptionManager {
+                 liveBodies.add(new double[]{ce.getX(), ce.getY(), ce.getZ(), snap.boundRadius});
+                 continue;
+             }
+-            //Bearing/piston/gantry-driven contraptions freeze at the reach boundary rather than
+-            //staying live: their controller block's moving parts (the bearing's top disc) are frozen
+-            //there by the kinetic snapshot, and a disc stopped mid-spin under a still-rotating sail
+-            //reads as misalignment. Freezing both halves at the same boundary keeps them meshed.
+-            //lastSeen still refreshes so the frozen snapshot is not evicted while loaded.
+-            if (ce instanceof com.simibubi.create.content.contraptions.ControlledContraptionEntity
+-                    && snap.lightPacked >= 0) {
+-                var mc = net.minecraft.client.Minecraft.getInstance();
+-                double reach = mc.options.getEffectiveRenderDistance() * 16.0;
+-                double camDx = ce.getX() - camX, camDy = ce.getY() - camY, camDz = ce.getZ() - camZ;
+-                if (camDx * camDx + camDy * camDy + camDz * camDz > reach * reach) {
+-                    //One last full refresh ON the crossing tick, then freeze: without it the frozen
+-                    //pose is the tick before the boundary while the bearing disc snapshot captures the
+-                    //tick after - at high rpm that couple of degrees reads as the halves misaligning.
+-                    if (!snap.frozenControlled) {
+-                        snap.frozenControlled = true;
+-                        //Freeze tick: recapture the controller's kinetic snapshot now, so the bearing
+-                        //disc and the structure hold the same tick's angle - each side freezing on
+-                        //whichever tick it happened to cross the boundary was the residual mesh offset
+-                        var anchor = ((me.cortex.voxy.client.mixin.create.AccessorControlledContraptionEntity) ce).voxy$getControllerPos();
+-                        if (anchor != null) {
+-                            KineticSnapshots.recaptureAt(anchor);
+-                        }
+-                    } else if (anchorRecaptured(ce)) {
+-                        //The bearing disc just recaptured on its own (its boundary crossing, or the
+-                        //sweep): fall through to the full pose refresh below so both halves re-freeze
+-                        //on this same tick
+-                    } else {
+-                        //Settle-follow: a frozen structure that keeps spinning stays frozen, but when
+-                        //it decelerates to a stop after the freeze (power cut), the frozen pose is
+-                        //stale mid-spin while the bearing disc recaptures the stopped angle. Track the
+-                        //live pose while the per-tick change is small (settling), hold while large.
+-                        SCRATCH_POSE.pushPose();
+-                        try {
+-                            ce.applyLocalTransforms(SCRATCH_POSE, 1.0f);
+-                            var live = SCRATCH_POSE.last().pose();
+-                            float ax = snap.local.m00(), ay = snap.local.m01(), az = snap.local.m02();
+-                            float bx = live.m00(), by = live.m01(), bz = live.m02();
+-                            double dot = (ax * bx + ay * by + az * bz)
+-                                    / (Math.sqrt(ax * ax + ay * ay + az * az) * Math.sqrt(bx * bx + by * by + bz * bz) + 1.0e-9);
+-                            if (dot > 0.9986) { //under ~3 deg since the freeze pose: settling, follow it
+-                                snap.local.set(live);
+-                            }
+-                        } catch (Throwable ignored) {
+-                        } finally {
+-                            SCRATCH_POSE.popPose();
+-                        }
+-                        //A held snapshot is still accounted for. Motion has to come from the entity's
+-                        //own last tick: the diff against the frozen snap.x measures the whole stroke
+-                        //travelled since the freeze, so it never clears and a machine that parks
+-                        //while held would stay marked as moving - suppressed inside the reach and
+-                        //vetoed from disk for as long as it stands there. Parking re-anchors it to
+-                        //its resting spot; the pose is already settle-followed above, and a spinning
+-                        //bearing translates by nothing, so its disc pairing freeze is untouched. The
+-                        //live body is published every tick because the supersession pass reaps the
+-                        //previous stroke's ghost, and a stroke cycle can be shorter than the gaps
+-                        //between full-refresh ticks.
+-                        double hmx = ce.getX() - ce.xOld, hmy = ce.getY() - ce.yOld, hmz = ce.getZ() - ce.zOld;
+-                        boolean parked = hmx * hmx + hmy * hmy + hmz * hmz <= 1.0e-9;
+-                        snap.movedWhileSeen = !parked;
+-                        if (parked) {
+-                            snap.x = ce.getX();
+-                            snap.y = ce.getY();
+-                            snap.z = ce.getZ();
+-                        }
+-                        snap.entityId = ce.getId();
+-                        liveBodies.add(new double[]{ce.getX(), ce.getY(), ce.getZ(), snap.boundRadius});
+-                        snap.lastSeenMs = now;
+-                        continue;
+-                    }
+-                } else {
+-                    snap.frozenControlled = false;
+-                }
+-            }
+-            //Live pose while in range - frozen the moment the player leaves (also the shared refresh
+-            //path for the freeze tick and the anchor-recapture re-freeze above)
++            //Keep the cached transform live whenever the client has the entity.
+             SCRATCH_POSE.pushPose();
+             try {
+                 ce.applyLocalTransforms(SCRATCH_POSE, 1.0f);
+@@ -484,6 +408,64 @@ public final class DistantContraptionManager {
+         snapshotCount = SNAPSHOTS.size();
+     }
+ 
++    public static void handleRemotePoses(ContraptionPosesPayload payload) {
++        long now = System.nanoTime();
++        for (ContraptionPose pose : payload.poses()) {
++            REMOTE_POSES.compute(pose.id(), (id, track) -> {
++                if (track == null || !payload.dimension().equals(track.dimension)) {
++                    track = new RemotePose();
++                    track.previous = pose;
++                } else {
++                    track.previous = track.current == null ? pose : track.current;
++                    track.intervalNanos = Math.clamp(now - track.receivedAtNanos,
++                            50_000_000L, 1_000_000_000L);
++                }
++                track.current = pose;
++                track.dimension = payload.dimension();
++                track.receivedAtNanos = now;
++                return track;
++            });
++        }
++    }
++
++    private static void applyRemotePoses(ResourceLocation dimension, long nowNanos, long nowMs) {
++        REMOTE_POSES.entrySet().removeIf(entry -> {
++            RemotePose track = entry.getValue();
++            long age = nowNanos - track.receivedAtNanos;
++            if (age > REMOTE_TIMEOUT_NANOS) {
++                return true;
++            }
++            Snapshot snap = SNAPSHOTS.get(entry.getKey());
++            if (snap == null || !dimension.equals(track.dimension) || track.current == null) {
++                return false;
++            }
++            ContraptionPose a = track.previous == null ? track.current : track.previous;
++            ContraptionPose b = track.current;
++            float t = Math.clamp((float) age / track.intervalNanos, 0.0f, 1.0f);
++            snap.x = a.x() + (b.x() - a.x()) * t;
++            snap.y = a.y() + (b.y() - a.y()) * t;
++            snap.z = a.z() + (b.z() - a.z()) * t;
++            float angle = a.angle() + net.minecraft.util.Mth.wrapDegrees(b.angle() - a.angle()) * t;
++            snap.local.identity().translate(0.5f, 0.5f, 0.5f);
++            switch (b.axis()) {
++                case 0 -> snap.local.rotateX((float) Math.toRadians(angle));
++                case 1 -> snap.local.rotateY((float) Math.toRadians(angle));
++                default -> snap.local.rotateZ((float) Math.toRadians(angle));
++            }
++            snap.local.translate(-0.5f, -0.5f, -0.5f);
++            snap.dim = dimension;
++            snap.lastSeenMs = nowMs;
++            snap.remoteUpdatedAtNanos = nowNanos;
++            snap.movedWhileSeen = true;
++            return false;
++        });
++    }
++
++    public static boolean hasFreshRemotePose(Snapshot snap, long nowNanos) {
++        return snap.remoteUpdatedAtNanos != 0
++                && nowNanos - snap.remoteUpdatedAtNanos <= REMOTE_TIMEOUT_NANOS;
++    }
++
+     //Consecutive-refresh difference when the window is warm; across a gap the stored position is old
+     //and the difference measures the gap, not motion, so the entity's own last-tick position seeds the
+     //flag instead - a mover sighted for a single tick must still count as moving, or its mid-travel
+@@ -872,7 +854,6 @@ public final class DistantContraptionManager {
+         snap.y = ce.getY();
+         snap.z = ce.getZ();
+         snap.movedWhileSeen = false;
+-        snap.frozenControlled = false;
+         snap.live = false;
+         var level = Minecraft.getInstance().level;
+         if (level != null) {
+@@ -910,6 +891,7 @@ public final class DistantContraptionManager {
+             }
+         }
+         SNAPSHOTS.clear();
++        REMOTE_POSES.clear();
+         loadedFor = null;
+         snapshotCount = 0;
+     }
+diff --git a/src/main/java/me/cortex/voxy/client/compat/create/DistantContraptionRenderer.java b/src/main/java/me/cortex/voxy/client/compat/create/DistantContraptionRenderer.java
+index 2e3f6235..6c1b4c88 100644
+--- a/src/main/java/me/cortex/voxy/client/compat/create/DistantContraptionRenderer.java
++++ b/src/main/java/me/cortex/voxy/client/compat/create/DistantContraptionRenderer.java
+@@ -93,6 +93,7 @@ public final class DistantContraptionRenderer implements LodPipelineHooks.Render
+ 
+         boolean renderStateActive = false;
+         int drawn = 0;
++        long nowNanos = System.nanoTime();
+         var transform = new Matrix4f();
+         try {
+             for (var snapEntry : snapshots.entrySet()) {
+@@ -122,7 +123,8 @@ public final class DistantContraptionRenderer implements LodPipelineHooks.Render
+                     if (live.position().distanceToSqr(entityCam) <= reachSq) {
+                         continue;
+                     }
+-                } else if (live == null && distSq < reachSq && snap.movedWhileSeen()) {
++                } else if (live == null && distSq < reachSq && snap.movedWhileSeen()
++                        && !DistantContraptionManager.hasFreshRemotePose(snap, nowNanos)) {
+                     continue;
+                 }
+                 //Before any state setup, so a frame with every contraption behind the camera never binds
+diff --git a/src/main/java/me/cortex/voxy/client/config/VoxyConfig.java b/src/main/java/me/cortex/voxy/client/config/VoxyConfig.java
+index f558eb44..7f5d8106 100644
+--- a/src/main/java/me/cortex/voxy/client/config/VoxyConfig.java
++++ b/src/main/java/me/cortex/voxy/client/config/VoxyConfig.java
+@@ -62,7 +62,7 @@ public class VoxyConfig {
+     public int distantKineticGpuBudgetMiB = 32;
+     public int simulatedContraptionRenderDistancePercent = 100;
+     public int serviceThreads = (int) Math.max(CpuLayout.getCoreCount()/1.5, 1);
+-    public float subDivisionSize = 28;
++    public float subDivisionSize = 123;
+     public int skyFogDistance = 96;
+     public float fogIntensity = 1.0f;
+     public float fogDensity = 0.0f;
+@@ -84,7 +84,7 @@ public class VoxyConfig {
+     public boolean enableFarPlayerRendering = true;
+     public boolean enableFarVehicleRendering = true;
+     public boolean renderFarPlayerNames = true;
+-    public int farPlayerAnimationDistance = 1024;
++    public int farPlayerAnimationDistance = 0;
+     public boolean shareFarPlayerPosition = true;
+     public boolean joinMessageShown = false;
+     public boolean upgradeCleanupNoticeShown = false;
+@@ -249,6 +249,10 @@ public class VoxyConfig {
+                 this.isRenderingEnabled() && this.distantTrains,
+                 this.createRenderDistance(this.distantTrainMaxChunks)
+         );
++        DistantTrainConfig.updateClientContraptionConfig(
++                this.isRenderingEnabled() && this.distantContraptions,
++                this.createRenderDistance(this.distantContraptionMaxChunks)
++        );
+     }
+ 
+     public double createLodRadius() {
+diff --git a/src/main/java/me/cortex/voxy/client/config/VoxyConfigMenu.java b/src/main/java/me/cortex/voxy/client/config/VoxyConfigMenu.java
+index a18b12f9..d4dc627c 100644
+--- a/src/main/java/me/cortex/voxy/client/config/VoxyConfigMenu.java
++++ b/src/main/java/me/cortex/voxy/client/config/VoxyConfigMenu.java
+@@ -277,7 +277,9 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
+                                         Component.translatable("voxy.config.farEntities.animationDistance"),
+                                         ()->CFG.farPlayerAnimationDistance, v->CFG.farPlayerAnimationDistance=v,
+                                         new Range(0, 32768, 64))
+-                                        .setFormatter(v->Component.literal(v + " blocks"))
++                                        .setFormatter(v->v == 0
++                                                ? Component.translatable("voxy.config.compat.distanceFollowLod")
++                                                : Component.literal(v + " blocks"))
+                                         .setEnabler("voxy:far_players")
+                                         .setImpact(OptionImpact.LOW),
+                                 new BoolOption(
+diff --git a/src/main/java/me/cortex/voxy/client/config/VoxyNeoForgeConfig.java b/src/main/java/me/cortex/voxy/client/config/VoxyNeoForgeConfig.java
+index 7b8eb50c..eec84de5 100644
+--- a/src/main/java/me/cortex/voxy/client/config/VoxyNeoForgeConfig.java
++++ b/src/main/java/me/cortex/voxy/client/config/VoxyNeoForgeConfig.java
+@@ -47,7 +47,7 @@ public class VoxyNeoForgeConfig {
+     private static final ModConfigSpec.DoubleValue SUB_DIVISION_SIZE = BUILDER
+             .comment("Subdivision size for LOD rendering (28-256)",
+                      "Lower = more detailed LODs but more GPU load")
+-            .defineInRange("subDivisionSize", 63.0, 28.0, 256.0);
++            .defineInRange("subDivisionSize", 123.0, 28.0, 256.0);
+ 
+     private static final ModConfigSpec.BooleanValue USE_ENVIRONMENTAL_FOG = BUILDER
+             .comment("Apply environmental fog to LOD terrain")
+@@ -107,8 +107,8 @@ public class VoxyNeoForgeConfig {
+ 
+     private static final ModConfigSpec.IntValue FAR_PLAYER_ANIMATION_DISTANCE = BUILDER
+             .comment("Maximum distance in blocks for far-player walk animation.",
+-                     "Set to 0 to keep far proxies static and reduce CPU cost.")
+-            .defineInRange("farPlayerAnimationDistance", 1024, 0, 32768);
++                     "Set to 0 to follow the LOD render distance.")
++            .defineInRange("farPlayerAnimationDistance", 0, 0, 32768);
+ 
+     private static final ModConfigSpec.BooleanValue SHARE_FAR_PLAYER_POSITION = BUILDER
+             .comment("Allow other Voxy clients on the same server to receive your far-player snapshot.")
+diff --git a/src/main/java/me/cortex/voxy/client/core/beacon/DistantBeaconRenderer.java b/src/main/java/me/cortex/voxy/client/core/beacon/DistantBeaconRenderer.java
+index fdbd8755..02d1735c 100644
+--- a/src/main/java/me/cortex/voxy/client/core/beacon/DistantBeaconRenderer.java
++++ b/src/main/java/me/cortex/voxy/client/core/beacon/DistantBeaconRenderer.java
+@@ -42,7 +42,8 @@ public final class DistantBeaconRenderer implements LodPipelineHooks.Renderer {
+             ResourceLocation.withDefaultNamespace("textures/entity/beacon_beam.png");
+ 
+     private static final float CORE_RADIUS = 0.2f;
+-    private static final float MAX_CORE_RADIUS = 0.82f;
++    private static final float WIDTH_PER_BLOCK = 0.0006f;
++    private static final float MAX_CORE_RADIUS = 4.8f;
+ 
+     public static int lastFrameBeamsDrawn;
+     //Re-solves per frame. A solve is a bounded column walk, but the first sight of a beacon-heavy
+@@ -154,9 +155,6 @@ public final class DistantBeaconRenderer implements LodPipelineHooks.Renderer {
+             double vanillaRange = Math.min(VANILLA_BEAM_RANGE,
+                     Minecraft.getInstance().options.getEffectiveRenderDistance() * 16.0);
+             double vanillaRangeSq = vanillaRange * vanillaRange;
+-            double maximumRange = VoxyConfig.CONFIG.createRenderDistance(
+-                    VoxyConfig.CONFIG.distantBeaconMaxChunks);
+-            double wideningRange = Math.max(1.0, maximumRange - vanillaRange);
+             lastVanillaRange = (int) vanillaRange;
+             int vanillaOwned = 0;
+             for (var beam : this.built) {
+@@ -166,9 +164,8 @@ public final class DistantBeaconRenderer implements LodPipelineHooks.Renderer {
+                     vanillaOwned++;
+                     continue;
+                 }
+-                float widthProgress = (float) Math.clamp(
+-                        (Math.sqrt(horizontalSq) - vanillaRange) / wideningRange, 0.0, 1.0);
+-                float radius = CORE_RADIUS + (MAX_CORE_RADIUS - CORE_RADIUS) * widthProgress;
++                float radius = Math.min(MAX_CORE_RADIUS, CORE_RADIUS
++                        + (float) Math.max(0.0, Math.sqrt(horizontalSq) - vanillaRange) * WIDTH_PER_BLOCK);
+                 //A beam is a 1024-block column, so its box is tall and thin
+                 if (!DistantVisibility.isBoxVisible(viewport,
+                         beam.x - radius, beam.y, beam.z - radius,
+diff --git a/src/main/java/me/cortex/voxy/commonImpl/compat/create/CreateTrainSampler.java b/src/main/java/me/cortex/voxy/commonImpl/compat/create/CreateTrainSampler.java
+index 80bfe847..f6194262 100644
+--- a/src/main/java/me/cortex/voxy/commonImpl/compat/create/CreateTrainSampler.java
++++ b/src/main/java/me/cortex/voxy/commonImpl/compat/create/CreateTrainSampler.java
+@@ -2,6 +2,7 @@ package me.cortex.voxy.commonImpl.compat.create;
+ 
+ import com.simibubi.create.Create;
+ import com.simibubi.create.content.contraptions.Contraption;
++import com.simibubi.create.content.contraptions.ControlledContraptionEntity;
+ import com.simibubi.create.content.trains.entity.Carriage;
+ import com.simibubi.create.content.trains.entity.CarriageBogey;
+ import com.simibubi.create.content.trains.entity.Train;
+@@ -9,6 +10,8 @@ import me.cortex.voxy.common.Logger;
+ import me.cortex.voxy.commonImpl.compat.create.DistantTrainProtocol.BogeyPose;
+ import me.cortex.voxy.commonImpl.compat.create.DistantTrainProtocol.CarriagePose;
+ import me.cortex.voxy.commonImpl.compat.create.DistantTrainProtocol.CarriageShapePayload;
++import me.cortex.voxy.commonImpl.compat.create.DistantTrainProtocol.ContraptionPose;
++import me.cortex.voxy.commonImpl.compat.create.DistantTrainProtocol.ContraptionPosesPayload;
+ import me.cortex.voxy.commonImpl.compat.create.DistantTrainProtocol.ShapeBlock;
+ import me.cortex.voxy.commonImpl.compat.create.DistantTrainProtocol.ShapeBogey;
+ import me.cortex.voxy.commonImpl.compat.create.DistantTrainProtocol.TrainPosesPayload;
+@@ -23,6 +26,8 @@ import net.minecraft.world.level.block.RenderShape;
+ import net.minecraft.world.phys.Vec3;
+ import net.neoforged.bus.api.SubscribeEvent;
+ import net.neoforged.neoforge.event.entity.player.PlayerEvent;
++import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
++import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
+ import net.neoforged.neoforge.event.server.ServerStoppedEvent;
+ import net.neoforged.neoforge.event.tick.ServerTickEvent;
+ import net.neoforged.neoforge.network.PacketDistributor;
+@@ -75,6 +80,10 @@ public final class CreateTrainSampler {
+     //Shape payloads are built once per carriage and reused for every player
+     private final Map<Long, CarriageShapePayload> shapeCache = new ConcurrentHashMap<>();
+     private final Set<Long> failedShapes = ConcurrentHashMap.newKeySet();
++    private final Map<ResourceKey<Level>, Set<ControlledContraptionEntity>> loadedContraptions = new ConcurrentHashMap<>();
++    private final Map<UUID, RemoteContraptionState> contraptionStates = new ConcurrentHashMap<>();
++
++    private record RemoteContraptionState(ContraptionPose pose, boolean moving) {}
+ 
+     //Key for the per-round pose cache: a carriage pose is identical for every player in a dimension
+     private record PoseKey(long shapeId, ResourceKey<Level> dim) {}
+@@ -95,12 +104,108 @@ public final class CreateTrainSampler {
+         }
+         this.tickCounter = 0;
+         var server = event.getServer();
++        this.sampleContraptionsSafe(server);
+         if (CTT_LOADED && this.submitToTrainWorker(server)) {
+             return;
+         }
+         this.sampleSafe(server);
+     }
+ 
++    @SubscribeEvent
++    public void onEntityJoin(EntityJoinLevelEvent event) {
++        if (!event.getLevel().isClientSide() && event.getEntity() instanceof ControlledContraptionEntity contraption) {
++            this.loadedContraptions.computeIfAbsent(event.getLevel().dimension(), ignored -> ConcurrentHashMap.newKeySet())
++                    .add(contraption);
++        }
++    }
++
++    @SubscribeEvent
++    public void onEntityLeave(EntityLeaveLevelEvent event) {
++        if (!event.getLevel().isClientSide() && event.getEntity() instanceof ControlledContraptionEntity contraption) {
++            var entities = this.loadedContraptions.get(event.getLevel().dimension());
++            if (entities != null) {
++                entities.remove(contraption);
++            }
++            this.contraptionStates.remove(contraption.getUUID());
++        }
++    }
++
++    private void sampleContraptionsSafe(MinecraftServer server) {
++        try {
++            this.sampleContraptions(server);
++        } catch (Throwable e) {
++            Logger.error("Distant contraption pose sampling failed", e);
++        }
++    }
++
++    private void sampleContraptions(MinecraftServer server) {
++        if (!DistantTrainConfig.contraptionsEnabled() || this.loadedContraptions.isEmpty()) {
++            return;
++        }
++        double maximumDistance = DistantTrainConfig.contraptionMaxDistance();
++        double maximumDistanceSq = maximumDistance * maximumDistance;
++        Map<ResourceKey<Level>, List<ContraptionPose>> movingByDimension = new java.util.HashMap<>();
++        for (var dimensionEntry : this.loadedContraptions.entrySet()) {
++            List<ContraptionPose> moving = null;
++            for (ControlledContraptionEntity entity : dimensionEntry.getValue()) {
++                if (entity.isRemoved() || entity.getContraption() == null) {
++                    continue;
++                }
++                var axis = entity.getRotationAxis();
++                if (axis == null) {
++                    continue;
++                }
++                var pose = new ContraptionPose(entity.getUUID(), entity.getX(), entity.getY(), entity.getZ(),
++                        (byte) axis.ordinal(), entity.getAngle(1.0f));
++                var previous = this.contraptionStates.get(entity.getUUID());
++                boolean changed = previous != null && poseChanged(previous.pose(), pose);
++                if (changed || previous != null && previous.moving()) {
++                    if (moving == null) {
++                        moving = new ArrayList<>();
++                    }
++                    moving.add(pose);
++                }
++                this.contraptionStates.put(entity.getUUID(), new RemoteContraptionState(pose, changed));
++            }
++            if (moving != null) {
++                movingByDimension.put(dimensionEntry.getKey(), moving);
++            }
++        }
++        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
++            var source = movingByDimension.get(player.level().dimension());
++            if (source == null) {
++                continue;
++            }
++            double minimumDistance = minSendDistance(server, player);
++            double minimumDistanceSq = minimumDistance * minimumDistance;
++            List<ContraptionPose> poses = null;
++            for (ContraptionPose pose : source) {
++                double dx = pose.x() - player.getX();
++                double dy = pose.y() - player.getY();
++                double dz = pose.z() - player.getZ();
++                double distanceSq = dx * dx + dy * dy + dz * dz;
++                if (distanceSq < minimumDistanceSq || distanceSq > maximumDistanceSq) {
++                    continue;
++                }
++                if (poses == null) {
++                    poses = new ArrayList<>();
++                }
++                poses.add(pose);
++            }
++            if (poses != null) {
++                PacketDistributor.sendToPlayer(player, new ContraptionPosesPayload(
++                        player.level().dimension().location(), poses));
++            }
++        }
++    }
++
++    private static boolean poseChanged(ContraptionPose a, ContraptionPose b) {
++        double dx = a.x() - b.x(), dy = a.y() - b.y(), dz = a.z() - b.z();
++        return dx * dx + dy * dy + dz * dz > 1.0e-8
++                || a.axis() != b.axis()
++                || Math.abs(net.minecraft.util.Mth.wrapDegrees(a.angle() - b.angle())) > 0.01f;
++    }
++
+     private void sampleSafe(MinecraftServer server) {
+         try {
+             this.sample(server);
+@@ -150,6 +255,8 @@ public final class CreateTrainSampler {
+         this.visibleTrains.clear();
+         this.shapeCache.clear();
+         this.failedShapes.clear();
++        this.loadedContraptions.clear();
++        this.contraptionStates.clear();
+     }
+ 
+     //Contraption.fromNBT deserialization per carriage is heavy; a long train entering the window
+diff --git a/src/main/java/me/cortex/voxy/commonImpl/compat/create/DistantTrainConfig.java b/src/main/java/me/cortex/voxy/commonImpl/compat/create/DistantTrainConfig.java
+index c4386b67..a3274bc1 100644
+--- a/src/main/java/me/cortex/voxy/commonImpl/compat/create/DistantTrainConfig.java
++++ b/src/main/java/me/cortex/voxy/commonImpl/compat/create/DistantTrainConfig.java
+@@ -22,6 +22,8 @@ public final class DistantTrainConfig {
+     //Client (integrated-server host) preference.
+     public static volatile boolean clientEnabled = true;
+     public static volatile double clientMaxDistance = HARD_MAX;
++    public static volatile boolean clientContraptionsEnabled = true;
++    public static volatile double clientContraptionMaxDistance = HARD_MAX;
+ 
+     //Server (dedicated admin) uniform ceiling.
+     public static volatile boolean serverEnabled = true;
+@@ -37,6 +39,11 @@ public final class DistantTrainConfig {
+         clientMaxDistance = clampDistance(maxDistanceBlocks);
+     }
+ 
++    public static void updateClientContraptionConfig(boolean enabled, double maxDistanceBlocks) {
++        clientContraptionsEnabled = enabled;
++        clientContraptionMaxDistance = clampDistance(maxDistanceBlocks);
++    }
++
+     public static void updateServerConfig(boolean enabled, double maxDistanceBlocks, int intervalTicks) {
+         serverEnabled = enabled;
+         serverMaxDistance = clampDistance(maxDistanceBlocks);
+@@ -55,4 +62,12 @@ public final class DistantTrainConfig {
+     public static int sampleInterval() {
+         return sampleIntervalTicks;
+     }
++
++    public static boolean contraptionsEnabled() {
++        return clientContraptionsEnabled && serverEnabled;
++    }
++
++    public static double contraptionMaxDistance() {
++        return Math.min(clientContraptionMaxDistance, serverMaxDistance);
++    }
+ }
+diff --git a/src/main/java/me/cortex/voxy/commonImpl/compat/create/DistantTrainProtocol.java b/src/main/java/me/cortex/voxy/commonImpl/compat/create/DistantTrainProtocol.java
+index 7bb3b322..7ec7c6fc 100644
+--- a/src/main/java/me/cortex/voxy/commonImpl/compat/create/DistantTrainProtocol.java
++++ b/src/main/java/me/cortex/voxy/commonImpl/compat/create/DistantTrainProtocol.java
+@@ -126,6 +126,37 @@ public final class DistantTrainProtocol {
+         }
+     }
+ 
++    public record ContraptionPose(UUID id, double x, double y, double z, byte axis, float angle) {
++        public static final StreamCodec<ByteBuf, ContraptionPose> CODEC = StreamCodec.of(
++                (buf, pose) -> {
++                    net.minecraft.core.UUIDUtil.STREAM_CODEC.encode(buf, pose.id());
++                    buf.writeDouble(pose.x());
++                    buf.writeDouble(pose.y());
++                    buf.writeDouble(pose.z());
++                    buf.writeByte(pose.axis());
++                    buf.writeFloat(pose.angle());
++                },
++                buf -> new ContraptionPose(
++                        net.minecraft.core.UUIDUtil.STREAM_CODEC.decode(buf),
++                        buf.readDouble(), buf.readDouble(), buf.readDouble(),
++                        buf.readByte(), buf.readFloat()));
++    }
++
++    public record ContraptionPosesPayload(ResourceLocation dimension, List<ContraptionPose> poses)
++            implements CustomPacketPayload {
++        public static final Type<ContraptionPosesPayload> TYPE = new Type<>(
++                ResourceLocation.fromNamespaceAndPath("voxy", "contraption_poses"));
++        public static final StreamCodec<ByteBuf, ContraptionPosesPayload> CODEC = StreamCodec.composite(
++                ResourceLocation.STREAM_CODEC.cast(), ContraptionPosesPayload::dimension,
++                ContraptionPose.CODEC.apply(ByteBufCodecs.list()), ContraptionPosesPayload::poses,
++                ContraptionPosesPayload::new);
++
++        @Override
++        public Type<? extends CustomPacketPayload> type() {
++            return TYPE;
++        }
++    }
++
+     public static ResourceLocation dimensionId(Level level) {
+         return level.dimension().location();
+     }
+diff --git a/src/main/java/me/cortex/voxy/compat/far/FarEntityRenderer.java b/src/main/java/me/cortex/voxy/compat/far/FarEntityRenderer.java
+index cbd59889..e4d5f7ad 100644
+--- a/src/main/java/me/cortex/voxy/compat/far/FarEntityRenderer.java
++++ b/src/main/java/me/cortex/voxy/compat/far/FarEntityRenderer.java
+@@ -113,7 +113,8 @@ final class FarEntityRenderer {
+         double maximumDistanceSquared = (double) maximumDistance * maximumDistance;
+         int vanillaDistance = minecraft.options.getEffectiveRenderDistance() * 16;
+         double vanillaDistanceSquared = (double) (vanillaDistance + 16) * (vanillaDistance + 16);
+-        int animationDistance = VoxyConfig.CONFIG.farPlayerAnimationDistance;
++        int animationDistance = VoxyConfig.CONFIG.farPlayerAnimationDistance == 0
++                ? maximumDistance : VoxyConfig.CONFIG.farPlayerAnimationDistance;
+         double animationDistanceSquared = (double) animationDistance * animationDistance;
+         int animationTick = localPlayer.tickCount;
+         long now = System.nanoTime();
+diff --git a/src/main/resources/assets/voxy/lang/en_us.json b/src/main/resources/assets/voxy/lang/en_us.json
+index 3fa6280a..b1ab516f 100644
+--- a/src/main/resources/assets/voxy/lang/en_us.json
++++ b/src/main/resources/assets/voxy/lang/en_us.json
+@@ -66,7 +66,7 @@
+   "voxy.config.farEntities.names": "Show distant player names",
+   "voxy.config.farEntities.names.tooltip": "Shows name tags above distant player proxies.",
+   "voxy.config.farEntities.animationDistance": "Player animation distance",
+-  "voxy.config.farEntities.animationDistance.tooltip": "Only animate distant players inside this range. Set to 0 for static proxies and lower CPU cost.",
++  "voxy.config.farEntities.animationDistance.tooltip": "Only animate distant players inside this range. Set to 0 to follow the LOD render distance.",
+   "voxy.config.farEntities.sharePosition": "Share my distant position",
+   "voxy.config.farEntities.sharePosition.tooltip": "Allow other Voxy clients on the same server to receive your distant-player snapshot.",
+   "voxy.config.compat": "Integrations",
+diff --git a/src/main/resources/assets/voxy/lang/zh_cn.json b/src/main/resources/assets/voxy/lang/zh_cn.json
+index f14414ef..ca3dfd76 100644
+--- a/src/main/resources/assets/voxy/lang/zh_cn.json
++++ b/src/main/resources/assets/voxy/lang/zh_cn.json
+@@ -66,7 +66,7 @@
+   "voxy.config.farEntities.names": "显示远距离玩家名称",
+   "voxy.config.farEntities.names.tooltip": "在远距离玩家代理上方显示名称标签。",
+   "voxy.config.farEntities.animationDistance": "玩家动画距离",
+-  "voxy.config.farEntities.animationDistance.tooltip": "仅在此距离内计算远距离玩家行走动画；设为 0 可让代理保持静态并进一步降低 CPU 开销。",
++  "voxy.config.farEntities.animationDistance.tooltip": "仅在此距离内计算远距离玩家行走动画；设为 0 时跟随 LOD 渲染距离。",
+   "voxy.config.farEntities.sharePosition": "共享自己的远距离位置",
+   "voxy.config.farEntities.sharePosition.tooltip": "允许同一服务器上的其他 Voxy 客户端接收你的远距离玩家快照。",
+   "voxy.config.compat": "联动",
+-- 
+2.53.0.windows.1
+

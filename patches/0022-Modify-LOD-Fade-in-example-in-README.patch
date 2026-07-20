@@ -1,0 +1,32 @@
+From 64ae3e426f91b9e56b53ea40fda1d00367ac82c4 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E8=87=AA=E5=BE=8B?=
+ <110465696+JohnSnow14284@users.noreply.github.com>
+Date: Thu, 6 Aug 2026 18:23:20 +0800
+Subject: [PATCH 22/23] Modify LOD Fade in example in README
+
+Updated LOD Fade in example images and descriptions.
+---
+ README.md | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/README.md b/README.md
+index a02b2856..902e1d1c 100644
+--- a/README.md
++++ b/README.md
+@@ -54,11 +54,11 @@ Neo-Voxy 为远距离地形提供高性能 LOD 渲染，并针对 NeoForge、Sod
+ 
+ ### LOD Fade in example (Eclipse shader)
+ 
+-Before
++Enable LOD Fade in
+ <img width="1500" height="900" alt="image" src="https://github.com/user-attachments/assets/d4c960b7-f749-497b-8257-cc07195eedc6" />
+ 
+ 
+-After
++Disable
+ <img width="1500" height="900" alt="image" src="https://github.com/user-attachments/assets/6352b8df-b23e-40ca-9ada-d1332d3e277c" />
+ 
+ 
+-- 
+2.53.0.windows.1
+

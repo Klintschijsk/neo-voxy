@@ -1,0 +1,77 @@
+From 5e904df426444c1c5a6f4b40803bab711591faf0 Mon Sep 17 00:00:00 2001
+From: JohnSnow <110465696+JohnSnow14284@users.noreply.github.com>
+Date: Wed, 5 Aug 2026 13:49:47 +0800
+Subject: [PATCH 20/23] Add Aeronautics balloon render mixin
+
+Detect the optional Aeronautics mod in ClientVoxyMixinPlugin and register a client-side mixin when present. Add MixinClientBalloonEffectRenderer (pseudo, remap=false, require=0) to intercept RenderSystem.polygonOffset args during renderBalloonEffects; when Voxy's render system is present and negative offsets are used, it forces args to (0.0f, 1.0f) so hot-air is kept behind the balloon.
+---
+ .../client/mixin/ClientVoxyMixinPlugin.java   |  5 ++++
+ .../MixinClientBalloonEffectRenderer.java     | 26 +++++++++++++++++++
+ 2 files changed, 31 insertions(+)
+ create mode 100644 src/main/java/me/cortex/voxy/client/mixin/aeronautics/MixinClientBalloonEffectRenderer.java
+
+diff --git a/src/main/java/me/cortex/voxy/client/mixin/ClientVoxyMixinPlugin.java b/src/main/java/me/cortex/voxy/client/mixin/ClientVoxyMixinPlugin.java
+index 39aec41d..6170a6b1 100644
+--- a/src/main/java/me/cortex/voxy/client/mixin/ClientVoxyMixinPlugin.java
++++ b/src/main/java/me/cortex/voxy/client/mixin/ClientVoxyMixinPlugin.java
+@@ -19,6 +19,7 @@ public class ClientVoxyMixinPlugin implements IMixinConfigPlugin {
+     private static boolean eclipticSeasonsInstalled;
+     private static boolean createInstalled;
+     private static boolean sodiumExtraInstalled;
++    private static boolean aeronauticsInstalled;
+ 
+     private static boolean isLoadedEarly(String modId) {
+         var list = LoadingModList.get();
+@@ -34,6 +35,7 @@ public class ClientVoxyMixinPlugin implements IMixinConfigPlugin {
+         eclipticSeasonsInstalled = isLoadedEarly("eclipticseasons");
+         createInstalled = isLoadedEarly("create");
+         sodiumExtraInstalled = isLoadedEarly("sodium_extra");
++        aeronauticsInstalled = isLoadedEarly("aeronautics");
+     }
+ 
+     @Override
+@@ -104,6 +106,9 @@ public class ClientVoxyMixinPlugin implements IMixinConfigPlugin {
+         if (sodiumExtraInstalled) {
+             mixins.add("sodiumextra.MixinFogDistanceHelper");
+         }
++        if (aeronauticsInstalled) {
++            mixins.add("aeronautics.MixinClientBalloonEffectRenderer");
++        }
+ 
+         // EclipticSeasons snow-LOD compat: client-gated even for the common-class targets, because the shared
+         // VoxyTool references EclipticSeasons client classes (ClientCon) and our delta-sync server also runs ingest.
+diff --git a/src/main/java/me/cortex/voxy/client/mixin/aeronautics/MixinClientBalloonEffectRenderer.java b/src/main/java/me/cortex/voxy/client/mixin/aeronautics/MixinClientBalloonEffectRenderer.java
+new file mode 100644
+index 00000000..01c2b5eb
+--- /dev/null
++++ b/src/main/java/me/cortex/voxy/client/mixin/aeronautics/MixinClientBalloonEffectRenderer.java
+@@ -0,0 +1,26 @@
++package me.cortex.voxy.client.mixin.aeronautics;
++
++import me.cortex.voxy.client.core.IGetVoxyRenderSystem;
++import org.spongepowered.asm.mixin.Mixin;
++import org.spongepowered.asm.mixin.Pseudo;
++import org.spongepowered.asm.mixin.injection.At;
++import org.spongepowered.asm.mixin.injection.ModifyArgs;
++import org.spongepowered.asm.mixin.injection.invoke.arg.Args;
++
++@Pseudo
++@Mixin(targets = "dev.eriksonn.aeronautics.content.blocks.hot_air.balloon.effect.ClientBalloonEffectRenderer", remap = false)
++public abstract class MixinClientBalloonEffectRenderer {
++    @ModifyArgs(
++            method = "renderBalloonEffects",
++            at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/systems/RenderSystem;polygonOffset(FF)V", remap = true),
++            require = 0
++    )
++    private static void voxy$keepHotAirBehindBalloon(Args args) {
++        float factor = args.get(0);
++        float units = args.get(1);
++        if (IGetVoxyRenderSystem.getNullable() != null && (factor < 0.0f || units < 0.0f)) {
++            args.set(0, 0.0f);
++            args.set(1, 1.0f);
++        }
++    }
++}
+-- 
+2.53.0.windows.1
+

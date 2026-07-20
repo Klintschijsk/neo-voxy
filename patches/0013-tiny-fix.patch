@@ -1,0 +1,1873 @@
+From 06f3b3221c053ffbca02946a6c5a9f6e9424914f Mon Sep 17 00:00:00 2001
+From: JohnSnow <110465696+JohnSnow14284@users.noreply.github.com>
+Date: Tue, 28 Jul 2026 20:23:24 +0800
+Subject: [PATCH 13/23] tiny fix
+
+---
+ README.md                                     |  24 +-
+ .../cortex/voxy/client/compat/ShipBorne.java  |  41 +-
+ .../client/compat/create/KineticCull.java     |   6 +-
+ .../compat/create/KineticSnapshots.java       |  36 +-
+ .../compat/create/ShipContraptionDebug.java   |  19 +-
+ .../compat/sable/SableScreenBounds.java       | 156 +++++
+ .../client/compat/sable/SableShipContent.java |  15 +
+ .../compat/sable/VoxySableDepthShim.java      | 141 ++++-
+ .../cortex/voxy/client/config/VoxyConfig.java |   5 +
+ .../voxy/client/config/VoxyConfigMenu.java    |   2 +-
+ .../client/core/NormalRenderPipeline.java     |   9 +-
+ .../voxy/client/core/RenderResourceReuse.java |   6 +-
+ .../SeasonalSnowRefresher.java                | 560 ++++++++++++++++++
+ .../eclipticseasons/VoxyESImportManager.java  |  30 -
+ .../core/compat/eclipticseasons/VoxyTool.java |  31 +-
+ .../HierarchicalOcclusionTraverser.java       |   8 +-
+ .../client/mixin/ClientVoxyMixinPlugin.java   |   1 +
+ .../create/AccessorAbstractVisualLevel.java   |  14 +
+ .../mixin/create/MixinBnbKineticVisuals.java  |   3 +-
+ .../create/MixinKineticBlockEntityVisual.java |   3 +-
+ .../create/MixinKineticMachineVisuals.java    |   3 +-
+ .../create/MixinVisualizationManagerImpl.java |  39 +-
+ .../mixin/minecraft/MixinLevelRenderer.java   |   1 +
+ .../mixin/sable/MixinSableDepthShim.java      |  34 +-
+ .../sable/MixinSableReacharoundCulling.java   |  18 +
+ .../world/service/VoxelIngestService.java     |   3 +-
+ .../compat/DomumOrnamentumCompat.java         |  34 +-
+ 27 files changed, 1093 insertions(+), 149 deletions(-)
+ create mode 100644 src/main/java/me/cortex/voxy/client/compat/sable/SableScreenBounds.java
+ create mode 100644 src/main/java/me/cortex/voxy/client/core/compat/eclipticseasons/SeasonalSnowRefresher.java
+ delete mode 100644 src/main/java/me/cortex/voxy/client/core/compat/eclipticseasons/VoxyESImportManager.java
+ create mode 100644 src/main/java/me/cortex/voxy/client/mixin/create/AccessorAbstractVisualLevel.java
+
+diff --git a/README.md b/README.md
+index cacdff71..e8a0f7e8 100644
+--- a/README.md
++++ b/README.md
+@@ -36,23 +36,13 @@ Neo-Voxy 为远距离地形提供高性能 LOD 渲染，并针对 NeoForge、Sod
+ | 功能 | 1.21.1 | 26.1.2 | 说明 |
+ |---|:---:|:---:|---|
+ | 远距离地形 LOD | ✅ | ✅ | 在原版区块范围外渲染简化地形 |
+-| NeoForge 原生运行 | ✅ | ✅ | 分别适配对应版本的 NeoForge |
+-| Sodium 渲染集成 | ✅ | ✅ | 接入区块渲染、深度与设置界面 |
+-| Iris 光影兼容 | ✅ | ✅ | 最终效果仍取决于具体光影包 |
++| Sodium / Iris 集成 | ✅ | ✅ | 接入区块、深度、设置与光影管线 |
+ | 圆形 LOD 淡入 | ✅ | ✅ | 以玩家为中心平滑交接原版区块与 LOD |
+-| 水体独立交接 | ✅ | ✅ | 水体不使用圆形抖动淡入，减少边界色差和缝隙 |
+-| Iris 阴影边界协同过渡 | ✅ | ✅ | 复用现有阴影绘制，不增加额外地形批次 |
+-| 父级 LOD、空洞与移动闪烁修复 | ✅ | ✅ | 改善重载、快速移动和层级转换后的缺块 |
+-| 保存、退出及存储关闭修复 | ✅ | ✅ | 等待待写数据并安全释放世界资源 |
+-| 自动关闭 Sodium 区块淡入 | — | ✅ | 避免 26.1.2 原生区块淡入与 LOD 交接叠加 |
+-| 无光影水体、水下雾和熔岩修复 | ✅ | — | 处理透明度、介质雾、液面高度和岸线衔接 |
+-| 失明与黑暗效果同步到 LOD | ✅ | — | LOD 使用原版实时限制性雾参数 |
+ | 树叶 LOD 质量模式 | ✅ | — | 快速、平衡、质量三档 |
+ | FakeSight 风格扩展区块请求 | ✅ | — | 移动时限流，静止时逐步扩展至目标距离 |
+ | 远距离玩家与乘骑物 | ✅ | — | 可选轻量快照、名称与位置共享 |
+ | 远距离信标光柱 | ✅ | — | 从持久化 LOD 数据恢复位置、颜色与遮挡分段 |
+ | 专项模组模型兼容 | ✅ | — | 详见下方兼容性表格 |
+-| 性能诊断命令 | ✅ | — | 包含帧阶段、GPU 标记和阻塞诊断 |
+ 
+ `—` 表示该分支尚未提供专项实现，不代表对应模组一定无法与基础地形 LOD 同时运行。
+ 
+@@ -115,23 +105,13 @@ compatibility implementations originate from **NHblock**.
+ | Feature | 1.21.1 | 26.1.2 | Notes |
+ |---|:---:|:---:|---|
+ | Distant terrain LOD | ✅ | ✅ | Simplified terrain outside the vanilla chunk radius |
+-| Native NeoForge support | ✅ | ✅ | Ported independently for each game version |
+-| Sodium renderer integration | ✅ | ✅ | Chunk rendering, depth, and settings integration |
+-| Iris shader support | ✅ | ✅ | Final compatibility still depends on the shader pack |
++| Sodium / Iris integration | ✅ | ✅ | Chunk, depth, settings, and shader-pipeline integration |
+ | Circular LOD fade | ✅ | ✅ | Camera-centred handoff between vanilla chunks and LOD |
+-| Separate water handoff | ✅ | ✅ | Water avoids the circular dither transition |
+-| Iris shadow-boundary transition | ✅ | ✅ | Reuses existing shadow draws without another terrain pass |
+-| Parent LOD, hole, and movement-flash fixes | ✅ | ✅ | Improves reloads, fast travel, and hierarchy refinement |
+-| Save, shutdown, and storage-close fixes | ✅ | ✅ | Flushes pending writes and releases world resources safely |
+-| Automatic Sodium chunk-fade disable | — | ✅ | Prevents the 26.1.2 vanilla fade from stacking with LOD handoff |
+-| No-shader water, underwater fog, and lava fixes | ✅ | — | Transparency, medium fog, fluid height, and shoreline handling |
+-| Blindness and Darkness on LOD | ✅ | — | Reuses vanilla's live restrictive fog parameters |
+ | Leaf LOD quality modes | ✅ | — | Fast, Balanced, and Quality modes |
+ | FakeSight-style extended chunk requests | ✅ | — | Throttled while moving and expanded gradually while stationary |
+ | Distant players and ridden vehicles | ✅ | — | Optional lightweight snapshots, names, and position sharing |
+ | Distant beacon beams | ✅ | — | Restores position, colour, and occlusion segments from persistent LOD data |
+ | Dedicated mod model integrations | ✅ | — | See the compatibility table below |
+-| Performance diagnostics | ✅ | — | Frame stages, GPU markers, and stall diagnostics |
+ 
+ `—` means that no dedicated implementation exists in that branch. It does not necessarily mean the
+ mod cannot run alongside basic terrain LOD rendering.
+diff --git a/src/main/java/me/cortex/voxy/client/compat/ShipBorne.java b/src/main/java/me/cortex/voxy/client/compat/ShipBorne.java
+index cd970b1a..8b9dbd5f 100644
+--- a/src/main/java/me/cortex/voxy/client/compat/ShipBorne.java
++++ b/src/main/java/me/cortex/voxy/client/compat/ShipBorne.java
+@@ -14,7 +14,16 @@ import net.neoforged.fml.ModList;
+ //runs, so a game without sable never loads them and pays a single static boolean.
+ public final class ShipBorne {
+     private static final boolean SABLE_PRESENT = ModList.get() != null && ModList.get().isLoaded("sable");
+-    private static boolean unavailable;
++    //Two fuses, because the calls behind them fail independently and one of them failing must not take
++    //the other with it. The gate reaches only SubLevelContainer.inBounds; the self-heal reaches into
++    //sable's Flywheel compat, a far larger surface that a half-synced sub-level during world load can
++    //throw from on its own. Sharing one flag let that throw turn the gate off, and a gate answering
++    //false means every cull measures ship-borne content at its plot coordinates ~2e7 blocks out -
++    //kinetics culled away, embedded matrices zeroed, contraption snapshots baked out there. That is
++    //the exact failure this class exists to prevent.
++    //Volatile: written from a render thread that throws, read from every cull on the next frame.
++    private static volatile boolean gateUnavailable;
++    private static volatile boolean healUnavailable;
+ 
+     private ShipBorne() {}
+ 
+@@ -27,38 +36,56 @@ public final class ShipBorne {
+     }
+ 
+     public static boolean anyShipPresent() {
+-        if (!SABLE_PRESENT || unavailable) {
++        if (!SABLE_PRESENT || gateUnavailable) {
+             return false;
+         }
+         try {
+             return me.cortex.voxy.client.compat.sable.SableShipContent.hasAnyShip();
+         } catch (LinkageError | RuntimeException e) {
+-            unavailable = true;
++            gateUnavailable = true;
+             return false;
+         }
+     }
+ 
++    public static me.cortex.voxy.client.compat.sable.SableScreenBounds.Result shipScreenBounds(
++            double cameraX, double cameraY, double cameraZ,
++            org.joml.Matrix4f modelView, org.joml.Matrix4f projection, double overhangBlocks) {
++        if (!SABLE_PRESENT || gateUnavailable) {
++            return me.cortex.voxy.client.compat.sable.SableScreenBounds.Result.allNear();
++        }
++        try {
++            return me.cortex.voxy.client.compat.sable.SableShipContent.shipScreenBounds(
++                    cameraX, cameraY, cameraZ, modelView, projection, overhangBlocks);
++        } catch (LinkageError | RuntimeException e) {
++            gateUnavailable = true;
++            return me.cortex.voxy.client.compat.sable.SableScreenBounds.Result.allNear();
++        }
++    }
++
+     //Self-heal for sable's join-time-only Flywheel plot registration (see SableShipContent) - safe to
+     //call every frame, no-ops once the state exists
+     public static void ensureShipFlywheelState(net.minecraft.world.entity.Entity entity) {
+-        if (!SABLE_PRESENT || unavailable) {
++        if (!SABLE_PRESENT || healUnavailable) {
+             return;
+         }
+         try {
+             me.cortex.voxy.client.compat.sable.SableShipContent.ensureFlywheelState(entity);
+         } catch (LinkageError | RuntimeException e) {
+-            unavailable = true;
++            //Only the self-heal goes; sable still registers its own plots at join time, so what is lost
++            //is the gap-filling for plots that were not known then - a cosmetic degradation next to
++            //losing the gate.
++            healUnavailable = true;
+         }
+     }
+ 
+     private static boolean inSubLevel(int chunkX, int chunkZ) {
+-        if (!SABLE_PRESENT || unavailable) {
++        if (!SABLE_PRESENT || gateUnavailable) {
+             return false;
+         }
+         try {
+             return me.cortex.voxy.client.compat.sable.SableShipContent.inSubLevel(chunkX, chunkZ);
+         } catch (LinkageError | RuntimeException e) {
+-            unavailable = true;
++            gateUnavailable = true;
+             return false;
+         }
+     }
+diff --git a/src/main/java/me/cortex/voxy/client/compat/create/KineticCull.java b/src/main/java/me/cortex/voxy/client/compat/create/KineticCull.java
+index b501ccea..cab211da 100644
+--- a/src/main/java/me/cortex/voxy/client/compat/create/KineticCull.java
++++ b/src/main/java/me/cortex/voxy/client/compat/create/KineticCull.java
+@@ -60,11 +60,15 @@ public final class KineticCull {
+     }
+ 
+     //Flywheel visual path: the camera comes from the frame context.
+-    public static boolean beyond(BlockPos pos, DynamicVisual.Context ctx) {
++    public static boolean beyond(BlockPos pos, DynamicVisual.Context ctx,
++                                 net.minecraft.world.level.Level visualLevel) {
+         var cfg = VoxyConfig.CONFIG;
+         if (!cfg.isRenderingEnabled() || !cfg.distantKinetics) {
+             return false;
+         }
++        if (visualLevel != Minecraft.getInstance().level) {
++            return false;
++        }
+         //Ship-borne machines render natively, uncut: a ship is one connected drivetrain, and any
+         //snapshot/recapture scheme desynchronises adjacent shafts. Ships are few, so the full
+         //Flywheel render is cheap; LOD-depth occlusion is the vanilla-depth writeback's concern.
+diff --git a/src/main/java/me/cortex/voxy/client/compat/create/KineticSnapshots.java b/src/main/java/me/cortex/voxy/client/compat/create/KineticSnapshots.java
+index f68c0803..5833051d 100644
+--- a/src/main/java/me/cortex/voxy/client/compat/create/KineticSnapshots.java
++++ b/src/main/java/me/cortex/voxy/client/compat/create/KineticSnapshots.java
+@@ -383,30 +383,34 @@ public final class KineticSnapshots {
+             //A loaded chunk is the authority on its own blocks: any snapshot here whose kinetic BE is
+             //gone (machine broken or disassembled into something else) is a ghost - drop it. Unloaded
+             //chunks are never touched, so leave-behinds stay frozen.
+-            for (int sy = level.getMinSection(); sy < level.getMaxSection(); sy++) {
+-                Bucket bucket = SECTIONS.get(BlockPos.asLong(cx, sy, cz));
+-                if (bucket == null) {
+-                    continue;
+-                }
+-                bucket.geoms.keySet().removeIf(snapPos -> {
+-                    if ((snapPos.getX() >> 4) != cx || (snapPos.getZ() >> 4) != cz) {
+-                        return false;
+-                    }
+-                    if (level.getBlockEntity(snapPos) instanceof KineticBlockEntity) {
+-                        return false;
++            if (!SECTIONS.isEmpty()) {
++                for (int sy = level.getMinSection(); sy < level.getMaxSection(); sy++) {
++                    Bucket bucket = SECTIONS.get(BlockPos.asLong(cx, sy, cz));
++                    if (bucket == null) {
++                        continue;
+                     }
+-                    bucket.dirty = true;
+-                    BEARING_POSITIONS.remove(snapPos);
+-                    return true;
+-                });
++                    bucket.geoms.keySet().removeIf(snapPos -> {
++                        if ((snapPos.getX() >> 4) != cx || (snapPos.getZ() >> 4) != cz) {
++                            return false;
++                        }
++                        if (level.getBlockEntity(snapPos) instanceof KineticBlockEntity) {
++                            return false;
++                        }
++                        bucket.dirty = true;
++                        BEARING_POSITIONS.remove(snapPos);
++                        return true;
++                    });
++                }
+             }
++            boolean chunkIsShipBorne = me.cortex.voxy.client.compat.ShipBorne.isShipBorne(
++                    (double) (cx << 4), (double) (cz << 4));
+             for (var be : levelChunk.getBlockEntities().values()) {
+                 if (!(be instanceof KineticBlockEntity kbe)) {
+                     continue;
+                 }
+                 BlockPos bePos = kbe.getBlockPos();
+                 double distSq = bePos.distToCenterSqr(camX, camY, camZ);
+-                if (distSq <= reachSq || me.cortex.voxy.client.compat.ShipBorne.isShipBorne(bePos)) {
++                if (distSq <= reachSq || chunkIsShipBorne) {
+                     //Machines whose animation lives only in a BER have no visual, so nothing queues a
+                     //remove when the player comes back inside - the frozen copy overlaps the live
+                     //spinning render wherever the boundary section still draws (the turntable ghost).
+diff --git a/src/main/java/me/cortex/voxy/client/compat/create/ShipContraptionDebug.java b/src/main/java/me/cortex/voxy/client/compat/create/ShipContraptionDebug.java
+index 40b0bb27..32699c75 100644
+--- a/src/main/java/me/cortex/voxy/client/compat/create/ShipContraptionDebug.java
++++ b/src/main/java/me/cortex/voxy/client/compat/create/ShipContraptionDebug.java
+@@ -13,8 +13,23 @@ public final class ShipContraptionDebug {
+     private ShipContraptionDebug() {}
+ 
+     public static String dump() {
+-        var sb = new StringBuilder("ship contraption debug: sableShipsPresent=").append(ShipBorne.anyShipPresent())
+-                .append("\n flywheel depth wrap lastSkip=").append(me.cortex.voxy.client.compat.sable.VoxySableDepthShim.lastSkipReason);
++        var sb = new StringBuilder("ship contraption debug: sableShipsPresent=").append(ShipBorne.anyShipPresent());
++        //The depth shim is pure GPU fill - a handful of draw calls on the CPU side, so no frame-time
++        //profiler attributes it to us. These counters are the only way to see what it costs.
++        sb.append("\n depth shim lodFreeRadius=")
++                .append((int) me.cortex.voxy.client.compat.sable.SableScreenBounds.lodFreeRadiusBlocks())
++                .append(" skipped[near=").append(me.cortex.voxy.client.compat.sable.VoxySableDepthShim.nearPassesSkipped)
++                .append(" offscreen=").append(me.cortex.voxy.client.compat.sable.VoxySableDepthShim.offscreenPassesSkipped)
++                .append(" shadow=").append(me.cortex.voxy.client.compat.sable.VoxySableDepthShim.shadowPassesSkipped)
++                .append(']')
++                .append("\n  sectionLayer bracketed=").append(me.cortex.voxy.client.compat.sable.VoxySableDepthShim.bracketedPasses)
++                .append(" blitMpx=").append(me.cortex.voxy.client.compat.sable.VoxySableDepthShim.blitMegapixels)
++                .append(" lastRect=").append(me.cortex.voxy.client.compat.sable.VoxySableDepthShim.lastScissor)
++                .append(" lastSkip=").append(me.cortex.voxy.client.compat.sable.VoxySableDepthShim.lastSkipReason)
++                .append("\n  flywheel bracketed=").append(me.cortex.voxy.client.compat.sable.VoxySableDepthShim.bracketedInPlacePasses)
++                .append(" blitMpx=").append(me.cortex.voxy.client.compat.sable.VoxySableDepthShim.blitInPlaceMegapixels)
++                .append(" lastRect=").append(me.cortex.voxy.client.compat.sable.VoxySableDepthShim.lastInPlaceScissor)
++                .append(" lastSkip=").append(me.cortex.voxy.client.compat.sable.VoxySableDepthShim.lastInPlaceSkipReason);
+         try {
+             sb.append("\n sable flw state self-heal: calls=").append(me.cortex.voxy.client.compat.sable.SableShipContent.ensureCalls)
+                     .append(" registered=").append(me.cortex.voxy.client.compat.sable.SableShipContent.ensureRegistered);
+diff --git a/src/main/java/me/cortex/voxy/client/compat/sable/SableScreenBounds.java b/src/main/java/me/cortex/voxy/client/compat/sable/SableScreenBounds.java
+new file mode 100644
+index 00000000..7761a8dd
+--- /dev/null
++++ b/src/main/java/me/cortex/voxy/client/compat/sable/SableScreenBounds.java
+@@ -0,0 +1,156 @@
++package me.cortex.voxy.client.compat.sable;
++
++import dev.ryanhcode.sable.companion.math.BoundingBox3ic;
++import dev.ryanhcode.sable.sublevel.ClientSubLevel;
++import me.cortex.voxy.client.core.rendering.LodBoundaryFade;
++import org.joml.Matrix4f;
++import org.joml.Vector3d;
++import org.joml.Vector4f;
++
++//Which pixels the depth shim actually has to bracket, for the sub-levels a pass is about to draw.
++//
++//Two reductions, and the first is the one that matters. The shim exists so LOD terrain can occlude
++//sub-level geometry, and LOD only ever draws beyond the point sodium stops. A sub-level lying wholly
++//inside the vanilla render distance therefore has no LOD anywhere in front of it - every LOD fragment
++//is further from the camera than the whole plot is - so merging LOD depth cannot change a single pixel
++//of it. Those pay nothing. What is left gets bounded to its screen extent rather than the full
++//viewport, which is most of the remaining cost for a ship that is small on screen.
++public final class SableScreenBounds {
++    //Block models overhang their section (fences, banners, mounted blocks); grow the plot box before
++    //using it so anything a section layer can rasterize stays inside the reported extent
++    private static final double OVERHANG_BLOCKS = 2.0D;
++    //A corner this close to the near plane projects to garbage - fall back rather than clip the pass
++    private static final float NEAR_W_EPSILON = 1.0e-4f;
++    //Pulled in from where LOD can first appear before a plot counts as LOD-free. Sodium has not
++    //necessarily built every section it owns - an unbuilt one stays unmasked and voxy fills it, so
++    //while chunks stream in LOD can sit closer than any boundary computation says. This margin covers
++    //the ordinary case; right after a teleport or dimension change, where whole screens are unbuilt,
++    //a near ship can briefly fail to be occluded by the LOD standing in for terrain that has not
++    //meshed yet.
++    private static final double LOD_FREE_MARGIN_BLOCKS = 64.0D;
++
++    public static final float[] FULLSCREEN = {-1.0f, -1.0f, 1.0f, 1.0f};
++
++    /** Why a pass needs no bracketing, kept apart so the counters say which reduction fired. */
++    public enum Skip {
++        /** Bracket it - {@link Result#ndc} says over which pixels */
++        NONE,
++        /** Every sub-level sits inside the radius LOD cannot reach into */
++        ALL_NEAR,
++        /** Nothing the pass draws lands on screen */
++        OFFSCREEN
++    }
++
++    public record Result(float[] ndc, Skip skip) {
++        static final Result ALL_NEAR = new Result(null, Skip.ALL_NEAR);
++        static final Result OFFSCREEN = new Result(null, Skip.OFFSCREEN);
++
++        public static Result allNear() {
++            return ALL_NEAR;
++        }
++    }
++
++    private SableScreenBounds() {
++    }
++
++    public static Result of(Iterable<ClientSubLevel> subLevels, double cameraX, double cameraY, double cameraZ,
++                            Matrix4f modelView, Matrix4f projection) {
++        return of(subLevels, cameraX, cameraY, cameraZ, modelView, projection, OVERHANG_BLOCKS);
++    }
++
++    /**
++     * @param overhangBlocks how far past the plot box the bracketed pass can draw. Section layers stay
++     *                       within a block or two of their own geometry; Flywheel visuals reach further
++     *                       (piston poles, pulley ropes), so that path asks for more.
++     */
++    public static Result of(Iterable<ClientSubLevel> subLevels, double cameraX, double cameraY, double cameraZ,
++                            Matrix4f modelView, Matrix4f projection, double overhangBlocks) {
++        if (subLevels == null) {
++            return Result.ALL_NEAR;
++        }
++
++        double lodFreeRadius = lodFreeRadiusBlocks();
++        double lodFreeRadiusSq = lodFreeRadius * lodFreeRadius;
++        Matrix4f mvp = new Matrix4f(projection).mul(modelView);
++        float minX = Float.POSITIVE_INFINITY;
++        float minY = Float.POSITIVE_INFINITY;
++        float maxX = Float.NEGATIVE_INFINITY;
++        float maxY = Float.NEGATIVE_INFINITY;
++        boolean any = false;
++
++        Vector3d[] corners = new Vector3d[8];
++        for (int i = 0; i < 8; i++) {
++            corners[i] = new Vector3d();
++        }
++        Vector4f clip = new Vector4f();
++
++        for (ClientSubLevel subLevel : subLevels) {
++            BoundingBox3ic bounds = subLevel.getPlot().getBoundingBox();
++            if (bounds == null) {
++                //Plot not synced yet - no box to measure or project, so assume it needs everything
++                return new Result(FULLSCREEN, Skip.NONE);
++            }
++
++            double x0 = bounds.minX() - overhangBlocks;
++            double y0 = bounds.minY() - overhangBlocks;
++            double z0 = bounds.minZ() - overhangBlocks;
++            double x1 = bounds.maxX() + 1 + overhangBlocks;
++            double y1 = bounds.maxY() + 1 + overhangBlocks;
++            double z1 = bounds.maxZ() + 1 + overhangBlocks;
++
++            double farthestSq = 0.0D;
++            for (int i = 0; i < 8; i++) {
++                Vector3d corner = corners[i];
++                corner.set((i & 1) == 0 ? x0 : x1, (i & 2) == 0 ? y0 : y1, (i & 4) == 0 ? z0 : z1);
++                //renderPose maps plot space to world space, matching what the camera position is in
++                subLevel.renderPose().transformPosition(corner);
++                double dx = corner.x - cameraX;
++                double dz = corner.z - cameraZ;
++                farthestSq = Math.max(farthestSq, dx * dx + dz * dz);
++            }
++
++            //Every corner nearer than where LOD can start: nothing in front of this plot is LOD, so the
++            //merged depth would equal the vanilla depth over all of it
++            if (farthestSq < lodFreeRadiusSq) {
++                continue;
++            }
++
++            any = true;
++            for (int i = 0; i < 8; i++) {
++                Vector3d corner = corners[i];
++                clip.set((float) (corner.x - cameraX), (float) (corner.y - cameraY), (float) (corner.z - cameraZ), 1.0f);
++                mvp.transform(clip);
++                if (clip.w <= NEAR_W_EPSILON) {
++                    //Camera is inside or right against this sub-level, where it covers most of the view anyway
++                    return new Result(FULLSCREEN, Skip.NONE);
++                }
++                float ndcX = clip.x / clip.w;
++                float ndcY = clip.y / clip.w;
++                minX = Math.min(minX, ndcX);
++                minY = Math.min(minY, ndcY);
++                maxX = Math.max(maxX, ndcX);
++                maxY = Math.max(maxY, ndcY);
++            }
++        }
++
++        if (!any) {
++            return Result.ALL_NEAR;
++        }
++        if (minX > 1.0f || maxX < -1.0f || minY > 1.0f || maxY < -1.0f) {
++            //Entirely off screen - the pass draws nothing, so the shim has nothing to bracket
++            return Result.OFFSCREEN;
++        }
++        return new Result(new float[]{Math.max(minX, -1.0f), Math.max(minY, -1.0f),
++                Math.min(maxX, 1.0f), Math.min(maxY, 1.0f)}, Skip.NONE);
++    }
++
++    /** Radius within which no LOD geometry can appear, so nothing inside it needs depth merging. */
++    public static double lodFreeRadiusBlocks() {
++        //Where LOD can first show up, not where the render distance nominally ends - with the boundary
++        //fade on, opaque LOD stops being masked at fadeStart, which is inset+buffer+fadeLength short of
++        //it. Reading the fade's own answer keeps this correct when that config changes; with the fade
++        //off it reports the render distance and this reduces to the plain radius.
++        return Math.max(0.0D, LodBoundaryFade.getDistances().fadeStart() - LOD_FREE_MARGIN_BLOCKS);
++    }
++}
++
+diff --git a/src/main/java/me/cortex/voxy/client/compat/sable/SableShipContent.java b/src/main/java/me/cortex/voxy/client/compat/sable/SableShipContent.java
+index 9062ec2e..3dc800f6 100644
+--- a/src/main/java/me/cortex/voxy/client/compat/sable/SableShipContent.java
++++ b/src/main/java/me/cortex/voxy/client/compat/sable/SableShipContent.java
+@@ -45,6 +45,21 @@ public final class SableShipContent {
+         return container != null && !container.getAllSubLevels().isEmpty();
+     }
+ 
++    /**
++     * Screen extent of every ship in the level. A pass that exists only to let LOD occlude ship content
++     * needs no more than this - and nothing at all when the answer is a skip.
++     */
++    public static SableScreenBounds.Result shipScreenBounds(double cameraX, double cameraY, double cameraZ,
++                                                            org.joml.Matrix4f modelView, org.joml.Matrix4f projection,
++                                                            double overhangBlocks) {
++        ClientSubLevelContainer container = container();
++        if (container == null) {
++            return SableScreenBounds.Result.allNear();
++        }
++        return SableScreenBounds.of(container.getAllSubLevels(), cameraX, cameraY, cameraZ,
++                modelView, projection, overhangBlocks);
++    }
++
+     //Diagnostics surfaced by /voxy debug ship
+     public static volatile long ensureCalls;
+     public static volatile long ensureRegistered;
+diff --git a/src/main/java/me/cortex/voxy/client/compat/sable/VoxySableDepthShim.java b/src/main/java/me/cortex/voxy/client/compat/sable/VoxySableDepthShim.java
+index 98906037..6276bb91 100644
+--- a/src/main/java/me/cortex/voxy/client/compat/sable/VoxySableDepthShim.java
++++ b/src/main/java/me/cortex/voxy/client/compat/sable/VoxySableDepthShim.java
+@@ -20,6 +20,8 @@ import static org.lwjgl.opengl.GL11C.GL_ALWAYS;
+ import static org.lwjgl.opengl.GL11C.GL_LEQUAL;
+ import static org.lwjgl.opengl.GL11C.GL_NEAREST;
+ import static org.lwjgl.opengl.GL11C.GL_NONE;
++import static org.lwjgl.opengl.GL11C.GL_SCISSOR_BOX;
++import static org.lwjgl.opengl.GL11C.GL_SCISSOR_TEST;
+ import static org.lwjgl.opengl.GL11C.GL_STENCIL_TEST;
+ import static org.lwjgl.opengl.GL11C.GL_TEXTURE;
+ import static org.lwjgl.opengl.GL11C.GL_TEXTURE_BINDING_2D;
+@@ -34,6 +36,7 @@ import static org.lwjgl.opengl.GL11C.glEnable;
+ import static org.lwjgl.opengl.GL11C.glGetInteger;
+ import static org.lwjgl.opengl.GL11C.glGetIntegerv;
+ import static org.lwjgl.opengl.GL11C.glIsEnabled;
++import static org.lwjgl.opengl.GL11C.glScissor;
+ import static org.lwjgl.opengl.GL11C.glViewport;
+ import static org.lwjgl.opengl.GL13C.GL_ACTIVE_TEXTURE;
+ import static org.lwjgl.opengl.GL13C.GL_TEXTURE0;
+@@ -94,8 +97,21 @@ public final class VoxySableDepthShim {
+     private static State activeState;
+     private static boolean loggedEnabled;
+     private static boolean loggedUnsupportedFramebuffer;
+-    //Diagnostics for /voxy debug ship: why the last begin bailed
++    //Diagnostics for /voxy debug ship: why the last begin bailed. Per path, because the two bail for
++    //different reasons and a shared field can only report whichever ran last.
+     public static volatile String lastSkipReason = "never called";
++    public static volatile String lastInPlaceSkipReason = "never called";
++    //Diagnostics for /voxy debug ship: how much fill the shim is costing. Per path, because the
++    //section-layer one runs about five times a frame and the Flywheel one once.
++    public static volatile long bracketedPasses;
++    public static volatile long bracketedInPlacePasses;
++    public static volatile long shadowPassesSkipped;
++    public static volatile long nearPassesSkipped;
++    public static volatile long offscreenPassesSkipped;
++    public static volatile long blitMegapixels;
++    public static volatile long blitInPlaceMegapixels;
++    public static volatile String lastScissor = "none";
++    public static volatile String lastInPlaceScissor = "none";
+ 
+     static {
+         glSamplerParameteri(DEPTH_SAMPLER, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+@@ -107,10 +123,30 @@ public final class VoxySableDepthShim {
+     }
+ 
+     public static void begin(Matrix4f modelView, Matrix4f projection) {
++        begin(modelView, projection, SableScreenBounds.FULLSCREEN);
++    }
++
++    /**
++     * @param ndcBounds screen extent the bracketed pass can touch, {minX, minY, maxX, maxY} in NDC.
++     *                  Everything the shim does is confined to it - the blits and the pass itself.
++     */
++    //The merge pass and both write-back shaders compare depths assuming smaller-is-nearer. A reverse-Z
++    //projection (m22 near zero, some shader packs use it for far-plane precision) flips that, and
++    //merging under it would push LOD behind everything instead of in front. Detect and sit the pass
++    //out - no merge just means ships draw the way they do without the shim.
++    private static boolean isReverseZ(Matrix4f projection) {
++        return Math.abs(projection.m22()) < 0.1f;
++    }
++
++    public static void begin(Matrix4f modelView, Matrix4f projection, float[] ndcBounds) {
+         if (activeState != null) {
+             activeState.nesting++;
+             return;
+         }
++        if (isReverseZ(projection)) {
++            lastSkipReason = "reverse-Z projection";
++            return;
++        }
+ 
+         VoxyRenderSystem renderer = IGetVoxyRenderSystem.getNullable();
+         if (renderer == null) {
+@@ -147,6 +183,12 @@ public final class VoxySableDepthShim {
+             return;
+         }
+ 
++        if (!state.setScissor(ndcBounds)) {
++            lastSkipReason = "pass covers no pixels";
++            offscreenPassesSkipped++;
++            return;
++        }
++
+         COMBINED_DEPTH.resize(state.width, state.height);
+         BEFORE_SABLE_DEPTH.resize(state.width, state.height);
+ 
+@@ -156,11 +198,18 @@ public final class VoxySableDepthShim {
+             return;
+         }
+         lastSkipReason = "ok";
++        bracketedPasses++;
++        //Four blits bracket the pass; report what they actually cover so a regression here is visible
++        blitMegapixels += (4L * state.scissorWidth * state.scissorHeight) / 1_000_000L;
++        lastScissor = state.scissorWidth + "x" + state.scissorHeight + " of " + state.width + "x" + state.height;
+ 
++        state.applyScissor();
+         copyDepth(vanillaDepthTexture, COMBINED_DEPTH.framebuffer.id, state.width, state.height);
+         mergeVoxyDepth(voxyDepthTexture, COMBINED_DEPTH.framebuffer.id, state.width, state.height, viewport, modelView, projection);
+         copyDepth(COMBINED_DEPTH.getDepthTex().id, BEFORE_SABLE_DEPTH.framebuffer.id, state.width, state.height);
+ 
++        //Scissor stays armed through the bracketed pass: the bounds enclose every pixel it can draw, and
++        //leaving it on keeps the pass from depth-testing against the stale COMBINED region outside them
+         state.restoreForSableRender(DRAW_FRAMEBUFFER.id);
+         activeState = state;
+ 
+@@ -179,6 +228,8 @@ public final class VoxySableDepthShim {
+             return;
+         }
+ 
++        //The bracketed pass is free to have touched the scissor itself, so re-arm rather than assume
++        state.applyScissor();
+         copyChangedDepth(BEFORE_SABLE_DEPTH.getDepthTex().id, COMBINED_DEPTH.getDepthTex().id, state);
+         state.restoreAll();
+         activeState = null;
+@@ -192,40 +243,44 @@ public final class VoxySableDepthShim {
+     //temporarily merge the LOD depth INTO the target's own depth texture, let the pass render against
+     //it, then restore every pixel the pass did not write. The pass can rebind framebuffers freely - the
+     //depth texture it tests against is the one we edited.
+-    public static void beginInPlace(Matrix4f modelView, Matrix4f projection) {
++    public static void beginInPlace(Matrix4f modelView, Matrix4f projection, float[] ndcBounds) {
+         if (activeInPlaceState != null) {
+             activeInPlaceState.nesting++;
+             return;
+         }
++        if (isReverseZ(projection)) {
++            lastInPlaceSkipReason = "reverse-Z projection";
++            return;
++        }
+ 
+         VoxyRenderSystem renderer = IGetVoxyRenderSystem.getNullable();
+         if (renderer == null) {
+-            lastSkipReason = "no renderer";
++            lastInPlaceSkipReason = "no renderer";
+             return;
+         }
+ 
+         int voxyDepthTexture = renderer.getSableOcclusionDepthTexture();
+         if (voxyDepthTexture == 0) {
+-            lastSkipReason = "no LOD depth texture";
++            lastInPlaceSkipReason = "no LOD depth texture";
+             return;
+         }
+ 
+         Viewport<?> viewport = renderer.getViewport();
+         if (viewport == null || viewport.width <= 0 || viewport.height <= 0) {
+-            lastSkipReason = "no viewport";
++            lastInPlaceSkipReason = "no viewport";
+             return;
+         }
+ 
+         State state = State.capture();
+         if (state.drawFramebuffer == 0 || state.width <= 0 || state.height <= 0 || state.x != 0 || state.y != 0) {
+-            lastSkipReason = "bad GL state: fb=" + state.drawFramebuffer + " viewport=" + state.x + ',' + state.y + ' ' + state.width + 'x' + state.height;
++            lastInPlaceSkipReason = "bad GL state: fb=" + state.drawFramebuffer + " viewport=" + state.x + ',' + state.y + ' ' + state.width + 'x' + state.height;
+             return;
+         }
+ 
+         int depthType = glGetNamedFramebufferAttachmentParameteri(state.drawFramebuffer, GL_DEPTH_ATTACHMENT, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE);
+         int depthTexture = glGetNamedFramebufferAttachmentParameteri(state.drawFramebuffer, GL_DEPTH_ATTACHMENT, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME);
+         if (depthType != GL_TEXTURE || depthTexture == 0) {
+-            lastSkipReason = "depth attachment not a texture";
++            lastInPlaceSkipReason = "depth attachment not a texture";
+             return;
+         }
+ 
+@@ -233,14 +288,28 @@ public final class VoxySableDepthShim {
+         IN_PLACE_MERGED.resize(state.width, state.height);
+         IN_PLACE_AFTER.resize(state.width, state.height);
+ 
++        if (!state.setScissor(ndcBounds)) {
++            lastInPlaceSkipReason = "pass covers no pixels";
++            offscreenPassesSkipped++;
++            return;
++        }
++
++        //Five blits across begin/end, bounded to the ships this wrap exists for
++        bracketedInPlacePasses++;
++        blitInPlaceMegapixels += (5L * state.scissorWidth * state.scissorHeight) / 1_000_000L;
++        lastInPlaceScissor = state.scissorWidth + "x" + state.scissorHeight + " of " + state.width + "x" + state.height;
++
++        state.applyScissor();
+         copyDepth(depthTexture, IN_PLACE_BEFORE.framebuffer.id, state.width, state.height);
+         mergeVoxyDepth(voxyDepthTexture, state.drawFramebuffer, state.width, state.height, viewport, modelView, projection);
+         copyDepth(depthTexture, IN_PLACE_MERGED.framebuffer.id, state.width, state.height);
+ 
++        //restoreAll puts the caller's scissor back; the wrapped pass runs under it, which is correct -
++        //everything it draws outside the ships tests against depth this wrap never touched
+         state.restoreAll();
+         inPlaceDepthTexture = depthTexture;
+         activeInPlaceState = state;
+-        lastSkipReason = "ok";
++        lastInPlaceSkipReason = "ok";
+ 
+         if (!loggedEnabled) {
+             Logger.info("Enabled Sable/Voxy combined depth shim");
+@@ -266,6 +335,10 @@ public final class VoxySableDepthShim {
+         glActiveTexture(prevActive);
+         int savedSampler2 = glGetIntegeri(GL_SAMPLER_BINDING, 2);
+ 
++        //Same rect begin used, and it has to be: the restore writes `before` wherever the pass did not
++        //draw, and outside that rect `before` is a stale snapshot no one refreshed. Scissored, those
++        //pixels are left exactly as the wrapped pass produced them - which is the no-shim result.
++        state.applyScissor();
+         copyDepth(inPlaceDepthTexture, IN_PLACE_AFTER.framebuffer.id, state.width, state.height);
+         restoreUnchangedDepth(state);
+ 
+@@ -432,6 +505,14 @@ public final class VoxySableDepthShim {
+         private final int[] colorMask;
+         private final boolean depthTest;
+         private final boolean stencilTest;
++        private final boolean scissorTest;
++        private final int[] scissorBox;
++
++        //Pixel rect the shim confines itself to, derived from the pass's own bounds
++        private int scissorX;
++        private int scissorY;
++        private int scissorWidth;
++        private int scissorHeight;
+ 
+         private int nesting = 1;
+ 
+@@ -452,8 +533,12 @@ public final class VoxySableDepthShim {
+                 int depthMask,
+                 int[] colorMask,
+                 boolean depthTest,
+-                boolean stencilTest
++                boolean stencilTest,
++                boolean scissorTest,
++                int[] scissorBox
+         ) {
++            this.scissorTest = scissorTest;
++            this.scissorBox = scissorBox;
+             this.drawFramebuffer = drawFramebuffer;
+             this.readFramebuffer = readFramebuffer;
+             this.x = x;
+@@ -476,8 +561,10 @@ public final class VoxySableDepthShim {
+         private static State capture() {
+             int[] viewport = new int[4];
+             int[] colorMask = new int[4];
++            int[] scissorBox = new int[4];
+             glGetIntegerv(GL_VIEWPORT, viewport);
+             glGetIntegerv(GL_COLOR_WRITEMASK, colorMask);
++            glGetIntegerv(GL_SCISSOR_BOX, scissorBox);
+ 
+             int activeTexture = glGetInteger(GL_ACTIVE_TEXTURE);
+             glActiveTexture(GL_TEXTURE0);
+@@ -503,15 +590,43 @@ public final class VoxySableDepthShim {
+                     glGetInteger(GL_DEPTH_WRITEMASK),
+                     colorMask,
+                     glIsEnabled(GL_DEPTH_TEST),
+-                    glIsEnabled(GL_STENCIL_TEST)
++                    glIsEnabled(GL_STENCIL_TEST),
++                    glIsEnabled(GL_SCISSOR_TEST),
++                    scissorBox
+             );
+         }
+ 
++        /** @return false when the bounds cover no pixels, meaning there is nothing to bracket */
++        private boolean setScissor(float[] ndcBounds) {
++            if (ndcBounds == null) {
++                return false;
++            }
++            int x0 = (int) Math.floor((ndcBounds[0] * 0.5f + 0.5f) * this.width);
++            int y0 = (int) Math.floor((ndcBounds[1] * 0.5f + 0.5f) * this.height);
++            int x1 = (int) Math.ceil((ndcBounds[2] * 0.5f + 0.5f) * this.width);
++            int y1 = (int) Math.ceil((ndcBounds[3] * 0.5f + 0.5f) * this.height);
++            //A pixel is covered as soon as the bounds touch it, and the projected extent is only as exact
++            //as the depth buffer's own sampling - a pixel of slack each way costs nothing and avoids
++            //shaving the edge off the very geometry the shim exists to depth-test
++            this.scissorX = Math.max(0, x0 - 1);
++            this.scissorY = Math.max(0, y0 - 1);
++            this.scissorWidth = Math.min(this.width, x1 + 1) - this.scissorX;
++            this.scissorHeight = Math.min(this.height, y1 + 1) - this.scissorY;
++            return this.scissorWidth > 0 && this.scissorHeight > 0;
++        }
++
++        private void applyScissor() {
++            glEnable(GL_SCISSOR_TEST);
++            glScissor(this.scissorX, this.scissorY, this.scissorWidth, this.scissorHeight);
++        }
++
+         private void restoreForSableRender(int shimFramebuffer) {
+             this.restoreMutableState();
+             glBindFramebuffer(GL_DRAW_FRAMEBUFFER, shimFramebuffer);
+             glBindFramebuffer(GL_READ_FRAMEBUFFER, this.readFramebuffer);
+             glViewport(0, 0, this.width, this.height);
++            //restoreMutableState just put the caller's scissor back; the bracketed pass runs under ours
++            this.applyScissor();
+         }
+ 
+         private void restoreAll() {
+@@ -539,6 +654,12 @@ public final class VoxySableDepthShim {
+             } else {
+                 glDisable(GL_STENCIL_TEST);
+             }
++            if (this.scissorTest) {
++                glEnable(GL_SCISSOR_TEST);
++            } else {
++                glDisable(GL_SCISSOR_TEST);
++            }
++            glScissor(this.scissorBox[0], this.scissorBox[1], this.scissorBox[2], this.scissorBox[3]);
+ 
+             glDepthFunc(this.depthFunc);
+             glDepthMask(this.depthMask != GL_FALSE);
+diff --git a/src/main/java/me/cortex/voxy/client/config/VoxyConfig.java b/src/main/java/me/cortex/voxy/client/config/VoxyConfig.java
+index 200de735..323c342b 100644
+--- a/src/main/java/me/cortex/voxy/client/config/VoxyConfig.java
++++ b/src/main/java/me/cortex/voxy/client/config/VoxyConfig.java
+@@ -211,6 +211,11 @@ public class VoxyConfig {
+     public void sanitize() {
+         this.subDivisionSize = Math.clamp(this.subDivisionSize, MIN_SUBDIVISION_SIZE, MAX_SUBDIVISION_SIZE);
+         this.requestDistance = Math.clamp(this.requestDistance, MIN_REQUEST_DISTANCE, MAX_REQUEST_DISTANCE);
++        // Older builds measured this percentage against one sixteenth of the LOD radius.
++        if (this.fogDistancePercent > 200) {
++            this.fogDistancePercent = Math.max(5, Math.round(this.fogDistancePercent / 16.0f));
++        }
++        this.fogDistancePercent = Math.clamp(this.fogDistancePercent, 5, 200);
+         this.skyFogDistance = Math.clamp(this.skyFogDistance, 0, 1024);
+         this.cloudDistance = Math.clamp(this.cloudDistance, 0, MAX_CLOUD_DISTANCE);
+         this.fogIntensity = Math.clamp(this.fogIntensity, 0.0f, 1.0f);
+diff --git a/src/main/java/me/cortex/voxy/client/config/VoxyConfigMenu.java b/src/main/java/me/cortex/voxy/client/config/VoxyConfigMenu.java
+index 75d8f453..829bdd0a 100644
+--- a/src/main/java/me/cortex/voxy/client/config/VoxyConfigMenu.java
++++ b/src/main/java/me/cortex/voxy/client/config/VoxyConfigMenu.java
+@@ -228,7 +228,7 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
+                                         "voxy:fog_distance",
+                                         Component.translatable("voxy.config.general.fog_distance"),
+                                         ()->CFG.fogDistancePercent, v->CFG.fogDistancePercent=v,
+-                                        new Range(25, 2000, 5))
++                                        new Range(5, 200, 5))
+                                         .setFormatter(v->Component.literal(v+"%"))
+                                         .setImpact(OptionImpact.LOW)
+                         )
+diff --git a/src/main/java/me/cortex/voxy/client/core/NormalRenderPipeline.java b/src/main/java/me/cortex/voxy/client/core/NormalRenderPipeline.java
+index ac329c48..641ffb53 100644
+--- a/src/main/java/me/cortex/voxy/client/core/NormalRenderPipeline.java
++++ b/src/main/java/me/cortex/voxy/client/core/NormalRenderPipeline.java
+@@ -131,13 +131,8 @@ public class NormalRenderPipeline extends AbstractRenderPipeline {
+             glUniform1i(9, 1);
+         } else if (VoxyConfig.CONFIG.useEnvironmentalFog && VoxyConfig.CONFIG.fogIntensity > 0.0f) {
+             float[] fogColor = RenderSystem.getShaderFogColor();
+-            //Baseline for the percentage slider, not the LOD radius - that is 32*16*srd blocks
+-            //(VoxyConfig.getFarEntityRenderDistanceBlocks, HierarchicalOcclusionTraverser), sixteen
+-            //times this. 100% therefore closes the fog around the vanilla-ish 32*srd mark rather than
+-            //at the far edge of the LOD, and the slider goes to 2000% to reach past the LOD radius.
+-            //The slider's range is calibrated to this baseline, so the scale cannot move on its own -
+-            //the range and default have to move with it.
+-            float fogBaselineBlocks = 32f * VoxyConfig.CONFIG.sectionRenderDistance;
++            // The percentage shown in the UI is relative to the actual LOD radius.
++            float fogBaselineBlocks = VoxyConfig.CONFIG.getFarEntityRenderDistanceBlocks();
+             float far = fogBaselineBlocks * (VoxyConfig.CONFIG.fogDistancePercent / 100.0f);
+             float near = far * 0.5f;
+             if (far - near > 1) {
+diff --git a/src/main/java/me/cortex/voxy/client/core/RenderResourceReuse.java b/src/main/java/me/cortex/voxy/client/core/RenderResourceReuse.java
+index effa175f..fd292af9 100644
+--- a/src/main/java/me/cortex/voxy/client/core/RenderResourceReuse.java
++++ b/src/main/java/me/cortex/voxy/client/core/RenderResourceReuse.java
+@@ -82,10 +82,12 @@ public class RenderResourceReuse {
+                     error = glGetError();
+                     if (error != GL_NO_ERROR) {
+                         buffer.free();
+-                        throw new IllegalStateException("Unable to allocate geometry buffer using workaround, got gl error " + error);
++                        throw new IllegalStateException("Unable to allocate geometry buffer using workaround, got gl error "
++                                + error + ". Failed to allocate buffer of size " + capacity);
+                     }
+                 } else {
+-                    throw new IllegalStateException("Unable to allocate geometry buffer, got gl error " + error);
++                    throw new IllegalStateException("Unable to allocate geometry buffer, got gl error "
++                            + error + ". Failed to allocate buffer of size " + capacity);
+                 }
+             }
+             String extra = "";
+diff --git a/src/main/java/me/cortex/voxy/client/core/compat/eclipticseasons/SeasonalSnowRefresher.java b/src/main/java/me/cortex/voxy/client/core/compat/eclipticseasons/SeasonalSnowRefresher.java
+new file mode 100644
+index 00000000..71e7ab2b
+--- /dev/null
++++ b/src/main/java/me/cortex/voxy/client/core/compat/eclipticseasons/SeasonalSnowRefresher.java
+@@ -0,0 +1,560 @@
++package me.cortex.voxy.client.core.compat.eclipticseasons;
++
++import com.teamtea.eclipticseasons.client.util.ClientCon;
++import com.teamtea.eclipticseasons.common.core.map.MapChecker;
++import com.teamtea.eclipticseasons.config.CommonConfig;
++import it.unimi.dsi.fastutil.longs.LongArrayList;
++import me.cortex.voxy.common.Logger;
++import me.cortex.voxy.common.world.WorldEngine;
++import me.cortex.voxy.common.world.WorldSection;
++import me.cortex.voxy.common.world.other.Mapper;
++import me.cortex.voxy.common.world.other.Mipper;
++import me.cortex.voxy.commonImpl.WorldIdentifier;
++import net.minecraft.core.BlockPos;
++import net.minecraft.core.Holder;
++import net.minecraft.core.registries.Registries;
++import net.minecraft.resources.ResourceKey;
++import net.minecraft.resources.ResourceLocation;
++import net.minecraft.world.level.Level;
++import net.minecraft.world.level.biome.Biome;
++import net.minecraft.world.level.block.state.BlockState;
++import net.minecraft.world.level.levelgen.Heightmap;
++
++//Re-decides seasonal snow over LOD that is already in the store.
++//
++//Snow is not a property of the model - it is decided during ingest, where a snow-covered block is
++//written as the complement of its own id (VoxyTool.changeBlockId) and that sentinel goes into the
++//voxel itself. Distant LOD is never re-ingested, so it keeps whichever season it was stored under.
++//Walking the store is what reaches it: region files exist only in singleplayer, so anything that reads
++//those is dead weight on a server.
++//
++//The write is kept narrow: only the 20-bit block id, and only between a state and its own complement.
++//Light, biome and air-ness are never touched, so nothing structural changes and a block-level dirty
++//mark is all a section needs afterwards.
++public final class SeasonalSnowRefresher {
++    private static final int MAX_BLOCK_ID = 1048575;
++    private static final long BLOCK_ID_MASK = ((1L << 20) - 1) << 27;
++    private static final int BLOCK_ID_SHIFT = 27;
++    private static final int SECTION_WIDTH = 32;
++    //Sky light the block above must have before snow can settle, matching the ingest-side test
++    private static final int MIN_SKY_LIGHT = 9;
++    //Verdicts from shouldBeSnowy. UNKNOWN is not "no" - it means leave the voxel untouched.
++    private static final int UNKNOWN = -1;
++    private static final int NO = 0;
++    private static final int YES = 1;
++    private static final int SECTIONS_PER_BATCH = 128;
++    private static final long BATCH_PAUSE_MILLIS = 10;
++
++    private static Thread worker;
++    //Per run, not shared: a cancel must not be able to stop the run that replaces it
++    private static volatile Run active;
++
++    public static volatile long runs;
++    public static volatile long sectionsScanned;
++    public static volatile long sectionsRewritten;
++    public static volatile long voxelsFlipped;
++    public static volatile String status = "never run";
++
++    private SeasonalSnowRefresher() {
++    }
++
++    private static final class Run {
++        volatile boolean cancelled;
++    }
++
++    //Control flow, not an error - no stack trace, no suppression
++    private static final class WalkCancelled extends RuntimeException {
++        WalkCancelled() {
++            super(null, null, false, false);
++        }
++    }
++
++    public static synchronized boolean isRunning() {
++        return worker != null && worker.isAlive();
++    }
++
++    public static synchronized void start(Level level, WorldEngine engine) {
++        if (isRunning()) {
++            return;
++        }
++        //Same gate the ingest side answers to - with the feature off, nothing may write sentinel ids
++        if (!VoxyTool.isVoxyTest()) {
++            return;
++        }
++        Run run = new Run();
++        active = run;
++        runs++;
++        worker = new Thread(() -> run(level, engine, run), "Voxy seasonal snow refresh");
++        worker.setDaemon(true);
++        //Below the render and ingest threads: a season change is not worth a frame
++        worker.setPriority(Thread.MIN_PRIORITY);
++        worker.start();
++    }
++
++    /**
++     * Stops any pass and waits for it to actually be gone. Leaving a walker running past world teardown
++     * lets it acquire sections out of a freed engine, and the world-quiescence check that gates teardown
++     * cannot see a thread that holds no reference.
++     */
++    public static void cancelAndJoin() {
++        Thread t;
++        synchronized (SeasonalSnowRefresher.class) {
++            Run run = active;
++            if (run != null) {
++                run.cancelled = true;
++            }
++            t = worker;
++        }
++        if (t != null && t.isAlive()) {
++            t.interrupt();
++            try {
++                t.join(2000);
++            } catch (InterruptedException e) {
++                Thread.currentThread().interrupt();
++            }
++        }
++    }
++
++    public static String describe() {
++        return "status=" + status + " runs=" + runs + " sectionsScanned=" + sectionsScanned
++                + " sectionsRewritten=" + sectionsRewritten + " voxelsFlipped=" + voxelsFlipped;
++    }
++
++    /** Kicks off a pass without waiting for the season to move, for /voxy debug seasons refresh. */
++    public static String startManually() {
++        if (!VoxyTool.isVoxyTest()) {
++            return "seasonal snow LOD is off (ecliptic_seasons_snow_lod)";
++        }
++        if (isRunning()) {
++            return "already running: " + describe();
++        }
++        Level level = ClientCon.getUseLevel();
++        if (level == null) {
++            return "no level";
++        }
++        //Nullable lookup: the get-or-create variant would stand up a store nothing else references
++        WorldEngine engine = WorldIdentifier.ofEngineNullable(level);
++        if (engine == null || !engine.isLive()) {
++            return "no live world engine";
++        }
++        start(level, engine);
++        return "started - poll /voxy debug seasons for progress";
++    }
++
++    private static void run(Level level, WorldEngine engine, Run run) {
++        long scanned = 0;
++        long rewritten = 0;
++        long flipped = 0;
++        boolean referenced = false;
++        try {
++            //Hold the world open for the whole walk. Without this the idle check that precedes teardown
++            //samples a moment where nothing is acquired, frees the engine, and the next acquire here
++            //throws - taking the flush and close of the store with it.
++            engine.acquireRef();
++            referenced = true;
++
++            var mapper = engine.getMapper();
++            var biomes = new BiomeCache(level, mapper);
++            //Read the season config once - these are per-voxel reads otherwise, and they cannot change
++            //meaningfully inside one pass
++            boolean glowBlocksSnow = CommonConfig.Snow.notSnowyNearGlowingBlock.get();
++            int glowLevel = CommonConfig.Snow.notSnowyNearGlowingBlockLevel.getAsInt();
++            boolean snowyTree = CommonConfig.Snow.snowyTree.get();
++
++            LongArrayList keys = new LongArrayList();
++            //Level 0 only. Ingest decides snow at level 0 and mips upward, and every Mipper path returns
++            //one of its children verbatim - so a parent's snow state is whichever child it picked, not an
++            //independent decision. Re-deciding at level N against level-N neighbours would disagree with
++            //the level 0 underneath it; the parents are followed below instead.
++            //Collect first: the storage iterator holds a cursor open, and acquiring or writing sections
++            //underneath it is not something the backend promises to survive. The walk holds a world
++            //reference throughout, and the shutdown that waits on that reference does not time out, so
++            //this loop needs its own way out - hence the throw.
++            try {
++                engine.storage.iteratePositions(0, key -> {
++                    if (run.cancelled || Thread.currentThread().isInterrupted()
++                            || (engine.instanceIn != null && !engine.instanceIn.isRunning())) {
++                        throw new WalkCancelled();
++                    }
++                    keys.add(key);
++                });
++            } catch (WalkCancelled e) {
++                status = "cancelled while listing sections";
++                return;
++            }
++            status = "scanning " + keys.size() + " sections";
++
++            for (int i = 0; i < keys.size(); i++) {
++                //The held reference makes world teardown wait for this walk, so the walk has to be the
++                //one that notices shutdown - otherwise it is the thing the quiescence check waits on
++                //forever. Checked per section, so the wait is one section long at worst.
++                if (run.cancelled || !engine.isLive() || Thread.currentThread().isInterrupted()
++                        || (engine.instanceIn != null && !engine.instanceIn.isRunning())) {
++                    break;
++                }
++                long key = keys.getLong(i);
++                WorldSection section = engine.acquireIfExists(key);
++                if (section == null) {
++                    continue;
++                }
++                try {
++                    int changed = refreshSection(engine, level, mapper, biomes, section,
++                            glowBlocksSnow, glowLevel, snowyTree);
++                    if (changed > 0) {
++                        flipped += changed;
++                        rewritten++;
++                        engine.markDirty(section, WorldEngine.UPDATE_TYPE_BLOCK_BIT, 0);
++                        remipIntoParents(engine, mapper, section, section._rawOrNull());
++                    }
++                } finally {
++                    section.release();
++                }
++                scanned++;
++
++                if ((i % SECTIONS_PER_BATCH) == SECTIONS_PER_BATCH - 1) {
++                    sectionsScanned = scanned;
++                    sectionsRewritten = rewritten;
++                    voxelsFlipped = flipped;
++                    //Yields a slice of every batch so a pass over a large store cannot sit on a core
++                    //for its whole duration
++                    Thread.sleep(BATCH_PAUSE_MILLIS);
++                }
++            }
++            status = run.cancelled ? "cancelled after " + scanned + " sections" : "done";
++        } catch (InterruptedException e) {
++            Thread.currentThread().interrupt();
++            status = "interrupted after " + scanned + " sections";
++        } catch (Throwable t) {
++            status = "failed: " + t;
++            Logger.error("Seasonal snow LOD refresh failed", t);
++        } finally {
++            sectionsScanned = scanned;
++            sectionsRewritten = rewritten;
++            voxelsFlipped = flipped;
++            if (referenced) {
++                try {
++                    engine.releaseRef();
++                } catch (RuntimeException ignored) {
++                    //World already torn down - nothing left to hand back
++                }
++            }
++            synchronized (SeasonalSnowRefresher.class) {
++                if (worker == Thread.currentThread()) {
++                    worker = null;
++                    active = null;
++                }
++            }
++        }
++    }
++
++    /** @return how many voxels changed */
++    private static int refreshSection(WorldEngine engine, Level level, Mapper mapper, BiomeCache biomes,
++                                      WorldSection section,
++                                      boolean glowBlocksSnow, int glowLevel, boolean snowyTree) {
++        long[] data = section._rawOrNull();
++        if (data == null) {
++            //Uniform: every voxel's own copy sits directly above it. Nothing solid is sky-exposed under
++            //itself, and uniform air has no block to cover, so there is nothing here to decide.
++            return 0;
++        }
++
++        //A loaded chunk is ingest's business - it asks the season API directly, and racing that here
++        //would replace a fresher answer with a guess. But a level 0 section spans 2x2 chunks, and
++        //skipping the whole section when any one of them is loaded leaves the quadrants around the
++        //render-distance edge with no writer at all: too far to be re-ingested, permanently skipped
++        //here, and the band moves with the player. Skip by quadrant instead.
++        int chunkX = section.x << 1;
++        int chunkZ = section.z << 1;
++        boolean[] quadrantLoaded = {
++                MapChecker.isLoaded(level, chunkX, chunkZ),
++                MapChecker.isLoaded(level, chunkX + 1, chunkZ),
++                MapChecker.isLoaded(level, chunkX, chunkZ + 1),
++                MapChecker.isLoaded(level, chunkX + 1, chunkZ + 1),
++        };
++        if (quadrantLoaded[0] && quadrantLoaded[1] && quadrantLoaded[2] && quadrantLoaded[3]) {
++            return 0;
++        }
++
++        int stateCount = mapper.getBlockStateCount();
++        WorldSection above = null;
++        boolean aboveResolved = false;
++        int changed = 0;
++
++        try {
++            for (int y = 0; y < SECTION_WIDTH; y++) {
++                for (int z = 0; z < SECTION_WIDTH; z++) {
++                    for (int x = 0; x < SECTION_WIDTH; x++) {
++                        if (quadrantLoaded[(x >> 4) | ((z >> 4) << 1)]) {
++                            continue;
++                        }
++                        int idx = WorldSection.getIndex(x, y, z);
++                        long voxel = data[idx];
++                        int storedId = Mapper.getBlockId(voxel);
++                        if (storedId == 0) {
++                            continue;
++                        }
++
++                        boolean storedSnowy = storedId >= stateCount;
++                        int baseId = storedSnowy ? MAX_BLOCK_ID - storedId : storedId;
++                        if (baseId <= 0 || baseId >= stateCount) {
++                            //A complement of something this mapper no longer has - leave it alone
++                            continue;
++                        }
++
++                        BlockState state = mapper.getBlockStateFromBlockId(baseId);
++                        if (state == null || MapChecker.getDefaultBlockTypeFlag(state) <= 0) {
++                            continue;
++                        }
++
++                        long aboveVoxel;
++                        if (y + 1 < SECTION_WIDTH) {
++                            aboveVoxel = data[WorldSection.getIndex(x, y + 1, z)];
++                        } else {
++                            if (!aboveResolved) {
++                                aboveResolved = true;
++                                above = engine.acquireIfExists(section.lvl, section.x, section.y + 1, section.z);
++                            }
++                            if (above == null) {
++                                //No evidence about what is over this voxel, so do not guess
++                                continue;
++                            }
++                            aboveVoxel = above.get(WorldSection.getIndex(x, 0, z));
++                        }
++
++                        int verdict = shouldBeSnowy(level, mapper, biomes, section, x, y, z,
++                                state, aboveVoxel, Mapper.getBiomeId(voxel), stateCount,
++                                glowBlocksSnow, glowLevel, snowyTree);
++                        if (verdict == UNKNOWN) {
++                            continue;
++                        }
++                        boolean wantSnowy = verdict == YES;
++                        if (wantSnowy == storedSnowy) {
++                            continue;
++                        }
++
++                        //Deciding took long enough for ingest to have replaced this voxel. Writing a
++                        //value derived from the stale read would roll its work back, and it will have
++                        //used the current season anyway - so re-read and only write if nothing moved.
++                        long current = data[idx];
++                        if (Mapper.getBlockId(current) != storedId) {
++                            continue;
++                        }
++                        int newId = wantSnowy ? MAX_BLOCK_ID - baseId : baseId;
++                        data[idx] = (current & ~BLOCK_ID_MASK) | (Integer.toUnsignedLong(newId) << BLOCK_ID_SHIFT);
++                        changed++;
++                    }
++                }
++            }
++        } finally {
++            if (above != null) {
++                above.release();
++            }
++        }
++        return changed;
++    }
++
++    //Bring the levels above this section back in line with the level 0 data just edited.
++    //
++    //Ingest only decides snow at level 0 and mips upward, so a parent voxel shows snow exactly when the
++    //child the mip selected did - which means the mip has to be rerun to know, not guessed at from the
++    //children's block ids. Rebuilding the pyramid from this section's own voxels is self-contained: a
++    //level 4 voxel spans 16 blocks, so every child of every parent covering this section is inside its 32.
++    //
++    //Only the snow bit is carried across. Where the recomputed voxel disagrees with the stored one about
++    //anything else, the stored one is ingest's and is left alone.
++    //One set of pyramid buffers per walker thread - ~37KiB that a pass rewriting thousands of sections
++    //would otherwise allocate for each of them.
++    private static final ThreadLocal<long[][]> MIP_SCRATCH = ThreadLocal.withInitial(() -> {
++        long[][] levels = new long[WorldEngine.MAX_LOD_LAYER][];
++        int side = SECTION_WIDTH;
++        for (int lvl = 0; lvl < levels.length; lvl++) {
++            side >>= 1;
++            levels[lvl] = new long[side * side * side];
++        }
++        return levels;
++    });
++
++    private static void remipIntoParents(WorldEngine engine, Mapper mapper, WorldSection section, long[] data) {
++        int stateCount = mapper.getBlockStateCount();
++        long[][] scratch = MIP_SCRATCH.get();
++        long[] cur = data;
++        int curSide = SECTION_WIDTH;
++
++        for (int lvl = 1; lvl <= WorldEngine.MAX_LOD_LAYER; lvl++) {
++            int side = curSide >> 1;
++            long[] next = scratch[lvl - 1];
++            for (int y = 0; y < side; y++) {
++                for (int z = 0; z < side; z++) {
++                    for (int x = 0; x < side; x++) {
++                        int cx = x << 1, cy = y << 1, cz = z << 1;
++                        next[cubeIndex(x, y, z, side)] = Mipper.mip(
++                                cur[cubeIndex(cx, cy, cz, curSide)],
++                                cur[cubeIndex(cx + 1, cy, cz, curSide)],
++                                cur[cubeIndex(cx, cy, cz + 1, curSide)],
++                                cur[cubeIndex(cx + 1, cy, cz + 1, curSide)],
++                                cur[cubeIndex(cx, cy + 1, cz, curSide)],
++                                cur[cubeIndex(cx + 1, cy + 1, cz, curSide)],
++                                cur[cubeIndex(cx, cy + 1, cz + 1, curSide)],
++                                cur[cubeIndex(cx + 1, cy + 1, cz + 1, curSide)],
++                                mapper);
++                    }
++                }
++            }
++
++            applyLevel(engine, section, lvl, next, side, stateCount);
++            cur = next;
++            curSide = side;
++        }
++    }
++
++    private static void applyLevel(WorldEngine engine, WorldSection section, int lvl,
++                                   long[] computed, int side, int stateCount) {
++        WorldSection parent = engine.acquireIfExists(lvl,
++                section.x >> lvl, section.y >> lvl, section.z >> lvl);
++        if (parent == null) {
++            return;
++        }
++        try {
++            long[] pdata = parent._rawOrNull();
++            if (pdata == null) {
++                //Uniform parent: one value over the whole thing, so there is no per-voxel snow state to
++                //correct. Materialising it here would cost 256KiB to write nothing.
++                return;
++            }
++            //Where this section lands inside the parent: its 32 blocks are 32>>lvl of the parent's voxels
++            int ox = (section.x << (5 - lvl)) & 31;
++            int oy = (section.y << (5 - lvl)) & 31;
++            int oz = (section.z << (5 - lvl)) & 31;
++
++            boolean touched = false;
++            for (int y = 0; y < side; y++) {
++                for (int z = 0; z < side; z++) {
++                    for (int x = 0; x < side; x++) {
++                        long want = computed[cubeIndex(x, y, z, side)];
++                        int pidx = WorldSection.getIndex(ox + x, oy + y, oz + z);
++                        long have = pdata[pidx];
++                        if (want == have) {
++                            continue;
++                        }
++                        int wantId = Mapper.getBlockId(want);
++                        int haveId = Mapper.getBlockId(have);
++                        boolean wantSnowy = wantId >= stateCount;
++                        boolean haveSnowy = haveId >= stateCount;
++                        int wantBase = wantSnowy ? MAX_BLOCK_ID - wantId : wantId;
++                        int haveBase = haveSnowy ? MAX_BLOCK_ID - haveId : haveId;
++                        //Disagreeing about which block this is means the mip picked differently than
++                        //ingest did - not something a season change should be rewriting
++                        if (wantBase != haveBase || wantSnowy == haveSnowy) {
++                            continue;
++                        }
++                        int newId = wantSnowy ? MAX_BLOCK_ID - haveBase : haveBase;
++                        pdata[pidx] = (have & ~BLOCK_ID_MASK) | (Integer.toUnsignedLong(newId) << BLOCK_ID_SHIFT);
++                        touched = true;
++                    }
++                }
++            }
++            if (touched) {
++                engine.markDirty(parent, WorldEngine.UPDATE_TYPE_BLOCK_BIT, 0);
++            }
++        } finally {
++            parent.release();
++        }
++    }
++
++    //Matches WorldSection.getIndex at side 32 and generalises it to the smaller mip cubes
++    private static int cubeIndex(int x, int y, int z, int side) {
++        return (y * side + z) * side + x;
++    }
++
++    //The ingest-side decision for a chunk that is not loaded, rerun against stored voxels. Held parallel
++    //to VoxyTool.changeBlockId's second branch - if that one changes this has to follow, or LOD and
++    //freshly ingested terrain will disagree about the same block.
++    private static int shouldBeSnowy(Level level, Mapper mapper, BiomeCache biomes, WorldSection section,
++                                         int x, int y, int z, BlockState state, long aboveVoxel,
++                                         int biomeId, int stateCount,
++                                         boolean glowBlocksSnow, int glowLevel, boolean snowyTree) {
++        int light = Mapper.getLightId(aboveVoxel);
++        if ((light & 0xF) <= MIN_SKY_LIGHT) {
++            return NO;
++        }
++        if (glowBlocksSnow && ((light >> 4) & 0xF) >= glowLevel) {
++            return NO;
++        }
++
++        int aboveStored = Mapper.getBlockId(aboveVoxel);
++        int aboveBase = aboveStored >= stateCount ? MAX_BLOCK_ID - aboveStored : aboveStored;
++        if (aboveBase < 0 || aboveBase >= stateCount) {
++            return UNKNOWN;
++        }
++        BlockState aboveState = mapper.getBlockStateFromBlockId(aboveBase);
++        if (aboveState == null) {
++            return UNKNOWN;
++        }
++
++        int flag = MapChecker.getDefaultBlockTypeFlag(state);
++        if (MapChecker.leaveLike(flag)) {
++            boolean specialLeaves = aboveState.is(state.getBlock())
++                    && (Heightmap.Types.MOTION_BLOCKING_NO_LEAVES.isOpaque().test(aboveState)
++                        || MapChecker.extraSnowPassable(aboveState));
++            if (specialLeaves && !snowyTree) {
++                return NO;
++            }
++        } else if (MapChecker.extraSnowPassable(state) && MapChecker.extraSnowPassable(aboveState)) {
++            return NO;
++        }
++
++        //A biome the store remembers but this world cannot resolve is not evidence of no snow. Treating
++        //it as such would strip snow, persist that, push it up the levels and cache the failure for the
++        //whole pass - and only a re-ingest could ever put it back. Leave the voxel exactly as it is.
++        Holder<Biome> biome = biomes.get(biomeId);
++        if (biome == null) {
++            return UNKNOWN;
++        }
++        BlockPos pos = new BlockPos((section.x << 5) + x, (section.y << 5) + y, (section.z << 5) + z);
++        return MapChecker.shouldSnowAtBiome(level, biome.value(), state, level.getRandom(),
++                state.getSeed(pos), pos) ? YES : NO;
++    }
++
++    //getBiomeEntries copies the whole table under a lock, and resolving a biome key allocates and hits
++    //the registry twice. Both answer to a 9-bit id, so both are worth doing once per id per pass -
++    //including the failures, so a biome the store remembers but the world no longer has cannot throw
++    //once per voxel.
++    private static final class BiomeCache {
++        private final Level level;
++        private final Mapper.BiomeEntry[] entries;
++        private final Holder<Biome>[] resolved;
++        private final boolean[] known;
++
++        @SuppressWarnings("unchecked")
++        BiomeCache(Level level, Mapper mapper) {
++            this.level = level;
++            //One copy for the whole pass: getBiomeEntries takes a lock and rebuilds the whole table
++            this.entries = mapper.getBiomeEntries();
++            this.resolved = new Holder[Math.max(1, this.entries.length)];
++            this.known = new boolean[this.resolved.length];
++        }
++
++        Holder<Biome> get(int biomeId) {
++            if (biomeId < 0 || biomeId >= this.known.length) {
++                return null;
++            }
++            if (this.known[biomeId]) {
++                return this.resolved[biomeId];
++            }
++            this.known[biomeId] = true;
++            try {
++                if (biomeId >= this.entries.length || this.entries[biomeId] == null) {
++                    return null;
++                }
++                ResourceKey<Biome> key = ResourceKey.create(Registries.BIOME,
++                        ResourceLocation.parse(this.entries[biomeId].biome));
++                this.resolved[biomeId] = this.level.registryAccess()
++                        .registryOrThrow(Registries.BIOME).getHolderOrThrow(key);
++            } catch (RuntimeException e) {
++                this.resolved[biomeId] = null;
++            }
++            return this.resolved[biomeId];
++        }
++    }
++}
++
+diff --git a/src/main/java/me/cortex/voxy/client/core/compat/eclipticseasons/VoxyESImportManager.java b/src/main/java/me/cortex/voxy/client/core/compat/eclipticseasons/VoxyESImportManager.java
+deleted file mode 100644
+index 9dd3a441..00000000
+--- a/src/main/java/me/cortex/voxy/client/core/compat/eclipticseasons/VoxyESImportManager.java
++++ /dev/null
+@@ -1,30 +0,0 @@
+-package me.cortex.voxy.client.core.compat.eclipticseasons;
+-
+-import me.cortex.voxy.client.core.compat.eclipticseasons.VoxyTool;
+-import me.cortex.voxy.commonImpl.ImportManager;
+-import me.cortex.voxy.commonImpl.importers.IDataImporter;
+-
+-public class VoxyESImportManager
+-extends ImportManager {
+-    protected synchronized ImportManager.ImportTask createImportTask(IDataImporter importer) {
+-        return new ESImportTask(importer);
+-    }
+-
+-    protected class ESImportTask
+-    extends ImportManager.ImportTask {
+-        protected ESImportTask(IDataImporter importer) {
+-            super(importer);
+-        }
+-
+-        protected void onCompleted(int total) {
+-            VoxyTool.releaseImporter();
+-            super.onCompleted(total);
+-        }
+-
+-        protected void shutdown() {
+-            VoxyTool.releaseImporter();
+-            super.shutdown();
+-        }
+-    }
+-}
+-
+diff --git a/src/main/java/me/cortex/voxy/client/core/compat/eclipticseasons/VoxyTool.java b/src/main/java/me/cortex/voxy/client/core/compat/eclipticseasons/VoxyTool.java
+index 17300f9b..42307a8a 100644
+--- a/src/main/java/me/cortex/voxy/client/core/compat/eclipticseasons/VoxyTool.java
++++ b/src/main/java/me/cortex/voxy/client/core/compat/eclipticseasons/VoxyTool.java
+@@ -5,19 +5,15 @@ import com.teamtea.eclipticseasons.client.util.ClientCon;
+ import com.teamtea.eclipticseasons.common.core.map.MapChecker;
+ import com.teamtea.eclipticseasons.config.CommonConfig;
+ import me.cortex.voxy.client.config.VoxyConfig;
+-import java.io.File;
+ import java.lang.reflect.Method;
+-import java.nio.file.Path;
+ import java.util.function.IntConsumer;
+ import me.cortex.voxy.common.voxelization.ILightingSupplier;
+ import me.cortex.voxy.common.voxelization.VoxelizedSection;
+ import me.cortex.voxy.common.world.WorldEngine;
+ import me.cortex.voxy.common.world.WorldSection;
+ import me.cortex.voxy.common.world.other.Mapper;
+-import me.cortex.voxy.commonImpl.ImportManager;
+ import me.cortex.voxy.commonImpl.VoxyInstance;
+ import me.cortex.voxy.commonImpl.WorldIdentifier;
+-import me.cortex.voxy.commonImpl.importers.WorldImporter;
+ import net.minecraft.core.BlockPos;
+ import net.minecraft.core.Holder;
+ import net.minecraft.core.SectionPos;
+@@ -33,7 +29,6 @@ import org.jetbrains.annotations.Nullable;
+ 
+ public class VoxyTool {
+     private static final int maxBlockId = 1048575;
+-    public static ImportManager esImporter;
+ 
+     public static boolean isVoxyTest() {
+         return VoxyConfig.CONFIG.eclipticSeasonsSnowLod;
+@@ -125,10 +120,6 @@ public class VoxyTool {
+         return world == null ? null : VoxyTool.getWorldSection(world, section);
+     }
+ 
+-    public static void releaseImporter() {
+-        esImporter = null;
+-    }
+-
+     public static void tryUpdate() {
+         if (!VoxyTool.isVoxyTest()) {
+             return;
+@@ -137,29 +128,15 @@ public class VoxyTool {
+             return;
+         }
+         Level level = ClientCon.getUseLevel();
+-        if (level == null || level.getGameTime() % 300L == 0L || !ClientCon.getAgent().isSnowChange() || esImporter != null) {
++        if (level == null || !ClientCon.getAgent().isSnowChange() || SeasonalSnowRefresher.isRunning()) {
+             return;
+         }
+-        VoxyInstance instance = VoxyTool.getVoxyInstance();
+-        if (instance == null) {
+-            return;
+-        }
+-        WorldEngine engine = WorldIdentifier.ofEngine((Level)level);
+-        if (engine == null) {
++        WorldEngine engine = WorldIdentifier.ofEngineNullable(level);
++        if (engine == null || !engine.isLive()) {
+             return;
+         }
+         ClientCon.agent.setSnowChange(false);
+-        esImporter = new VoxyESImportManager();
+-        esImporter.makeAndRunIfNone(engine, () -> {
+-            WorldImporter importer = new WorldImporter(engine, level, instance.getServiceManager(), instance.savingServiceRateLimiter);
+-            String worldName = ClientCon.getAgent().getCurrentWorldName();
+-            Path file = new File("saves").toPath().resolve(worldName);
+-            if (!worldName.endsWith("region")) {
+-                file = file.resolve("region");
+-            }
+-            importer.importRegionDirectoryAsync(file.toFile());
+-            return importer;
+-        });
++        SeasonalSnowRefresher.start(level, engine);
+     }
+ 
+     @Nullable
+diff --git a/src/main/java/me/cortex/voxy/client/core/rendering/hierachical/HierarchicalOcclusionTraverser.java b/src/main/java/me/cortex/voxy/client/core/rendering/hierachical/HierarchicalOcclusionTraverser.java
+index b7cba1db..84b69219 100644
+--- a/src/main/java/me/cortex/voxy/client/core/rendering/hierachical/HierarchicalOcclusionTraverser.java
++++ b/src/main/java/me/cortex/voxy/client/core/rendering/hierachical/HierarchicalOcclusionTraverser.java
+@@ -387,14 +387,16 @@ public class HierarchicalOcclusionTraverser {
+ 
+             count = (int) ((this.requestBuffer.size()>>3)-1);
+ 
+-            //Write back the clamped count
+-            MemoryUtil.memPutInt(ptr-8, count);
+         }
+         //if (count > REQUEST_QUEUE_SIZE) {
+         //    Logger.warn("Count larger than 'maxRequestCount', overflow captured. Overflowed by " + (count-REQUEST_QUEUE_SIZE));
+         //}
+         if (count != 0) {
+-            this.nodeManager.submitRequestBatch(new MemoryBuffer(count*8L+8).cpyFrom(ptr-8));// the -8 is because we incremented it by 8
++            var buffer = new MemoryBuffer(count*8L+8).cpyFrom(ptr-8);
++            // Never mutate the mapped download stream: it can still be owned by the GPU. Put the
++            // clamped count in the independent request batch instead.
++            MemoryUtil.memPutInt(buffer.address, count);
++            this.nodeManager.submitRequestBatch(buffer);// the -8 is because we incremented it by 8
+         }
+     }
+ 
+diff --git a/src/main/java/me/cortex/voxy/client/mixin/ClientVoxyMixinPlugin.java b/src/main/java/me/cortex/voxy/client/mixin/ClientVoxyMixinPlugin.java
+index 628cf3b1..0ead746a 100644
+--- a/src/main/java/me/cortex/voxy/client/mixin/ClientVoxyMixinPlugin.java
++++ b/src/main/java/me/cortex/voxy/client/mixin/ClientVoxyMixinPlugin.java
+@@ -77,6 +77,7 @@ public class ClientVoxyMixinPlugin implements IMixinConfigPlugin {
+             //MachineVisuals the ones that override it, the Renderer the backend-off BER; the accessor
+             //feeds `pos`.
+             mixins.add("create.AccessorAbstractBlockEntityVisual");
++            mixins.add("create.AccessorAbstractVisualLevel");
+             mixins.add("create.MixinKineticBlockEntityVisual");
+             mixins.add("create.MixinKineticMachineVisuals");
+             mixins.add("create.MixinBnbKineticVisuals");
+diff --git a/src/main/java/me/cortex/voxy/client/mixin/create/AccessorAbstractVisualLevel.java b/src/main/java/me/cortex/voxy/client/mixin/create/AccessorAbstractVisualLevel.java
+new file mode 100644
+index 00000000..8c9eb39f
+--- /dev/null
++++ b/src/main/java/me/cortex/voxy/client/mixin/create/AccessorAbstractVisualLevel.java
+@@ -0,0 +1,14 @@
++package me.cortex.voxy.client.mixin.create;
++
++import dev.engine_room.flywheel.lib.visual.AbstractVisual;
++import net.minecraft.world.level.Level;
++import org.spongepowered.asm.mixin.Mixin;
++import org.spongepowered.asm.mixin.gen.Accessor;
++
++// Contraption visuals use a virtual level and report local coordinates. Those coordinates must not
++// be compared with the real client camera when deciding whether to replace a visual with LOD.
++@Mixin(AbstractVisual.class)
++public interface AccessorAbstractVisualLevel {
++    @Accessor("level")
++    Level voxy$getLevel();
++}
+diff --git a/src/main/java/me/cortex/voxy/client/mixin/create/MixinBnbKineticVisuals.java b/src/main/java/me/cortex/voxy/client/mixin/create/MixinBnbKineticVisuals.java
+index e8ce67e6..11a8a51c 100644
+--- a/src/main/java/me/cortex/voxy/client/mixin/create/MixinBnbKineticVisuals.java
++++ b/src/main/java/me/cortex/voxy/client/mixin/create/MixinBnbKineticVisuals.java
+@@ -33,7 +33,8 @@ public abstract class MixinBnbKineticVisuals {
+             this.voxy$nextCheckTick = tick + 8 + ((pos.getX() ^ pos.getZ()) & 7);
+             this.voxy$enclosed = KineticCull.enclosed(pos);
+         }
+-        boolean beyond = KineticCull.beyond(pos, ctx);
++        boolean beyond = KineticCull.beyond(
++                pos, ctx, ((AccessorAbstractVisualLevel) this).voxy$getLevel());
+         if (beyond || this.voxy$enclosed) {
+             if (!this.voxy$culled) {
+                 this.voxy$culled = true;
+diff --git a/src/main/java/me/cortex/voxy/client/mixin/create/MixinKineticBlockEntityVisual.java b/src/main/java/me/cortex/voxy/client/mixin/create/MixinKineticBlockEntityVisual.java
+index fd293954..61b97ef7 100644
+--- a/src/main/java/me/cortex/voxy/client/mixin/create/MixinKineticBlockEntityVisual.java
++++ b/src/main/java/me/cortex/voxy/client/mixin/create/MixinKineticBlockEntityVisual.java
+@@ -47,7 +47,8 @@ public abstract class MixinKineticBlockEntityVisual implements SimpleDynamicVisu
+             this.voxy$nextCheckTick = tick + 8 + ((pos.getX() ^ pos.getZ()) & 7);
+             this.voxy$enclosed = KineticCull.enclosed(pos);
+         }
+-        boolean beyond = KineticCull.beyond(pos, ctx);
++        boolean beyond = KineticCull.beyond(
++                pos, ctx, ((AccessorAbstractVisualLevel) this).voxy$getLevel());
+         if (beyond || this.voxy$enclosed) {
+             if (!this.voxy$culled) {
+                 this.voxy$culled = true;
+diff --git a/src/main/java/me/cortex/voxy/client/mixin/create/MixinKineticMachineVisuals.java b/src/main/java/me/cortex/voxy/client/mixin/create/MixinKineticMachineVisuals.java
+index 792b3250..dddf6da9 100644
+--- a/src/main/java/me/cortex/voxy/client/mixin/create/MixinKineticMachineVisuals.java
++++ b/src/main/java/me/cortex/voxy/client/mixin/create/MixinKineticMachineVisuals.java
+@@ -58,7 +58,8 @@ public abstract class MixinKineticMachineVisuals {
+             this.voxy$nextCheckTick = tick + 8 + ((pos.getX() ^ pos.getZ()) & 7);
+             this.voxy$enclosed = KineticCull.enclosed(pos);
+         }
+-        boolean beyond = KineticCull.beyond(pos, ctx);
++        boolean beyond = KineticCull.beyond(
++                pos, ctx, ((AccessorAbstractVisualLevel) this).voxy$getLevel());
+         if (beyond || this.voxy$enclosed) {
+             if (!this.voxy$culled) {
+                 this.voxy$culled = true;
+diff --git a/src/main/java/me/cortex/voxy/client/mixin/create/MixinVisualizationManagerImpl.java b/src/main/java/me/cortex/voxy/client/mixin/create/MixinVisualizationManagerImpl.java
+index 0cb0feb9..2096d49e 100644
+--- a/src/main/java/me/cortex/voxy/client/mixin/create/MixinVisualizationManagerImpl.java
++++ b/src/main/java/me/cortex/voxy/client/mixin/create/MixinVisualizationManagerImpl.java
+@@ -34,21 +34,44 @@ public class MixinVisualizationManagerImpl {
+     //inside VoxySableDepthShim, which is exactly the combined vanilla+LOD depth this wrap adds here).
+     //World-placed visuals sit well inside the LOD start so the extra depth test never rejects them, and
+     //the shim writes back only depth this pass actually changed, keeping LOD depth out of the shader
+-    //pack's depthtex. Skipped without a ship in the level - three fullscreen blits are not free.
++    //pack's depthtex. Bounded to the ships and skipped when none of them can meet LOD at all: the blits
++    //behind it are fullscreen otherwise, and this path runs on every frame a ship exists.
+     @org.spongepowered.asm.mixin.Unique
+     private boolean voxy$depthWrapped;
+ 
++    //Flywheel visuals reach past the block they belong to - piston poles, pulley ropes, mechanical arms.
++    //Section layers need a block or two; this one is given room for those.
++    @org.spongepowered.asm.mixin.Unique
++    private static final double FLYWHEEL_OVERHANG_BLOCKS = 32.0D;
++
+     @Inject(method = "render", at = @At("HEAD"))
+     private void voxy$beginCombinedDepth(RenderContext context, CallbackInfo ci) {
+         //Shader packs only: without one, renderToVanillaDepth already writes LOD depth into the depth
+-        //buffer this pass tests against, and the wrap's five fullscreen depth passes buy nothing
+-        this.voxy$depthWrapped = IrisUtil.irisShaderPackEnabled()
+-                && !IrisUtil.irisShadowActive() && ShipBorne.anyShipPresent();
+-        if (this.voxy$depthWrapped) {
+-            //In-place variant: Iris rebinds framebuffers inside this pass, which silently evicted the
+-            //framebuffer-swap wrap - editing the target's own depth texture survives any rebinding
+-            VoxySableDepthShim.beginInPlace(new Matrix4f(context.modelView()), new Matrix4f(context.projection()));
++        //buffer this pass tests against, and the wrap's five fullscreen depth passes buy nothing.
++        this.voxy$depthWrapped = false;
++        if (!IrisUtil.irisShaderPackEnabled() || IrisUtil.irisShadowActive() || !ShipBorne.anyShipPresent()) {
++            return;
+         }
++
++        //This wrap exists for ship kinetics, so it need cover no more than the ships - a world-placed
++        //visual outside them sits well inside the LOD start and gets the same vanilla depth either way.
++        var camera = context.camera().getPosition();
++        var bounds = ShipBorne.shipScreenBounds(camera.x, camera.y, camera.z,
++                new Matrix4f(context.modelView()), new Matrix4f(context.projection()), FLYWHEEL_OVERHANG_BLOCKS);
++        if (bounds.skip() != me.cortex.voxy.client.compat.sable.SableScreenBounds.Skip.NONE) {
++            if (bounds.skip() == me.cortex.voxy.client.compat.sable.SableScreenBounds.Skip.ALL_NEAR) {
++                VoxySableDepthShim.nearPassesSkipped++;
++            } else {
++                VoxySableDepthShim.offscreenPassesSkipped++;
++            }
++            return;
++        }
++
++        this.voxy$depthWrapped = true;
++        //In-place variant: Iris rebinds framebuffers inside this pass, which silently evicted the
++        //framebuffer-swap wrap - editing the target's own depth texture survives any rebinding
++        VoxySableDepthShim.beginInPlace(new Matrix4f(context.modelView()), new Matrix4f(context.projection()),
++                bounds.ndc());
+     }
+ 
+     //Paired off the flag rather than re-testing the begin condition, which could flip mid-render and
+diff --git a/src/main/java/me/cortex/voxy/client/mixin/minecraft/MixinLevelRenderer.java b/src/main/java/me/cortex/voxy/client/mixin/minecraft/MixinLevelRenderer.java
+index 8be5c768..b6d0720c 100644
+--- a/src/main/java/me/cortex/voxy/client/mixin/minecraft/MixinLevelRenderer.java
++++ b/src/main/java/me/cortex/voxy/client/mixin/minecraft/MixinLevelRenderer.java
+@@ -51,6 +51,7 @@ public abstract class MixinLevelRenderer implements IGetVoxyRenderSystem {
+ 
+     @Override
+     public void voxy$shutdownRenderer() {
++        me.cortex.voxy.client.core.compat.eclipticseasons.SeasonalSnowRefresher.cancelAndJoin();
+         if (this.renderer != null) {
+             this.renderer.shutdown();
+             this.renderer = null;
+diff --git a/src/main/java/me/cortex/voxy/client/mixin/sable/MixinSableDepthShim.java b/src/main/java/me/cortex/voxy/client/mixin/sable/MixinSableDepthShim.java
+index 0d30f4fa..b7b2a662 100644
+--- a/src/main/java/me/cortex/voxy/client/mixin/sable/MixinSableDepthShim.java
++++ b/src/main/java/me/cortex/voxy/client/mixin/sable/MixinSableDepthShim.java
+@@ -3,7 +3,9 @@ package me.cortex.voxy.client.mixin.sable;
+ import dev.ryanhcode.sable.sublevel.ClientSubLevel;
+ import dev.ryanhcode.sable.sublevel.render.dispatcher.VanillaSubLevelRenderDispatcher;
+ import me.cortex.voxy.client.compat.ShipBorne;
++import me.cortex.voxy.client.compat.sable.SableScreenBounds;
+ import me.cortex.voxy.client.compat.sable.VoxySableDepthShim;
++import me.cortex.voxy.client.core.util.IrisUtil;
+ import net.minecraft.client.renderer.RenderType;
+ import net.minecraft.client.renderer.ShaderInstance;
+ import org.joml.Matrix4f;
+@@ -32,15 +34,37 @@ public abstract class MixinSableDepthShim {
+             float partialTicks,
+             CallbackInfo ci
+     ) {
+-        //This fires once per chunk layer, ~5 times a frame, and the shim costs four fullscreen
+-        //gl_FragDepth passes each time - which also defeat early-Z for the pass. With no sub-level
+-        //present there is nothing whose depth could need merging, so skip it. Only ever reachable with
+-        //a shaderpack loaded: that is the sole condition under which the depth texture is non-zero.
++        //This fires once per chunk layer, ~5 times a frame, and the shim costs four gl_FragDepth passes
++        //each time - which also defeat early-Z for the pass. With no sub-level present there is nothing
++        //whose depth could need merging, so skip it. Only ever reachable with a shaderpack loaded: that
++        //is the sole condition under which the depth texture is non-zero.
+         this.voxy$shimActive = subLevels != null && subLevels.iterator().hasNext() && ShipBorne.anyShipPresent();
+         if (!this.voxy$shimActive) {
+             return;
+         }
+-        VoxySableDepthShim.begin(modelView, projection);
++
++        //The shadow pass re-runs this whole dispatch with the shadow map's matrices. Merging LOD depth
++        //captured from the camera into a shadow map is meaningless, and paying for it doubles the shim
++        //on any pack with shadows enabled.
++        if (IrisUtil.irisShadowActive()) {
++            this.voxy$shimActive = false;
++            VoxySableDepthShim.shadowPassesSkipped++;
++            return;
++        }
++
++        //Two reductions, in order of what they save: drop plots LOD can never get in front of, then
++        //bound the blits to where what is left actually draws
++        SableScreenBounds.Result bounds = SableScreenBounds.of(subLevels, cameraX, cameraY, cameraZ, modelView, projection);
++        if (bounds.skip() != SableScreenBounds.Skip.NONE) {
++            this.voxy$shimActive = false;
++            if (bounds.skip() == SableScreenBounds.Skip.ALL_NEAR) {
++                VoxySableDepthShim.nearPassesSkipped++;
++            } else {
++                VoxySableDepthShim.offscreenPassesSkipped++;
++            }
++            return;
++        }
++        VoxySableDepthShim.begin(modelView, projection, bounds.ndc());
+     }
+ 
+     @Inject(method = "renderSectionLayer", at = @At("RETURN"))
+diff --git a/src/main/java/me/cortex/voxy/client/mixin/sable/MixinSableReacharoundCulling.java b/src/main/java/me/cortex/voxy/client/mixin/sable/MixinSableReacharoundCulling.java
+index ef3f1c23..ac43ac69 100644
+--- a/src/main/java/me/cortex/voxy/client/mixin/sable/MixinSableReacharoundCulling.java
++++ b/src/main/java/me/cortex/voxy/client/mixin/sable/MixinSableReacharoundCulling.java
+@@ -1,6 +1,7 @@
+ package me.cortex.voxy.client.mixin.sable;
+ 
+ import dev.ryanhcode.sable.sublevel.ClientSubLevel;
++import dev.ryanhcode.sable.sublevel.render.dispatcher.SubLevelRenderDispatcher;
+ import dev.ryanhcode.sable.sublevel.render.dispatcher.VanillaSubLevelRenderDispatcher;
+ import me.cortex.voxy.client.compat.sable.SableReacharoundCulling;
+ import net.minecraft.client.renderer.RenderType;
+@@ -28,6 +29,23 @@ public abstract class MixinSableReacharoundCulling {
+         return SableReacharoundCulling.filter(subLevels, cameraX, cameraZ);
+     }
+ 
++    //Block entities are the third consumer of the same list. Voxy is what widened the render distance
++    //these sub-levels are gathered at, so leaving one consumer unbounded means voxy hands sable more
++    //work than sable would ever have asked for - and this one renders every section of every sub-level
++    //it is given.
++    @ModifyVariable(method = "renderBlockEntities", at = @At("HEAD"), argsOnly = true, ordinal = 0)
++    private Iterable<ClientSubLevel> voxy$cullBlockEntitySubLevels(
++            Iterable<ClientSubLevel> subLevels,
++            Iterable<ClientSubLevel> originalSubLevels,
++            SubLevelRenderDispatcher.BlockEntityRenderer blockEntityRenderer,
++            double cameraX,
++            double cameraY,
++            double cameraZ,
++            float partialTicks
++    ) {
++        return SableReacharoundCulling.filter(subLevels, cameraX, cameraZ);
++    }
++
+     @ModifyVariable(method = "renderAfterSections", at = @At("HEAD"), argsOnly = true, ordinal = 0)
+     private Iterable<ClientSubLevel> voxy$cullSingleBlockSubLevels(
+             Iterable<ClientSubLevel> subLevels,
+diff --git a/src/main/java/me/cortex/voxy/common/world/service/VoxelIngestService.java b/src/main/java/me/cortex/voxy/common/world/service/VoxelIngestService.java
+index e4926b7c..37074e77 100644
+--- a/src/main/java/me/cortex/voxy/common/world/service/VoxelIngestService.java
++++ b/src/main/java/me/cortex/voxy/common/world/service/VoxelIngestService.java
+@@ -44,7 +44,8 @@ public class VoxelIngestService {
+             //Inside the try: the queue holds a world ref per task and the finally below releases it, so
+             //anything that can throw has to be covered or the world can never be closed again
+             DomumOrnamentumCompat.beginSection(
+-                    task.world.getMapper(), task.domumBlockEntities, task.section, task.cy);
++                    task.world.getMapper(), task.world.storage, task.domumBlockEntities,
++                    task.section, task.cx, task.cy, task.cz);
+             me.cortex.voxy.commonImpl.compat.CreateCopycatCompat.beginSection(task.world.getMapper(), task.world.storage, task.chunk, task.section, task.cx, task.cy, task.cz);
+             //Read off the section rather than the chunk's block entities: sections streamed by VSS arrive
+             //with no chunk at all, and a beacon is a block whether or not its block entity is here.
+diff --git a/src/main/java/me/cortex/voxy/commonImpl/compat/DomumOrnamentumCompat.java b/src/main/java/me/cortex/voxy/commonImpl/compat/DomumOrnamentumCompat.java
+index bed0ab90..d8b8c0bc 100644
+--- a/src/main/java/me/cortex/voxy/commonImpl/compat/DomumOrnamentumCompat.java
++++ b/src/main/java/me/cortex/voxy/commonImpl/compat/DomumOrnamentumCompat.java
+@@ -1,6 +1,7 @@
+ package me.cortex.voxy.commonImpl.compat;
+ 
+ import me.cortex.voxy.common.world.other.Mapper;
++import me.cortex.voxy.common.config.section.SectionStorage;
+ import net.minecraft.core.BlockPos;
+ import net.minecraft.core.registries.BuiltInRegistries;
+ import net.minecraft.nbt.CompoundTag;
+@@ -33,6 +34,7 @@ import java.util.concurrent.ConcurrentHashMap;
+ import java.util.function.Predicate;
+ 
+ public final class DomumOrnamentumCompat {
++    public static final String DISGUISE_TABLE = "disguise_domum";
+     public static final String VARIANT_TYPE = "domum_ornamentum";
+     private static final BlockEntity[] NO_BLOCK_ENTITIES = new BlockEntity[0];
+ 
+@@ -214,15 +216,25 @@ public final class DomumOrnamentumCompat {
+         return result == null ? NO_BLOCK_ENTITIES : result.toArray(BlockEntity[]::new);
+     }
+ 
+-    public static void beginSection(Mapper mapper, BlockEntity[] blockEntities,
+-                                    LevelChunkSection section, int sectionY) {
++    public static void beginSection(Mapper mapper, SectionStorage storage, BlockEntity[] blockEntities,
++                                    LevelChunkSection section, int sectionX, int sectionY, int sectionZ) {
+         if (!LOADED) {
+             return;
+         }
+         SectionMappings mappings = SECTION_MAPPINGS.get();
+         mappings.reset();
+-        if (mapper == null || blockEntities == null || blockEntities.length == 0
+-                || section == null || !section.maybeHas(DOMUM_STATE_PREDICATE)) {
++        if (mapper == null || section == null) {
++            return;
++        }
++        if (blockEntities == null || blockEntities.length == 0) {
++            if (section.maybeHas(DOMUM_STATE_PREDICATE)) {
++                int restored = DisguiseStore.load(storage, DISGUISE_TABLE,
++                        sectionX, sectionY, sectionZ, mappings::put);
++                mappings.active = restored != 0;
++            }
++            return;
++        }
++        if (!section.maybeHas(DOMUM_STATE_PREDICATE)) {
+             return;
+         }
+ 
+@@ -278,6 +290,20 @@ public final class DomumOrnamentumCompat {
+             }
+         }
+         mappings.active = mappings.touchedCount != 0;
++        if (storage != null) {
++            if (mappings.touchedCount == 0) {
++                DisguiseStore.clear(storage, DISGUISE_TABLE, sectionX, sectionY, sectionZ);
++            } else {
++                int[] packed = new int[mappings.touchedCount * 2];
++                for (int i = 0; i < mappings.touchedCount; i++) {
++                    int index = Short.toUnsignedInt(mappings.touched[i]);
++                    packed[i * 2] = index;
++                    packed[i * 2 + 1] = mappings.ids[index];
++                }
++                DisguiseStore.save(storage, DISGUISE_TABLE, sectionX, sectionY, sectionZ,
++                        packed, mappings.touchedCount);
++            }
++        }
+     }
+ 
+     public static void endSection() {
+-- 
+2.53.0.windows.1
+

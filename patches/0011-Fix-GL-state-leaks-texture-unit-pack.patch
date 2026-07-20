@@ -1,0 +1,113 @@
+From 62febe27e040e93dc05ee3ae3637f4580c5da0a6 Mon Sep 17 00:00:00 2001
+From: JohnSnow <110465696+JohnSnow14284@users.noreply.github.com>
+Date: Sun, 26 Jul 2026 13:43:46 +0800
+Subject: [PATCH 11/23] Fix GL state leaks (texture unit & pack)
+
+Prevent global GL state leaks that caused other renderers to sample wrong textures. VoxyRenderSystem: reset active texture to GL_TEXTURE0 after texture/sampler cleanup to avoid leaving unit 11 active. SoftwareModelTextureBakery: save and restore GL_TEXTURE_BINDING_2D, GL_PIXEL_PACK_BUFFER_BINDING and all relevant GL_PACK_* pixel-store state around glGetTexImage (and unbind PBO) so readbacks aren't redirected or mis-strided. Also added the required GL_PIXEL_PACK_BUFFER_BINDING import. These changes avoid cross-mod rendering corruption.
+---
+ .../voxy/client/core/VoxyRenderSystem.java    |  7 +++
+ .../bakery/SoftwareModelTextureBakery.java    | 56 +++++++++++++------
+ 2 files changed, 47 insertions(+), 16 deletions(-)
+
+diff --git a/src/main/java/me/cortex/voxy/client/core/VoxyRenderSystem.java b/src/main/java/me/cortex/voxy/client/core/VoxyRenderSystem.java
+index 6981bbf3..cff4d2ef 100644
+--- a/src/main/java/me/cortex/voxy/client/core/VoxyRenderSystem.java
++++ b/src/main/java/me/cortex/voxy/client/core/VoxyRenderSystem.java
+@@ -189,6 +189,9 @@ public class VoxyRenderSystem {
+             GlStateManager._bindTexture(0);
+             glBindSampler(i, 0);
+         }
++        // The loop ends on unit 11. Custom OBJ renderers commonly bind their material on the
++        // currently active unit and expect the conventional unit 0, so never leak unit 11.
++        GlStateManager._activeTexture(GlConst.GL_TEXTURE0);
+     }
+ 
+ 
+@@ -464,6 +467,10 @@ public class VoxyRenderSystem {
+                 GlStateManager._bindTexture(0);
+                 glBindSampler(i, 0);
+             }
++            // Keep the conventional post-world-render contract. Leaving unit 11 active makes
++            // Universal Mod Core bind Immersive Railroading OBJ textures to unit 11 while its
++            // shader samples unit 0, which displays unrelated block-atlas sprites on the track.
++            GlStateManager._activeTexture(GlConst.GL_TEXTURE0);
+ 
+             IrisUtil.clearIrisSamplers();
+ 
+diff --git a/src/main/java/me/cortex/voxy/client/core/model/bakery/SoftwareModelTextureBakery.java b/src/main/java/me/cortex/voxy/client/core/model/bakery/SoftwareModelTextureBakery.java
+index f1305745..dc9d4919 100644
+--- a/src/main/java/me/cortex/voxy/client/core/model/bakery/SoftwareModelTextureBakery.java
++++ b/src/main/java/me/cortex/voxy/client/core/model/bakery/SoftwareModelTextureBakery.java
+@@ -42,6 +42,7 @@ import static org.lwjgl.opengl.GL11C.GL_RGBA;
+ import static org.lwjgl.opengl.GL12.GL_PACK_IMAGE_HEIGHT;
+ import static org.lwjgl.opengl.GL15C.glBindBuffer;
+ import static org.lwjgl.opengl.GL21.GL_PIXEL_PACK_BUFFER;
++import static org.lwjgl.opengl.GL21.GL_PIXEL_PACK_BUFFER_BINDING;
+ 
+ public class SoftwareModelTextureBakery {
+     private static final Matrix4f[] VIEWS = new Matrix4f[6];
+@@ -79,22 +80,45 @@ public class SoftwareModelTextureBakery {
+     }
+ 
+     private void _doSetupTexture(int glId) {
+-        glBindTexture(GL_TEXTURE_2D, glId);
+-        int width = glGetTexLevelParameteri(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH);
+-        int height = glGetTexLevelParameteri(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT);
+-
+-        int[] pixels = new int[width * height];
+-        //Pack state is global and whatever ran last owns it. A pixel-pack buffer left bound sends this
+-        //readback into that buffer instead of our array, and a stale row length/skip mis-strides it -
+-        //both silent, and both far more likely with a large atlas under another renderer.
+-        glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+-        glPixelStorei(GL_PACK_ROW_LENGTH, width);
+-        glPixelStorei(GL_PACK_IMAGE_HEIGHT, 0);
+-        glPixelStorei(GL_PACK_SKIP_ROWS, 0);
+-        glPixelStorei(GL_PACK_SKIP_PIXELS, 0);
+-        glPixelStorei(GL_PACK_ALIGNMENT, 4);
+-        glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+-        glPixelStorei(GL_PACK_ROW_LENGTH, 0);
++        // This readback shares global GL state with custom renderers. In particular, Universal Mod
++        // Core's OBJ renderer tracks its own texture binding and assumes foreign renderers return the
++        // binding unchanged. Leaving the block atlas bound makes its next model sample grass/terrain
++        // sprites instead of the OBJ material.
++        int previousTexture = glGetInteger(GL_TEXTURE_BINDING_2D);
++        int previousPackBuffer = glGetInteger(GL_PIXEL_PACK_BUFFER_BINDING);
++        int previousRowLength = glGetInteger(GL_PACK_ROW_LENGTH);
++        int previousImageHeight = glGetInteger(GL_PACK_IMAGE_HEIGHT);
++        int previousSkipRows = glGetInteger(GL_PACK_SKIP_ROWS);
++        int previousSkipPixels = glGetInteger(GL_PACK_SKIP_PIXELS);
++        int previousAlignment = glGetInteger(GL_PACK_ALIGNMENT);
++
++        int width;
++        int height;
++        int[] pixels;
++        try {
++            glBindTexture(GL_TEXTURE_2D, glId);
++            width = glGetTexLevelParameteri(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH);
++            height = glGetTexLevelParameteri(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT);
++            pixels = new int[width * height];
++
++            // A pixel-pack buffer left bound redirects this readback into that buffer instead of the
++            // Java array; stale row/skip state similarly corrupts the copied atlas.
++            glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
++            glPixelStorei(GL_PACK_ROW_LENGTH, width);
++            glPixelStorei(GL_PACK_IMAGE_HEIGHT, 0);
++            glPixelStorei(GL_PACK_SKIP_ROWS, 0);
++            glPixelStorei(GL_PACK_SKIP_PIXELS, 0);
++            glPixelStorei(GL_PACK_ALIGNMENT, 4);
++            glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
++        } finally {
++            glPixelStorei(GL_PACK_ROW_LENGTH, previousRowLength);
++            glPixelStorei(GL_PACK_IMAGE_HEIGHT, previousImageHeight);
++            glPixelStorei(GL_PACK_SKIP_ROWS, previousSkipRows);
++            glPixelStorei(GL_PACK_SKIP_PIXELS, previousSkipPixels);
++            glPixelStorei(GL_PACK_ALIGNMENT, previousAlignment);
++            glBindBuffer(GL_PIXEL_PACK_BUFFER, previousPackBuffer);
++            glBindTexture(GL_TEXTURE_2D, previousTexture);
++        }
+ 
+         this.rasterizer.setSamplerTexture(pixels, width, height);
+     }
+-- 
+2.53.0.windows.1
+

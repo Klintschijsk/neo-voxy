@@ -1,0 +1,523 @@
+From 5e0271a4d7f6f0aa0a2e08fab061357c1f4f517c Mon Sep 17 00:00:00 2001
+From: JohnSnow <110465696+JohnSnow14284@users.noreply.github.com>
+Date: Sat, 1 Aug 2026 23:59:01 +0800
+Subject: [PATCH 15/23] Guard level deletion, LOD/fade and backup fixes
+
+Multiple fixes and features: add a LevelStorageAccess mixin to call ClientSessionEvents.sessionEnd before world deletion to avoid Windows/RocksDB races; harden sessionEnd ownership checks. Add SimpleBackups mixin to exclude the live 'voxy' cache from archives and register it in the mixin plugin. Improve LOD rendering and boundary behavior: pass camera block origin/fraction to shaders, compute per-vertex boundaryDistanceSquared, adjust leaf cutout threshold and independent-water handling, and replace Bayer dither with a stable world-aligned dither. Distant beacon rendering now widens and scales beam cores with distance. VoxyTool: delay/ retry initial seasonal refresh using a weak level ref and countdown to avoid premature refreshes.
+---
+ .../voxy/client/ClientSessionEvents.java      |  5 +-
+ .../client/core/AbstractRenderPipeline.java   |  8 +++
+ .../core/beacon/DistantBeaconRenderer.java    | 21 +++++--
+ .../core/compat/eclipticseasons/VoxyTool.java | 39 ++++++++++++-
+ .../minecraft/MixinLevelStorageAccess.java    | 23 ++++++++
+ .../mixin/CommonVoxyMixinPlugin.java          |  5 ++
+ .../simplebackups/MixinBackupThread.java      | 56 +++++++++++++++++++
+ .../assets/voxy/shaders/lod/gl46/quads.frag   | 19 ++++++-
+ .../assets/voxy/shaders/lod/gl46/quads3.vert  |  6 ++
+ .../assets/voxy/shaders/lod/quad_util.glsl    | 24 ++++----
+ .../shaders/post/setup_stencil_depth.frag     | 40 +++++++------
+ src/main/resources/client.voxy.mixins.json    |  1 +
+ 12 files changed, 210 insertions(+), 37 deletions(-)
+ create mode 100644 src/main/java/me/cortex/voxy/client/mixin/minecraft/MixinLevelStorageAccess.java
+ create mode 100644 src/main/java/me/cortex/voxy/commonImpl/mixin/simplebackups/MixinBackupThread.java
+
+diff --git a/src/main/java/me/cortex/voxy/client/ClientSessionEvents.java b/src/main/java/me/cortex/voxy/client/ClientSessionEvents.java
+index ca37ffd6..209b72dc 100644
+--- a/src/main/java/me/cortex/voxy/client/ClientSessionEvents.java
++++ b/src/main/java/me/cortex/voxy/client/ClientSessionEvents.java
+@@ -36,7 +36,10 @@ public class ClientSessionEvents {
+     public static void sessionEnd() {
+         synchronized (ClientSessionEvents.class) {
+             //Minecraft can reach both disconnect and clearClientLevel for one leave operation.
+-            if (!inSession || closingSession) return;
++            //Do not use inSession as the only ownership signal here.  A failed/partially completed
++            //disconnect can clear it before the native storage handle is gone, and the world-selection
++            //screen may then try to delete the save while RocksDB still owns <world>/voxy/LOCK.
++            if (closingSession || (!inSession && VoxyCommon.getInstance() == null)) return;
+             inSession = false;
+             closingSession = true;
+         }
+diff --git a/src/main/java/me/cortex/voxy/client/core/AbstractRenderPipeline.java b/src/main/java/me/cortex/voxy/client/core/AbstractRenderPipeline.java
+index 553f56fc..ca139678 100644
+--- a/src/main/java/me/cortex/voxy/client/core/AbstractRenderPipeline.java
++++ b/src/main/java/me/cortex/voxy/client/core/AbstractRenderPipeline.java
+@@ -193,6 +193,14 @@ public abstract class AbstractRenderPipeline extends TrackedObject {
+         var boundary = me.cortex.voxy.client.core.rendering.LodBoundaryFade.getDistances();
+         glUniform1f(6, boundary.fadeStart());
+         glUniform1f(7, boundary.fadeEnd());
++        int cameraBlockX = (int) Math.floor(viewport.cameraX);
++        int cameraBlockY = (int) Math.floor(viewport.cameraY);
++        int cameraBlockZ = (int) Math.floor(viewport.cameraZ);
++        glUniform3i(8, cameraBlockX, cameraBlockY, cameraBlockZ);
++        glUniform3f(9,
++                (float) (viewport.cameraX - cameraBlockX),
++                (float) (viewport.cameraY - cameraBlockY),
++                (float) (viewport.cameraZ - cameraBlockZ));
+         glUniform1i(10, 0);
+         glDepthMask(true);
+         glColorMask(false,false,false,false);
+diff --git a/src/main/java/me/cortex/voxy/client/core/beacon/DistantBeaconRenderer.java b/src/main/java/me/cortex/voxy/client/core/beacon/DistantBeaconRenderer.java
+index 49a326ad..0c66d0a7 100644
+--- a/src/main/java/me/cortex/voxy/client/core/beacon/DistantBeaconRenderer.java
++++ b/src/main/java/me/cortex/voxy/client/core/beacon/DistantBeaconRenderer.java
+@@ -37,6 +37,9 @@ public final class DistantBeaconRenderer implements LodPipelineHooks.Renderer {
+             ResourceLocation.withDefaultNamespace("textures/entity/beacon_beam.png");
+ 
+     private static final float CORE_RADIUS = 0.2f;
++    // Keep the far beam below one block wide. This is enough to survive sub-pixel loss at long range
++    // without turning a distant beacon into a solid tower.
++    private static final float MAX_CORE_RADIUS = 0.82f;
+ 
+     public static int lastFrameBeamsDrawn;
+ 
+@@ -100,24 +103,34 @@ public final class DistantBeaconRenderer implements LodPipelineHooks.Renderer {
+             double vanillaRange = Math.min(VANILLA_BEAM_RANGE,
+                     Minecraft.getInstance().options.getEffectiveRenderDistance() * 16.0);
+             double vanillaRangeSq = vanillaRange * vanillaRange;
++            double maximumRange = VoxyConfig.CONFIG.createRenderDistance(
++                    VoxyConfig.CONFIG.distantBeaconMaxChunks);
++            double wideningRange = Math.max(1.0, maximumRange - vanillaRange);
+             lastVanillaRange = (int) vanillaRange;
+             int vanillaOwned = 0;
+             for (var beam : this.built) {
+                 double bdx = beam.x - viewport.cameraX, bdz = beam.z - viewport.cameraZ;
+-                if (bdx * bdx + bdz * bdz < vanillaRangeSq) {
++                double horizontalSq = bdx * bdx + bdz * bdz;
++                if (horizontalSq < vanillaRangeSq) {
+                     vanillaOwned++;
+                     continue;
+                 }
++                // Beacon counts are normally tiny, so one sqrt per visible candidate is preferable to
++                // squared interpolation: the beam now becomes readable through the middle distance too.
++                float widthProgress = (float) Math.clamp(
++                        (Math.sqrt(horizontalSq) - vanillaRange) / wideningRange, 0.0, 1.0);
++                float radius = CORE_RADIUS + (MAX_CORE_RADIUS - CORE_RADIUS) * widthProgress;
+                 //A beam is a 1024-block column, so its box is tall and thin
+                 if (!DistantVisibility.isBoxVisible(viewport,
+-                        beam.x - CORE_RADIUS, beam.y, beam.z - CORE_RADIUS,
+-                        beam.x + CORE_RADIUS, beam.topY, beam.z + CORE_RADIUS)) {
++                        beam.x - radius, beam.y, beam.z - radius,
++                        beam.x + radius, beam.topY, beam.z + radius)) {
+                     continue;
+                 }
+                 transform.set(viewport.MVP).translate(
+                         (float) (beam.x - viewport.cameraX),
+                         (float) (beam.y - viewport.cameraY),
+-                        (float) (beam.z - viewport.cameraZ));
++                        (float) (beam.z - viewport.cameraZ))
++                        .scale(radius / CORE_RADIUS, 1.0f, radius / CORE_RADIUS);
+                 DistantShaders.uploadTransform(transform);
+                 beam.mesh.draw();
+                 drawn++;
+diff --git a/src/main/java/me/cortex/voxy/client/core/compat/eclipticseasons/VoxyTool.java b/src/main/java/me/cortex/voxy/client/core/compat/eclipticseasons/VoxyTool.java
+index 42307a8a..221c0584 100644
+--- a/src/main/java/me/cortex/voxy/client/core/compat/eclipticseasons/VoxyTool.java
++++ b/src/main/java/me/cortex/voxy/client/core/compat/eclipticseasons/VoxyTool.java
+@@ -4,6 +4,7 @@ import com.teamtea.eclipticseasons.api.EclipticSeasonsApi;
+ import com.teamtea.eclipticseasons.client.util.ClientCon;
+ import com.teamtea.eclipticseasons.common.core.map.MapChecker;
+ import com.teamtea.eclipticseasons.config.CommonConfig;
++import java.lang.ref.WeakReference;
+ import me.cortex.voxy.client.config.VoxyConfig;
+ import java.lang.reflect.Method;
+ import java.util.function.IntConsumer;
+@@ -29,6 +30,12 @@ import org.jetbrains.annotations.Nullable;
+ 
+ public class VoxyTool {
+     private static final int maxBlockId = 1048575;
++    private static final int INITIAL_REFRESH_DELAY_TICKS = 200;
++    private static final int ENGINE_RETRY_TICKS = 40;
++    // Do not keep a disconnected ClientLevel alive merely because no further level tick can clear it.
++    private static WeakReference<Level> initialRefreshLevel = new WeakReference<>(null);
++    private static int initialRefreshCountdown = INITIAL_REFRESH_DELAY_TICKS;
++    private static boolean initialRefreshStarted;
+ 
+     public static boolean isVoxyTest() {
+         return VoxyConfig.CONFIG.eclipticSeasonsSnowLod;
+@@ -128,14 +135,42 @@ public class VoxyTool {
+             return;
+         }
+         Level level = ClientCon.getUseLevel();
+-        if (level == null || !ClientCon.getAgent().isSnowChange() || SeasonalSnowRefresher.isRunning()) {
++        if (level == null) {
++            initialRefreshLevel = new WeakReference<>(null);
++            initialRefreshStarted = false;
++            initialRefreshCountdown = INITIAL_REFRESH_DELAY_TICKS;
+             return;
+         }
++
++        if (level != initialRefreshLevel.get()) {
++            initialRefreshLevel = new WeakReference<>(level);
++            initialRefreshStarted = false;
++            // Let the remote Voxy store open and ingest its first batches before walking it. Starting
++            // at ClientLevel construction can finish against an empty store and never reach server LOD.
++            initialRefreshCountdown = INITIAL_REFRESH_DELAY_TICKS;
++        }
++
++        boolean seasonChanged = ClientCon.getAgent().isSnowChange();
++        if (!seasonChanged && initialRefreshStarted) {
++            return;
++        }
++        if (!seasonChanged && initialRefreshCountdown-- > 0) {
++            return;
++        }
++        if (SeasonalSnowRefresher.isRunning()) {
++            return;
++        }
++
+         WorldEngine engine = WorldIdentifier.ofEngineNullable(level);
+         if (engine == null || !engine.isLive()) {
++            initialRefreshCountdown = ENGINE_RETRY_TICKS;
+             return;
+         }
+-        ClientCon.agent.setSnowChange(false);
++
++        if (seasonChanged) {
++            ClientCon.agent.setSnowChange(false);
++        }
++        initialRefreshStarted = true;
+         SeasonalSnowRefresher.start(level, engine);
+     }
+ 
+diff --git a/src/main/java/me/cortex/voxy/client/mixin/minecraft/MixinLevelStorageAccess.java b/src/main/java/me/cortex/voxy/client/mixin/minecraft/MixinLevelStorageAccess.java
+new file mode 100644
+index 00000000..7415df33
+--- /dev/null
++++ b/src/main/java/me/cortex/voxy/client/mixin/minecraft/MixinLevelStorageAccess.java
+@@ -0,0 +1,23 @@
++package me.cortex.voxy.client.mixin.minecraft;
++
++import me.cortex.voxy.client.ClientSessionEvents;
++import net.minecraft.world.level.storage.LevelStorageSource;
++import org.spongepowered.asm.mixin.Mixin;
++import org.spongepowered.asm.mixin.injection.At;
++import org.spongepowered.asm.mixin.injection.Inject;
++import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
++
++/**
++ * Last-chance ownership barrier before Minecraft recursively deletes a save.
++ *
++ * Normally clearClientLevel already closes Voxy.  Keeping this at the actual deletion boundary also
++ * covers aborted disconnects and modded world-selection screens, and guarantees that native database
++ * handles are released before Windows starts deleting the directory tree.
++ */
++@Mixin(LevelStorageSource.LevelStorageAccess.class)
++public class MixinLevelStorageAccess {
++    @Inject(method = "deleteLevel", at = @At("HEAD"))
++    private void voxy$closeStorageBeforeDeletingWorld(CallbackInfo ci) {
++        ClientSessionEvents.sessionEnd();
++    }
++}
+diff --git a/src/main/java/me/cortex/voxy/commonImpl/mixin/CommonVoxyMixinPlugin.java b/src/main/java/me/cortex/voxy/commonImpl/mixin/CommonVoxyMixinPlugin.java
+index db738b7c..e0cbe03f 100644
+--- a/src/main/java/me/cortex/voxy/commonImpl/mixin/CommonVoxyMixinPlugin.java
++++ b/src/main/java/me/cortex/voxy/commonImpl/mixin/CommonVoxyMixinPlugin.java
+@@ -17,6 +17,7 @@ import java.util.Set;
+ public class CommonVoxyMixinPlugin implements IMixinConfigPlugin {
+     private boolean sableInstalled;
+     private boolean createInstalled;
++    private boolean simpleBackupsInstalled;
+ 
+     private static boolean modOnLoadingList(String id) {
+         try {
+@@ -38,11 +39,15 @@ public class CommonVoxyMixinPlugin implements IMixinConfigPlugin {
+     public void onLoad(String mixinPackage) {
+         sableInstalled = modOnLoadingList("sable");
+         createInstalled = modOnLoadingList("create");
++        simpleBackupsInstalled = modOnLoadingList("simplebackups");
+     }
+ 
+     @Override
+     public List<String> getMixins() {
+         List<String> mixins = new ArrayList<>();
++        if (simpleBackupsInstalled) {
++            mixins.add("simplebackups.MixinBackupThread");
++        }
+         if (sableInstalled) {
+             mixins.add("minecraft.MixinServerLevel");
+             if (FMLLoader.getDist() == Dist.CLIENT) {
+diff --git a/src/main/java/me/cortex/voxy/commonImpl/mixin/simplebackups/MixinBackupThread.java b/src/main/java/me/cortex/voxy/commonImpl/mixin/simplebackups/MixinBackupThread.java
+new file mode 100644
+index 00000000..37447895
+--- /dev/null
++++ b/src/main/java/me/cortex/voxy/commonImpl/mixin/simplebackups/MixinBackupThread.java
+@@ -0,0 +1,56 @@
++package me.cortex.voxy.commonImpl.mixin.simplebackups;
++
++import org.spongepowered.asm.mixin.Mixin;
++import org.spongepowered.asm.mixin.injection.At;
++import org.spongepowered.asm.mixin.injection.Redirect;
++
++import java.io.IOException;
++import java.nio.file.FileVisitResult;
++import java.nio.file.FileVisitor;
++import java.nio.file.Files;
++import java.nio.file.Path;
++import java.nio.file.attribute.BasicFileAttributes;
++
++/**
++ * Voxy's per-world directory is a live, regenerable cache, not world-authoritative data.  Archiving
++ * RocksDB while it compacts can observe files disappearing between enumeration and opening; on
++ * Windows its native lock can also make a live copy fail.  Wrap SimpleBackups' visitor so the cache is
++ * excluded without a compile/runtime dependency on SimpleBackups and without touching its config.
++ */
++@Mixin(targets = "de.melanx.simplebackups.BackupThread", remap = false)
++public abstract class MixinBackupThread {
++    @Redirect(
++            method = "makeWorldBackup",
++            at = @At(
++                    value = "INVOKE",
++                    target = "Ljava/nio/file/Files;walkFileTree(Ljava/nio/file/Path;Ljava/nio/file/FileVisitor;)Ljava/nio/file/Path;"
++            )
++    )
++    private Path voxy$excludeLiveCache(Path worldRoot, FileVisitor<? super Path> visitor) throws IOException {
++        Path voxyCache = worldRoot.resolve("voxy").normalize();
++        return Files.walkFileTree(worldRoot, new FileVisitor<>() {
++            @Override
++            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
++                if (dir.normalize().equals(voxyCache)) {
++                    return FileVisitResult.SKIP_SUBTREE;
++                }
++                return visitor.preVisitDirectory(dir, attrs);
++            }
++
++            @Override
++            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
++                return visitor.visitFile(file, attrs);
++            }
++
++            @Override
++            public FileVisitResult visitFileFailed(Path file, IOException exception) throws IOException {
++                return visitor.visitFileFailed(file, exception);
++            }
++
++            @Override
++            public FileVisitResult postVisitDirectory(Path dir, IOException exception) throws IOException {
++                return visitor.postVisitDirectory(dir, exception);
++            }
++        });
++    }
++}
+diff --git a/src/main/resources/assets/voxy/shaders/lod/gl46/quads.frag b/src/main/resources/assets/voxy/shaders/lod/gl46/quads.frag
+index 72b05ddb..64a9975b 100644
+--- a/src/main/resources/assets/voxy/shaders/lod/gl46/quads.frag
++++ b/src/main/resources/assets/voxy/shaders/lod/gl46/quads.frag
+@@ -21,6 +21,7 @@ layout(location = 0) in flat uvec4 interData;
+ #ifndef USE_NV_BARRY
+ layout(location = 1) in vec2 uv;
+ #endif
++layout(location = 2) in float boundaryDistanceSquared;
+ 
+ #ifdef DEBUG_RENDER
+ layout(location = 7) in flat uint quadDebug;
+@@ -78,10 +79,14 @@ bool useBalancedLeafCutout() {
+     return ((interData.x >> 1u) & 1u) == 1u;
+ }
+ 
+-bool suppressLavaInBoundaryFade() {
++bool useLavaBoundary() {
+     return ((interData.x >> 7u) & 1u) == 1u;
+ }
+ 
++bool useIndependentWaterBoundary() {
++    return ((interData.w >> 11u) & 1u) == 1u;
++}
++
+ vec2 varyBalancedLeafUV(vec2 localUV, vec2 tile, out uint transform) {
+     uvec2 tilePos = uvec2(max(tile, vec2(0.0f)));
+     uint hash = interData.w >> 16u;
+@@ -152,7 +157,13 @@ vec4 computeColour(vec2 texturePos, vec4 colour) {
+ 
+ 
+ void main() {
+-    if (suppressLavaInBoundaryFade()) {
++    // Partial/cutout/translucent vanilla models leave holes in the source depth buffer. Stencil alone
++    // would let their simplified LOD proxy show through those holes even deep inside the vanilla area.
++    // Clip geometrically at the exact fade start, then allow every model to fill the real transition.
++    // Water is exempt because it deliberately retains its independent translucent chunk boundary.
++    if (circularLodBoundaryEnabled > 0.5
++            && !useIndependentWaterBoundary()
++            && boundaryDistanceSquared < lodBoundaryFadeStart * lodBoundaryFadeStart) {
+         discard;
+         return;
+     }
+@@ -237,7 +248,9 @@ void main() {
+     float cutoutAlpha = useBalancedLeafCutout()
+             ? colour.a
+             : textureLod(blockModelAtlas, texPos, 0).a;
+-    float cutoutThreshold = useBalancedLeafCutout() ? 0.42f : 0.1f;
++    // Mip-filtered leaf alpha loses coverage much faster than the base texture. A lower balanced
++    // threshold keeps the canopy density stable as the circular ownership mask moves over it.
++    float cutoutThreshold = useBalancedLeafCutout() ? 0.18f : 0.1f;
+     colour.a = 1.0f;
+     if (useDiscard() && cutoutAlpha <= cutoutThreshold) {
+     #else
+diff --git a/src/main/resources/assets/voxy/shaders/lod/gl46/quads3.vert b/src/main/resources/assets/voxy/shaders/lod/gl46/quads3.vert
+index f5733422..51aaeefc 100644
+--- a/src/main/resources/assets/voxy/shaders/lod/gl46/quads3.vert
++++ b/src/main/resources/assets/voxy/shaders/lod/gl46/quads3.vert
+@@ -29,6 +29,7 @@ layout(location = 0) out flat uvec4 interData;
+ #ifndef USE_NV_BARRY
+ layout(location = 1) out vec2 uv;
+ #endif
++layout(location = 2) out float boundaryDistanceSquared;
+ 
+ #ifdef USE_NV_JANK
+ #ifdef GL_NV_gpu_shader5
+@@ -56,6 +57,11 @@ void main() {
+ 
+     uint cornerId = gl_VertexID&3;
+ 
++    // Squared distance avoids a square root for every vertex. It is used only by independently-marked
++    // lava, and merged quads are small relative to the handoff radius, so interpolation is sufficient.
++    vec2 boundaryOffset = (getQuadCornerPoint(quad, cornerId) - cameraSubPos).xz;
++    boundaryDistanceSquared = dot(boundaryOffset, boundaryOffset);
++
+     gl_Position =
+     #ifdef USE_NV_JANK
+     #ifdef GL_NV_gpu_shader5
+diff --git a/src/main/resources/assets/voxy/shaders/lod/quad_util.glsl b/src/main/resources/assets/voxy/shaders/lod/quad_util.glsl
+index 134ce0c0..6d1de5d5 100644
+--- a/src/main/resources/assets/voxy/shaders/lod/quad_util.glsl
++++ b/src/main/resources/assets/voxy/shaders/lod/quad_util.glsl
+@@ -35,7 +35,8 @@ struct QuadData {
+ };
+ 
+ uint makeQuadFlags(uint faceData, uint modelId, ivec2 quadSize, const in BlockModel model, uint face) {
+-    //bit: 0-use cutout, 1-balanced leaf cutout, 2|3-tint state, 4|6-face, 8|11-width, 12|15-height, 16|31-model id
++    //bit: 0-use cutout, 1-balanced leaf cutout, 2|3-tint state, 4|6-face,
++    //7-lava boundary, 8|11-width, 12|15-height, 16|31-model id
+     uint flags = 0;
+ 
+     flags |= modelId<<16;//Model id
+@@ -47,6 +48,7 @@ uint makeQuadFlags(uint faceData, uint modelId, ivec2 quadSize, const in BlockMo
+     }
+ 
+     flags |= modelUsesBalancedLeafCutout(model) ? 2u : 0u;
++    flags |= modelIsLava(model) ? (1u << 7u) : 0u;
+     flags |= faceTintState(faceData)<<2;
+     flags |= face<<4;//Face
+ 
+@@ -110,6 +112,10 @@ uvec3 makeRemainingAttributes(const in BlockModel model, const in Quad quad, uin
+     attributes.z = addin|(face<<8);
+     #endif
+ 
++    // Bit 11 is outside the packed face (8..10) and additive-light (0..7) fields. Water keeps the
++    // original independent translucent boundary; all other models may use the circular inner clip.
++    attributes.z |= modelUsesFluidDatum(model) ? (1u << 11u) : 0u;
++
+     return attributes;
+ }
+ 
+@@ -172,13 +178,6 @@ void setupQuad(out QuadData quad, const in Quad rawQuad, uvec2 sPos, bool genera
+     quad.lodScale = lodScale;
+     quad.axis = face>>1;
+     quad.basePoint = (quadStart*lodScale)+vec3(baseSection<<5);
+-    if (generateAttributes && circularLodBoundaryEnabled > 0.5
+-            && modelIsLava(model)
+-            && length((quad.basePoint - cameraSubPos).xz) < lodBoundaryFadeEnd) {
+-        // Bit 7 is unused by the packed fragment flags. Suppress only the LOD lava quad inside the
+-        // circular transition; it becomes eligible immediately outside the band.
+-        quad.attributeData.x |= 1u << 7u;
+-    }
+     #ifdef USE_SINGLE_TRI
+     quad.quadSizeAddin = (faceSize.yw + (quadSize - 1)*2);
+     #else
+@@ -187,10 +186,13 @@ void setupQuad(out QuadData quad, const in Quad rawQuad, uvec2 sPos, bool genera
+     quad.uvCorner = faceSize.xz;
+ }
+ 
+-vec4 getQuadCornerPos(in QuadData quad, uint cornerId) {
++vec3 getQuadCornerPoint(in QuadData quad, uint cornerId) {
+     vec2 cornerMask = vec2((cornerId>>1)&1u, cornerId&1u)*quad.lodScale;
+-    vec3 point = quad.basePoint + swizzelDataAxis(quad.axis,vec3(quad.quadSizeAddin*cornerMask,0));
+-    vec4 pos = MVP * vec4(point, 1.0f);
++    return quad.basePoint + swizzelDataAxis(quad.axis,vec3(quad.quadSizeAddin*cornerMask,0));
++}
++
++vec4 getQuadCornerPos(in QuadData quad, uint cornerId) {
++    vec4 pos = MVP * vec4(getQuadCornerPoint(quad, cornerId), 1.0f);
+     pos.xy += taaOffset*pos.w;
+     return pos;
+ }
+diff --git a/src/main/resources/assets/voxy/shaders/post/setup_stencil_depth.frag b/src/main/resources/assets/voxy/shaders/post/setup_stencil_depth.frag
+index 61ba4142..60442fe6 100644
+--- a/src/main/resources/assets/voxy/shaders/post/setup_stencil_depth.frag
++++ b/src/main/resources/assets/voxy/shaders/post/setup_stencil_depth.frag
+@@ -10,26 +10,27 @@ layout(location = 3) uniform mat4 dstProjection;
+ layout(location = 4) uniform vec4 depthRemap;
+ layout(location = 6) uniform float lodBoundaryFadeStart;
+ layout(location = 7) uniform float lodBoundaryFadeEnd;
++layout(location = 8) uniform ivec3 cameraBlockOrigin;
++layout(location = 9) uniform vec3 cameraFraction;
+ layout(location = 10) uniform int boundaryGuardPass;
+ 
+ #import <voxy:util/depthutils.glsl>
+ 
+ in vec2 UV;
+ 
+-const int BAYER_8X8[64] = int[](
+-     0, 48, 12, 60,  3, 51, 15, 63,
+-    32, 16, 44, 28, 35, 19, 47, 31,
+-     8, 56,  4, 52, 11, 59,  7, 55,
+-    40, 24, 36, 20, 43, 27, 39, 23,
+-     2, 50, 14, 62,  1, 49, 13, 61,
+-    34, 18, 46, 30, 33, 17, 45, 29,
+-    10, 58,  6, 54,  9, 57,  5, 53,
+-    42, 26, 38, 22, 41, 25, 37, 21
+-);
+-
+-float orderedDither8x8(ivec2 pixel) {
+-    ivec2 p = pixel & ivec2(7);
+-    return (float(BAYER_8X8[p.y * 8 + p.x]) + 0.5) * (1.0 / 64.0);
++float stableWorldDither(vec3 cameraRelativePosition) {
++    // An eighth-block 3-D grid works on horizontal and vertical faces alike. Integer hashing avoids
++    // trigonometry and, unlike screen-space Bayer noise, remains attached to the same world surface
++    // while the camera moves.
++    ivec3 cell = cameraBlockOrigin * 8
++            + ivec3(floor((cameraRelativePosition + cameraFraction) * 8.0));
++    uint hash = uint(cell.x) * 0x8da6b343u;
++    hash ^= uint(cell.y) * 0xd8163841u;
++    hash ^= uint(cell.z) * 0xcb1ab31fu;
++    hash ^= hash >> 16u;
++    hash *= 0x7feb352du;
++    hash ^= hash >> 15u;
++    return (float(hash & 1023u) + 0.5) * (1.0 / 1024.0);
+ }
+ 
+ float projectDepth(vec3 cameraRelativePosition) {
+@@ -55,10 +56,17 @@ void main() {
+     float lodCoverage = 0.0;
+     float ditherValue = 1.0;
+     bool fadeEnabled = lodBoundaryFadeEnd > lodBoundaryFadeStart;
+-    if (fadeEnabled && horizontalDistance > lodBoundaryFadeStart) {
++    if (fadeEnabled
++            && horizontalDistance > lodBoundaryFadeStart
++            && horizontalDistance < lodBoundaryFadeEnd) {
+         lodCoverage = smoothstep(lodBoundaryFadeStart,
+                 lodBoundaryFadeEnd, horizontalDistance);
+-        ditherValue = orderedDither8x8(ivec2(gl_FragCoord.xy));
++        // Delay most of the texture handoff until the outer half without introducing a second hard
++        // radius. This reduces early simplified textures on stairs and glass while preserving coverage.
++        lodCoverage *= lodCoverage;
++        ditherValue = stableWorldDither(cameraRelative.xyz);
++    } else if (fadeEnabled && horizontalDistance >= lodBoundaryFadeEnd) {
++        lodCoverage = 1.0;
+     }
+ 
+     if (boundaryGuardPass != 0) {
+diff --git a/src/main/resources/client.voxy.mixins.json b/src/main/resources/client.voxy.mixins.json
+index 1d52f45b..5464cc17 100644
+--- a/src/main/resources/client.voxy.mixins.json
++++ b/src/main/resources/client.voxy.mixins.json
+@@ -15,6 +15,7 @@
+     "minecraft.MixinFogRenderer",
+     "minecraft.MixinGameRenderer",
+     "minecraft.MixinLevelRenderer",
++    "minecraft.MixinLevelStorageAccess",
+     "minecraft.MixinMinecraft",
+     "minecraft.MixinRenderSystem",
+     "minecraft.MixinWindow",
+-- 
+2.53.0.windows.1
+
