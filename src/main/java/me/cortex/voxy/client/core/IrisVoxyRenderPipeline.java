@@ -1,5 +1,6 @@
 package me.cortex.voxy.client.core;
 
+import me.cortex.voxy.common.Logger;
 import me.cortex.voxy.client.core.gl.GlBuffer;
 import me.cortex.voxy.client.core.model.ModelBakerySubsystem;
 import me.cortex.voxy.client.core.rendering.Viewport;
@@ -24,10 +25,6 @@ import static org.lwjgl.opengl.GL31.GL_UNIFORM_BUFFER;
 import static org.lwjgl.opengl.GL45C.*;
 
 public class IrisVoxyRenderPipeline extends AbstractRenderPipeline {
-    private static final int UNIFORM_BINDING_POINT = 7;//TODO make ths binding point... not randomly 5
-    private static final int BASE_BUFFER_BINDING_INDEX = 10;//TODO make ths binding point... not randomly 10
-    private static final int BASE_SAMPLER_BINDING_INDEX = 6;//TODO make ths binding point... not randomly 6
-
     private final IrisVoxyRenderPipelineData data;
     private final FullscreenBlit depthBlit;
     public final DepthFramebuffer fbTranslucent = new DepthFramebuffer(this.fb.getFormat());
@@ -35,6 +32,7 @@ public class IrisVoxyRenderPipeline extends AbstractRenderPipeline {
     private final FullscreenBlit shaderDepthHackFixTransformBlit;
 
     private final GlBuffer shaderUniforms;
+    private final Matrix4f targetTransform = new Matrix4f();
 
     public IrisVoxyRenderPipeline(RenderProperties properties, IrisVoxyRenderPipelineData data, AsyncNodeManager nodeManager, NodeCleaner nodeCleaner, HierarchicalOcclusionTraverser traversal, BooleanSupplier frexSupplier) {
         super(properties, nodeManager, nodeCleaner, traversal, frexSupplier, data.shouldDeferTranslucency());
@@ -46,6 +44,12 @@ public class IrisVoxyRenderPipeline extends AbstractRenderPipeline {
 
         //Bind the drawbuffers
         var oDT = this.data.opaqueDrawTargets;
+        //Every LOD terrain raster pass writes all of these per fragment. With a pack asking for 6-8
+        //targets the same geometry costs that many times the ROP bandwidth it does without shaders,
+        //which is the main reason LOD gets dramatically more expensive when a pack is loaded. Logged
+        //once so the number is in the log when diagnosing a shaders-only framerate drop.
+        Logger.info("Iris LOD framebuffer: " + oDT.length + " opaque draw targets, "
+                + this.data.translucentDrawTargets.length + " translucent");
         int[] binding = new int[oDT.length];
         for (int i = 0; i < oDT.length; i++) {
             binding[i] = GL30.GL_COLOR_ATTACHMENT0+i;
@@ -117,70 +121,56 @@ public class IrisVoxyRenderPipeline extends AbstractRenderPipeline {
     }
 
     @Override
-    protected int setup(Viewport<?> viewport, int sourceDepthTexture, int srcWidth, int srcHeight) {
+    protected int setup(Viewport<?> viewport, int sourceFramebuffer, int srcWidth, int srcHeight) {
         this.fb.resize(viewport.width, viewport.height);
         this.fbTranslucent.resize(viewport.width, viewport.height);
-
-        if (false) {//TODO: only do this if shader specifies
-            //Clear the colour component
-            glBindFramebuffer(GL_FRAMEBUFFER, this.fb.framebuffer.id);
-            glClearColor(0, 0, 0, 0);
-            glClear(GL_COLOR_BUFFER_BIT);
-        }
 
         if (!this.data.useViewportDims) {
             srcWidth = viewport.width;
             srcHeight = viewport.height;
         }
-        this.initDepthStencil(sourceDepthTexture, this.fb.framebuffer.id, srcWidth, srcHeight, viewport.width, viewport.height);
+        this.initDepthStencil(viewport, sourceFramebuffer, this.fb.framebuffer.id, srcWidth, srcHeight, viewport.width, viewport.height);
         return this.fb.getDepthTex().id;
     }
 
     @Override
-    protected void postOpaquePreTranslucent(Viewport<?> viewport, int sourceDepthTexture) {
+    protected void postOpaquePreTranslucent(Viewport<?> viewport, int sourceFrameBuffer) {
         if (this.shaderDepthHackFixTransformBlit != null) {
             this.fb.bind();
             glEnable(GL_DEPTH_TEST);
             glColorMask(false, false, false, false);
             glDepthFunc(GL_ALWAYS);
-            glStencilFunc(GL_EQUAL, 0, 0xFF);//set the depth to 1 where the mask is 0
+            glStencilFunc(GL_EQUAL, 0, 0xFF);//set the depth to 1 where the mask is 0 (hook-tagged pixels keep theirs)
             this.shaderDepthHackFixTransformBlit.blit();
-            glStencilFunc(GL_EQUAL, 1, 0xFF);//revert the mask test
+            glStencilFunc(GL_EQUAL, 1, 0x1);//revert to the bit0 contract test
             glDepthFunc(this.properties.closerEqualDepthCompare());
             glColorMask(true, true, true, true);
+        } else {
+            //Packs that skip the depth-hack consume the raw sentinel protocol at vanilla-covered
+            //pixels; the setup pass stamped reprojected depth there for the hook geometry, so
+            //restore the value they expect
+            this.fb.bind();
+            this.restoreSentinelDepth();
         }
 
         glTextureBarrier();
 
         int msk = GL_DEPTH_BUFFER_BIT|GL_STENCIL_BUFFER_BIT;
-        if (true) {//TODO: make shader specified
-            if (false) {//TODO: only do this if shader specifies
-                glBindFramebuffer(GL_FRAMEBUFFER, this.fbTranslucent.framebuffer.id);
-                glClearColor(0, 0, 0, 0);
-                glClear(GL_COLOR_BUFFER_BIT);
-            }
-        } else {
-            msk |= GL_COLOR_BUFFER_BIT;
-        }
         glBlitNamedFramebuffer(this.fb.framebuffer.id, this.fbTranslucent.framebuffer.id, 0,0, viewport.width, viewport.height, 0,0, viewport.width, viewport.height, msk, GL_NEAREST);
     }
 
     @Override
-    protected void finish(Viewport<?> viewport, int sourceDepthTexture, int outputFramebuffer, int srcWidth, int srcHeight) {
-        if (this.data.renderToVanillaDepth) {
-            //We can only depthblit out if destination size is the same, if they arnt, force them tobe
-            boolean mustFiddledViewport = srcWidth != viewport.width  || srcHeight != viewport.height;
-            if (this.data.useViewportDims||!mustFiddledViewport) {
-                glColorMask(false, false, false, false);
-                if (mustFiddledViewport)
-                    glViewport(0, 0, viewport.width, viewport.height);
-                AbstractRenderPipeline.transformBlitDepth(this.depthBlit,
-                        this.fbTranslucent.getDepthTex().id, outputFramebuffer,
-                        viewport, new Matrix4f(viewport.vanillaProjection).mul(viewport.modelView));
-                if (mustFiddledViewport)
-                    glViewport(0, 0, srcWidth, srcHeight);
-                glColorMask(true, true, true, true);
-            }
+    protected void finish(Viewport<?> viewport, int sourceFrameBuffer, int srcWidth, int srcHeight) {
+        // Iris owns the source depth buffer unless the shader pack explicitly
+        // opts in to distant-horizon depth. Writing Voxy's opaque depth into it
+        // unconditionally makes several packs reject/overwrite the later LOD
+        // water composite.
+        if (this.data.renderToVanillaDepth && srcWidth == viewport.width  && srcHeight == viewport.height) {//We can only depthblit out if destination size is the same
+            glColorMask(false, false, false, false);
+            AbstractRenderPipeline.transformBlitDepth(this.depthBlit,
+                    this.fbTranslucent.getDepthTex().id, sourceFrameBuffer,
+                    viewport, this.targetTransform.set(viewport.vanillaProjection).mul(viewport.modelView));
+            glColorMask(true, true, true, true);
         } else {
             // normally disabled by AbstractRenderPipeline but since we are skipping it we do it here
             glDisable(GL_STENCIL_TEST);
@@ -204,13 +194,12 @@ public class IrisVoxyRenderPipeline extends AbstractRenderPipeline {
     private void doBindings() {
         this.bindUniforms();
         if (this.data.getSsboSet() != null) {
-            this.data.getSsboSet().bindingFunction().accept(BASE_BUFFER_BINDING_INDEX);
+            this.data.getSsboSet().bindingFunction().accept(FORWARDED_SSBO_BINDING_BASE);
         }
         if (this.data.getImageSet() != null) {
-            this.data.getImageSet().bindingFunction().accept(BASE_SAMPLER_BINDING_INDEX);
+            this.data.getImageSet().bindingFunction().accept(6);
         }
     }
-
     @Override
     public void setupAndBindOpaque(Viewport<?> viewport) {
         this.fb.bind();
@@ -232,6 +221,21 @@ public class IrisVoxyRenderPipeline extends AbstractRenderPipeline {
         super.addDebug(debug);
     }
 
+    @Override
+    public int getSableOcclusionDepthTexture() {
+        if (this.data.renderToVanillaDepth || this.fbTranslucent.getDepthTex() == null) {
+            return 0;
+        }
+        return this.fbTranslucent.getDepthTex().id;
+    }
+
+    private static final int UNIFORM_BINDING_POINT = 7;//TODO make ths binding point... not randomly 5
+    //Forwarded shader-pack SSBOs bind here. Voxy itself uses SSBO 1/2/5, and VoxyRenderSystem saves &
+    //restores only binding points [0,10) each frame - base 6 keeps the forwarded set (6-9) inside that
+    //window so it gets restored. A base past that window leaks into iris' post-voxy passes.
+    //Must stay in lockstep with the GLSL "#define BUFFER_BINDING_INDEX_BASE" below.
+    private static final int FORWARDED_SSBO_BINDING_BASE = 6;
+
     private StringBuilder buildGenericShaderHeader(AbstractSectionRenderer<?, ?> renderer, String input) {
         StringBuilder builder = new StringBuilder(input).append("\n\n\n");
 
@@ -242,12 +246,12 @@ public class IrisVoxyRenderPipeline extends AbstractRenderPipeline {
         }
 
         if (this.data.getSsboSet() != null) {
-            builder.append("#define BUFFER_BINDING_INDEX_BASE "+BASE_BUFFER_BINDING_INDEX+"\n");
+            builder.append("#define BUFFER_BINDING_INDEX_BASE ").append(FORWARDED_SSBO_BINDING_BASE).append("\n");
             builder.append(this.data.getSsboSet().layout()).append("\n\n");
         }
 
         if (this.data.getImageSet() != null) {
-            builder.append("#define BASE_SAMPLER_BINDING_INDEX "+BASE_SAMPLER_BINDING_INDEX+"\n");
+            builder.append("#define BASE_SAMPLER_BINDING_INDEX 6\n");//TODO: DONT RANDOMLY MAKE THIS 6
             builder.append(this.data.getImageSet().layout()).append("\n\n");
         }
 
@@ -307,5 +311,11 @@ public class IrisVoxyRenderPipeline extends AbstractRenderPipeline {
     @Override
     public float[] getRenderScalingFactor() {
         return this.data.resolutionScale;
+    }
+
+
+    @Override
+    protected boolean useBoundaryGuardPass() {
+        return false;
     }
 }

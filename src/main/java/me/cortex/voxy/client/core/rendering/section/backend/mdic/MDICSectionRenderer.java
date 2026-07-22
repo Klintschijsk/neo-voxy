@@ -21,6 +21,7 @@ import me.cortex.voxy.client.core.util.GPUTiming;
 import me.cortex.voxy.common.Logger;
 import me.cortex.voxy.common.world.WorldEngine;
 import net.minecraft.client.Minecraft;
+import net.minecraft.core.Direction;
 import org.joml.Matrix4f;
 import org.lwjgl.system.MemoryUtil;
 
@@ -95,9 +96,13 @@ public class MDICSectionRenderer extends AbstractSectionRenderer<MDICViewport, B
     private final GlBuffer statisticsBuffer = new GlBuffer(1024).zero();
 
     private final AbstractRenderPipeline pipeline;
+    private final float fluidDatumY;
+    private final Matrix4f uniformMatrix = new Matrix4f();
     public MDICSectionRenderer(AbstractRenderPipeline pipeline, ModelStore modelStore, BasicSectionGeometryData geometryData) {
         super(pipeline.properties, modelStore, geometryData);
         this.pipeline = pipeline;
+        var level = Minecraft.getInstance().level;
+        this.fluidDatumY = level == null ? -1.0e9f : level.getSeaLevel() - (7.0f / 64.0f);
         //The pipeline can be used to transform the renderer in abstract ways
 
         String vertex = ShaderLoader.parse("voxy:lod/gl46/quads3.vert");
@@ -151,7 +156,7 @@ public class MDICSectionRenderer extends AbstractSectionRenderer<MDICViewport, B
     private void uploadUniformBuffer(MDICViewport viewport) {
         long ptr = UploadStream.INSTANCE.upload(this.uniform, 0, 1024);
         
-        var mat = new Matrix4f(viewport.MVP);
+        var mat = this.uniformMatrix.set(viewport.MVP);
         mat.translate(-viewport.innerTranslation.x, -viewport.innerTranslation.y, -viewport.innerTranslation.z);
         mat.getToAddress(ptr); ptr += 4*4*4;
 
@@ -163,6 +168,15 @@ public class MDICSectionRenderer extends AbstractSectionRenderer<MDICViewport, B
         }
         MemoryUtil.memPutInt(ptr, viewport.frameId&0x7fffffff); ptr += 4;
         viewport.innerTranslation.getToAddress(ptr); ptr += 4*3;
+        MemoryUtil.memPutFloat(ptr, this.fluidDatumY); ptr += 4;
+        //std140: these follow fluidDatumY at 96/100/104/108 and round the block to 112. Must stay in
+        //lockstep with SceneUniform in gl46/bindings.glsl - a short write feeds garbage into the enable
+        //flag, which silently toggles the chunk-bounds mask.
+        var boundary = me.cortex.voxy.client.core.rendering.LodBoundaryFade.getDistances();
+        MemoryUtil.memPutFloat(ptr, boundary.enabled() ? 1.0f : 0.0f); ptr += 4;
+        MemoryUtil.memPutFloat(ptr, boundary.fadeStart()); ptr += 4;
+        MemoryUtil.memPutFloat(ptr, boundary.fadeEnd()); ptr += 4;
+        MemoryUtil.memPutFloat(ptr, 0.0f); ptr += 4;
 
         UploadStream.INSTANCE.commit();
     }

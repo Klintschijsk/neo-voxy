@@ -7,18 +7,39 @@ layout(location = 2) uniform mat4 projMat;
 #ifdef EMIT_COLOUR
 layout(binding = 3) uniform sampler2D colourTex;
 #ifdef USE_ENV_FOG
-layout(location = 4) uniform vec4 endParams;
-layout(location = 5) uniform vec4 fogColour;
+layout(location = 4) uniform vec2 fogParams;//.x=fogStart,.y=fogEnd
+layout(location = 5) uniform vec4 fogColor;
+layout(location = 6) uniform int fogShape;
+layout(location = 7) uniform float fogIntensity;
+layout(location = 8) uniform float fogDensity;
+//1 while a vision-restricting medium owns the fog (blindness/darkness/water/lava/powder snow). Those
+//bands are vanilla's own linear ramp and the LOD has to match the terrain it borders, so the smoothstep
+//shaping that suits our wide ambient band is dropped.
+layout(location = 9) uniform int linearFog;
 #endif
 #endif
 
 #import <voxy:util/depthutils.glsl>
+#import <voxy:util/fog.glsl>
+
+//Sampled window depth <-> analytic ndc. Under default clip control rasterized window depth is
+//0.5*ndc+0.5 for the source's [0,1] projection and the destination's [-1,1] projection alike;
+//treating them as identical (the depthutils identity map) makes the two errors cancel only when
+//the destination never depth-tests the result against real geometry - against actual vanilla
+//depth the residue is a constant n/(f-n) too-far bias that grows to d^2/f blocks of lost range.
+#ifdef WINDOW_HALF_NDC
+#define SRC_WINDOW2NDC_DEPTH(d) ((d)*2.0f-1.0f)
+#define DST_NDC2WINDOW_DEPTH(z) ((z)*0.5f+0.5f)
+#else
+#define SRC_WINDOW2NDC_DEPTH(d) (d)
+#define DST_NDC2WINDOW_DEPTH(z) (z)
+#endif
 
 out vec4 colour;
 in vec2 UV;
 
 vec3 rev3d(vec3 clip) {
-    vec4 view = invProjMat * vec4(SCREEN2NDC(clip),1.0f);
+    vec4 view = invProjMat * vec4(clip.xy*2.0f-1.0f, SRC_WINDOW2NDC_DEPTH(clip.z), 1.0f);
     return view.xyz/view.w;
 }
 
@@ -34,12 +55,12 @@ void main() {
     }
 
     vec3 point = rev3d(vec3(UV.xy, depth));
-    depth = projDepth(point);
-    //TODO: HERE make an option/define to emit the output depth as something other then the input (i.e. if voxy is reverse z and vanilla isnt, transform and emit as not reverrse z)
+    depth = DST_NDC2WINDOW_DEPTH(projDepth(point));
+    //Clamp in window space: stay one step inside FAR so the exact-1.0 "untouched" semantics of
+    //the destination never collide with legitimately-far geometry
     depth = REDUCTION2(FAR+CLOSER_SIGN*(2.0f/((1<<24)-1)), depth);
-    depth = NDC2SCREEN_DEPTH(depth);
 
-    depth = gl_DepthRange.diff * depth + gl_DepthRange.near;//TODO: dont think this is right at all so should fix this
+    depth = gl_DepthRange.diff * depth + gl_DepthRange.near;
 
     gl_FragDepth = depth;
 
@@ -49,9 +70,14 @@ void main() {
         discard;
     }
     #ifdef USE_ENV_FOG
-    if (fogColour.a>0.0){
-        float fogLerp = clamp(fma(length(point.xyz),endParams.x,endParams.y),0,endParams.z);//512 is 32*16 which is the render distance in blocks
-        colour.rgb = mix(colour.rgb, fogColour.rgb, fogLerp*fogColour.a);
+    if (fogIntensity > 0.0){
+        float dist = getFragDistance(fogShape, point.xyz);
+        float linearAmount = clamp((dist - fogParams.x) / max(fogParams.y - fogParams.x, 0.0001), 0.0, 1.0);
+        //smoothstep(a,b,d) is by definition smoothstep(0,1,clamp((d-a)/(b-a))), so the ambient branch is
+        //unchanged bit for bit.
+        float fogLerp = linearFog != 0 ? linearAmount : smoothstep(0.0, 1.0, linearAmount);
+        if (fogDensity > 0.0) fogLerp = (exp(fogDensity * fogLerp) - 1.0) / (exp(fogDensity) - 1.0);
+        colour.rgb = mix(colour.rgb, fogColor.rgb, clamp(fogLerp * fogIntensity, 0.0, 1.0));
     }
     #endif
     #else

@@ -17,4 +17,5 @@ public class MixinRenderSystem {
     private static void voxy$injectInit(GpuDevice device, CallbackInfo ci) {
         VoxyClient.initVoxyClient();
     }
+
 }

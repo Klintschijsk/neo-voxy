@@ -2,31 +2,57 @@ package me.cortex.voxy.commonImpl;
 
 import me.cortex.voxy.common.Logger;
 import me.cortex.voxy.common.config.Serialization;
-import net.fabricmc.api.EnvType;
-import net.fabricmc.api.ModInitializer;
-import net.fabricmc.loader.api.FabricLoader;
-import net.fabricmc.loader.api.ModContainer;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.fml.ModList;
+import net.neoforged.fml.loading.FMLLoader;
+import net.neoforged.fml.loading.LoadingModList;
 
-public class VoxyCommon implements ModInitializer {
+/**
+ * Common initialization for Voxy on NeoForge.
+ *
+ * IMPORTANT: This class may be loaded very early via mixin class loading,
+ * before NeoForge's ModList is populated. We must use LoadingModList or
+ * FMLLoader APIs that are available during early bootstrap.
+ */
+public class VoxyCommon {
     public static final String MOD_VERSION;
     public static final boolean IS_DEDICATED_SERVER;
     public static final boolean IS_IN_MINECRAFT;
 
     static {
-        ModContainer mod = (ModContainer) FabricLoader.getInstance().getModContainer("voxy").orElse(null);
-        if (mod == null) {
+        // Use LoadingModList for early access - ModList.get() may be null during mixin loading
+        var modFile = LoadingModList.get() != null ? LoadingModList.get().getModFileById("voxy") : null;
+        if (modFile == null) {
             IS_IN_MINECRAFT = false;
             Logger.error("Running voxy without minecraft");
             MOD_VERSION = "<UNKNOWN>";
             IS_DEDICATED_SERVER = false;
         } else {
             IS_IN_MINECRAFT = true;
-            var version = mod.getMetadata().getVersion().getFriendlyString();
-            var commit = mod.getMetadata().getCustomValue("commit").getAsString();
-            MOD_VERSION = version + "-" + commit.substring(0,7);
-            IS_DEDICATED_SERVER = FabricLoader.getInstance().getEnvironmentType() == EnvType.SERVER;
+            // Get version from LoadingModList (available early)
+            var version = modFile.getMods().stream()
+                    .filter(m -> m.getModId().equals("voxy"))
+                    .findFirst()
+                    .map(m -> m.getVersion().toString())
+                    .orElse("<UNKNOWN>");
+            String commit = "unknown";
+            MOD_VERSION = version + "-" + commit;
+            IS_DEDICATED_SERVER = FMLLoader.getDist() == Dist.DEDICATED_SERVER;
             Serialization.init();
         }
+    }
+
+    //The name shown in mod lists, the Sodium options page and the join line. Read from the mod entry
+    //rather than repeated as a literal per call site. Needs a populated ModList, so not usable during
+    //early mixin bootstrap like the fields above.
+    public static String displayName() {
+        var list = ModList.get();
+        if (list == null) {
+            return "voxy";
+        }
+        return list.getModContainerById("voxy")
+                .map(container -> container.getModInfo().getDisplayName())
+                .orElse("voxy");
     }
 
     //This is hardcoded like this because people do not understand what they are doing
@@ -40,11 +66,6 @@ public class VoxyCommon implements ModInitializer {
 
     public static void breakpoint() {
         int breakpoint = 0;
-    }
-
-    @Override
-    public void onInitialize() {
-
     }
 
     public interface IInstanceFactory {VoxyInstance create();}
@@ -78,11 +99,7 @@ public class VoxyCommon implements ModInitializer {
         if (INSTANCE != null) {
             throw new IllegalStateException("Cannot create multiple instances");
         }
-        try {
-            INSTANCE = FACTORY.create();
-        } catch (DontCreateInstance e) {
-            Logger.info("Not creating instance due to DontCreateInstance");
-        }
+        INSTANCE = FACTORY.create();
     }
 
     //Is voxy available in any capacity
