@@ -1,28 +1,48 @@
 package me.cortex.voxy.common.voxelization;
 
+import me.cortex.voxy.commonImpl.mixin.minecraft.AccessorPalettedContainer;
+import me.cortex.voxy.commonImpl.mixin.minecraft.AccessorPalettedContainerData;
 import it.unimi.dsi.fastutil.objects.Reference2IntOpenHashMap;
 import me.cortex.voxy.common.world.other.Mapper;
+import me.cortex.voxy.common.world.other.Mipper;
+import me.cortex.voxy.commonImpl.compat.DomumOrnamentumCompat;
 import net.caffeinemc.mods.lithium.common.world.chunk.LithiumHashPalette;
-import net.fabricmc.loader.api.FabricLoader;
+import net.neoforged.fml.ModList;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
+import net.minecraft.util.LinearCongruentialGenerator;
+import net.minecraft.util.Mth;
 import net.minecraft.util.SimpleBitStorage;
 import net.minecraft.util.ZeroBitStorage;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.chunk.*;
-
+import net.minecraft.world.level.chunk.GlobalPalette;
+import net.minecraft.world.level.chunk.HashMapPalette;
+import net.minecraft.world.level.chunk.LinearPalette;
+import net.minecraft.world.level.chunk.Palette;
+import net.minecraft.world.level.chunk.PalettedContainer;
+import net.minecraft.world.level.chunk.PalettedContainerRO;
+import net.minecraft.world.level.chunk.SingleValuePalette;
 import java.util.WeakHashMap;
 
 public class WorldConversionFactory {
-    private static final boolean LITHIUM_INSTALLED = FabricLoader.getInstance().isModLoaded("lithium");
+    private static final boolean LITHIUM_INSTALLED = ModList.get().isLoaded("lithium");
 
     private static final class Cache {
         private final int[] biomeCache = new int[4*4*4];
         private final WeakHashMap<Mapper, Reference2IntOpenHashMap<BlockState>> localMapping = new WeakHashMap<>();
+        //Biome ids resolve through Mapper.getIdForBiome, which builds a ResourceLocation string per
+        //call. Registry biome holders are stable within a session, so an identity cache keyed on the
+        //holder saves 64 string allocations + hashes per section on the ingest hot path (mirrors the
+        //block-state localMapping above).
+        private final WeakHashMap<Mapper, Reference2IntOpenHashMap<Holder<Biome>>> localBiomeMapping = new WeakHashMap<>();
         private int[] paletteCache = new int[1024];
         private final long[] zoomCellCache = new long[5*5*5];
         private Reference2IntOpenHashMap<BlockState> getLocalMapping(Mapper mapper) {
             return this.localMapping.computeIfAbsent(mapper, (a_)->new Reference2IntOpenHashMap<>());
+        }
+        private Reference2IntOpenHashMap<Holder<Biome>> getLocalBiomeMapping(Mapper mapper) {
+            return this.localBiomeMapping.computeIfAbsent(mapper, (a_)->new Reference2IntOpenHashMap<>());
         }
         private int[] getPaletteCache(int size) {
             if (this.paletteCache.length < size) {
@@ -124,17 +144,20 @@ public class WorldConversionFactory {
         //Cheat by creating a local pallet then read the data directly
         var cache = THREAD_LOCAL.get();
         var blockCache = cache.getLocalMapping(stateMapper);
+        var biomeCacheMap = cache.getLocalBiomeMapping(stateMapper);
 
         var biomes = cache.biomeCache;
         var data = section.section;
         var zoomCells = cache.zoomCellCache;
 
-        var vp = blockContainer.data.palette;
+        var blockData = ((AccessorPalettedContainer<BlockState>) (Object) blockContainer).voxy$getData();
+        var blockDataAccessor = (AccessorPalettedContainerData<BlockState>) (Object) blockData;
+        var vp = blockDataAccessor.voxy$getPalette();
         var pc = cache.getPaletteCache(vp.getSize());
         GlobalPalette<BlockState> bps = null;
 
         int pcc = 0;
-        if (blockContainer.data.palette instanceof GlobalPalette<BlockState> _bps) {
+        if (vp instanceof GlobalPalette<BlockState> _bps) {
             bps = _bps;
             pcc = bps.getSize();
         } else {
@@ -148,7 +171,15 @@ public class WorldConversionFactory {
             for (int y = 0; y < 4; y++) {
                 for (int z = 0; z < 4; z++) {
                     for (int x = 0; x < 4; x++) {
-                        int bid = stateMapper.getIdForBiome(biomeContainer.get(x, y, z));
+                        var biomeHolder = biomeContainer.get(x, y, z);
+                        int bid = biomeCacheMap.getOrDefault(biomeHolder, -1);
+                        if (bid == -1) {
+                            me.cortex.voxy.commonImpl.PerfStats.biomeCacheMiss.increment();
+                            bid = stateMapper.getIdForBiome(biomeHolder);
+                            biomeCacheMap.put(biomeHolder, bid);
+                        } else {
+                            me.cortex.voxy.commonImpl.PerfStats.biomeCacheHit.increment();
+                        }
                         biomes[i++] = bid;
                         if (inital==-1) inital = bid;
                         shouldZoom &= inital == bid;//Evil hacky trick, we only need to zoom if on a biome boarder
@@ -163,7 +194,14 @@ public class WorldConversionFactory {
 
 
         int nonZeroCnt = 0;
-        if (blockContainer.data.storage instanceof SimpleBitStorage bStor) {
+        // Domum Ornamentum model data is only needed for sections that actually
+        // contain material-textured block entities. Avoid the extra palette and
+        // ThreadLocal lookups for every voxel in normal sections.
+        final boolean hasDomumMappings = DomumOrnamentumCompat.hasSectionMappings();
+        final int[] copycatIds = me.cortex.voxy.commonImpl.compat.CreateCopycatCompat.activeSectionIds();
+        final boolean hasVariantMappings = hasDomumMappings || copycatIds != null;
+        var blockStorage = blockDataAccessor.voxy$getStorage();
+        if (blockStorage instanceof SimpleBitStorage bStor) {
             var bDat = bStor.getRaw();
             int iterPerLong = (64 / bStor.getBits()) - 1;
 
@@ -178,11 +216,26 @@ public class WorldConversionFactory {
                     sample = bDat[c++];
                     dec = iterPerLong;
                 }
+                int paletteIndex = (int) (sample & MSK);
                 int bId;
+                BlockState voxelState;
                 if (bps == null) {
-                    bId = pc[Math.min((int) (sample & MSK), pcc)];
+                    int clampedPaletteIndex = Math.min(paletteIndex, pcc);
+                    bId = pc[clampedPaletteIndex];
+                    voxelState = null;
+                    if (hasVariantMappings) {
+                        try { voxelState = vp.valueFor(clampedPaletteIndex); } catch (Throwable ignored) {}
+                    }
                 } else {
-                    bId = stateMapper.getIdForBlockState(bps.valueFor((int) (sample&MSK)));
+                    voxelState = bps.valueFor(paletteIndex);
+                    bId = stateMapper.getIdForBlockState(voxelState);
+                }
+                if (hasVariantMappings && voxelState != null) {
+                    if (hasDomumMappings) {
+                        bId = DomumOrnamentumCompat.mapBlockId(
+                                stateMapper, voxelState, bId, i);
+                    }
+                    if (copycatIds != null) { int m = copycatIds[i]; if (m != 0) bId = m; }
                 }
                 sample >>>= eBits;
 
@@ -191,7 +244,7 @@ public class WorldConversionFactory {
                 data[i] = Mapper.composeMappingId(light, bId, biomes[Integer.compress(i,0b1100_1100_1100)]);
             }
         } else {
-            if (!(blockContainer.data.storage instanceof ZeroBitStorage)) {
+            if (!(blockStorage instanceof ZeroBitStorage)) {
                 throw new IllegalStateException();
             }
             int bId = pc[0];
@@ -201,9 +254,21 @@ public class WorldConversionFactory {
                 }
             } else {
                 nonZeroCnt = 4096;
+                BlockState voxelState = null;
+                if (hasVariantMappings) {
+                    try { voxelState = vp.valueFor(0); } catch (Throwable ignored) {}
+                }
                 for (int i = 0; i <= 0xFFF; i++) {
                     byte light = lightSupplier.supply(i&0xF, (i>>8)&0xF, (i>>4)&0xF);
-                    data[i] = Mapper.composeMappingId(light, bId, biomes[Integer.compress(i,0b1100_1100_1100)]);
+                    int mappedBlockId = bId;
+                    if (hasVariantMappings && voxelState != null) {
+                        if (hasDomumMappings) {
+                            mappedBlockId = DomumOrnamentumCompat.mapBlockId(
+                                    stateMapper, voxelState, mappedBlockId, i);
+                        }
+                        if (copycatIds != null) { int m = copycatIds[i]; if (m != 0) mappedBlockId = m; }
+                    }
+                    data[i] = Mapper.composeMappingId(light, mappedBlockId, biomes[Integer.compress(i,0b1100_1100_1100)]);
                 }
             }
         }
