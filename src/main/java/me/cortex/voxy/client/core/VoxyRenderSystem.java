@@ -189,6 +189,9 @@ public class VoxyRenderSystem {
             GlStateManager._bindTexture(0);
             glBindSampler(i, 0);
         }
+        // The loop ends on unit 11. Custom OBJ renderers commonly bind their material on the
+        // currently active unit and expect the conventional unit 0, so never leak unit 11.
+        GlStateManager._activeTexture(GlConst.GL_TEXTURE0);
     }
 
 
@@ -464,6 +467,10 @@ public class VoxyRenderSystem {
                 GlStateManager._bindTexture(0);
                 glBindSampler(i, 0);
             }
+            // Keep the conventional post-world-render contract. Leaving unit 11 active makes
+            // Universal Mod Core bind Immersive Railroading OBJ textures to unit 11 while its
+            // shader samples unit 0, which displays unrelated block-atlas sprites on the track.
+            GlStateManager._activeTexture(GlConst.GL_TEXTURE0);
 
             IrisUtil.clearIrisSamplers();
 

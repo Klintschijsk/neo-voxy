@@ -42,6 +42,7 @@ import static org.lwjgl.opengl.GL11C.GL_RGBA;
 import static org.lwjgl.opengl.GL12.GL_PACK_IMAGE_HEIGHT;
 import static org.lwjgl.opengl.GL15C.glBindBuffer;
 import static org.lwjgl.opengl.GL21.GL_PIXEL_PACK_BUFFER;
+import static org.lwjgl.opengl.GL21.GL_PIXEL_PACK_BUFFER_BINDING;
 
 public class SoftwareModelTextureBakery {
     private static final Matrix4f[] VIEWS = new Matrix4f[6];
@@ -79,22 +80,45 @@ public class SoftwareModelTextureBakery {
     }
 
     private void _doSetupTexture(int glId) {
-        glBindTexture(GL_TEXTURE_2D, glId);
-        int width = glGetTexLevelParameteri(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH);
-        int height = glGetTexLevelParameteri(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT);
+        // This readback shares global GL state with custom renderers. In particular, Universal Mod
+        // Core's OBJ renderer tracks its own texture binding and assumes foreign renderers return the
+        // binding unchanged. Leaving the block atlas bound makes its next model sample grass/terrain
+        // sprites instead of the OBJ material.
+        int previousTexture = glGetInteger(GL_TEXTURE_BINDING_2D);
+        int previousPackBuffer = glGetInteger(GL_PIXEL_PACK_BUFFER_BINDING);
+        int previousRowLength = glGetInteger(GL_PACK_ROW_LENGTH);
+        int previousImageHeight = glGetInteger(GL_PACK_IMAGE_HEIGHT);
+        int previousSkipRows = glGetInteger(GL_PACK_SKIP_ROWS);
+        int previousSkipPixels = glGetInteger(GL_PACK_SKIP_PIXELS);
+        int previousAlignment = glGetInteger(GL_PACK_ALIGNMENT);
 
-        int[] pixels = new int[width * height];
-        //Pack state is global and whatever ran last owns it. A pixel-pack buffer left bound sends this
-        //readback into that buffer instead of our array, and a stale row length/skip mis-strides it -
-        //both silent, and both far more likely with a large atlas under another renderer.
-        glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
-        glPixelStorei(GL_PACK_ROW_LENGTH, width);
-        glPixelStorei(GL_PACK_IMAGE_HEIGHT, 0);
-        glPixelStorei(GL_PACK_SKIP_ROWS, 0);
-        glPixelStorei(GL_PACK_SKIP_PIXELS, 0);
-        glPixelStorei(GL_PACK_ALIGNMENT, 4);
-        glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-        glPixelStorei(GL_PACK_ROW_LENGTH, 0);
+        int width;
+        int height;
+        int[] pixels;
+        try {
+            glBindTexture(GL_TEXTURE_2D, glId);
+            width = glGetTexLevelParameteri(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH);
+            height = glGetTexLevelParameteri(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT);
+            pixels = new int[width * height];
+
+            // A pixel-pack buffer left bound redirects this readback into that buffer instead of the
+            // Java array; stale row/skip state similarly corrupts the copied atlas.
+            glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+            glPixelStorei(GL_PACK_ROW_LENGTH, width);
+            glPixelStorei(GL_PACK_IMAGE_HEIGHT, 0);
+            glPixelStorei(GL_PACK_SKIP_ROWS, 0);
+            glPixelStorei(GL_PACK_SKIP_PIXELS, 0);
+            glPixelStorei(GL_PACK_ALIGNMENT, 4);
+            glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+        } finally {
+            glPixelStorei(GL_PACK_ROW_LENGTH, previousRowLength);
+            glPixelStorei(GL_PACK_IMAGE_HEIGHT, previousImageHeight);
+            glPixelStorei(GL_PACK_SKIP_ROWS, previousSkipRows);
+            glPixelStorei(GL_PACK_SKIP_PIXELS, previousSkipPixels);
+            glPixelStorei(GL_PACK_ALIGNMENT, previousAlignment);
+            glBindBuffer(GL_PIXEL_PACK_BUFFER, previousPackBuffer);
+            glBindTexture(GL_TEXTURE_2D, previousTexture);
+        }
 
         this.rasterizer.setSamplerTexture(pixels, width, height);
     }
