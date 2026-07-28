@@ -228,7 +228,27 @@ public class HierarchicalOcclusionTraverser {
         //Put the render distance here so that it can generate a correct circle, TODO: make it not top level section sized
         MemoryUtil.memPutFloat(ptr, (float) Math.pow(VoxyConfig.CONFIG.sectionRenderDistance*16*32,2));ptr += 4;
 
+        //Nodes inside vanilla render distance (+2 chunks) always subdivide to lvl0 so the seam ring
+        //geometry matches vanilla. Kept narrow, widening it costs real section counts.
+        float fullDetailDist = (net.minecraft.client.Minecraft.getInstance().options.renderDistance().get() + 2) * 16f;
+        MemoryUtil.memPutFloat(ptr, fullDetailDist*fullDetailDist);ptr += 4;
 
+        //Perspective-stretch compensation for the subdivision metric. Equal nodes project to LARGER
+        //areas at the screen edges than at the centre (planar-projection stretch, ~(1+tan^2)^1.5),
+        //so the area test starves the middle of the screen (centre mushy, edges sharp - worse at
+        //high FOV). The shader boosts each node's area by maxStretch/stretch(nodePos), lifting the
+        //centre to parity with the screen's most favourable position; edges get boost~1. These are
+        //the tan-space scale factors of the projection (1/P00, 1/P11).
+        float p00 = Math.max(0.0001f, viewport.vanillaProjection.m00());
+        float p11 = Math.max(0.0001f, viewport.vanillaProjection.m11());
+        float invP00 = 1.0f / p00;
+        float invP11 = 1.0f / p11;
+        MemoryUtil.memPutFloat(ptr, invP00);ptr += 4;
+        MemoryUtil.memPutFloat(ptr, invP11);ptr += 4;
+        //stretchMax = stretch() evaluated at the screen edge (tan = 1/P00,1/P11): a frame constant the
+        //shader divided into every node's stretch. Precompute it here so shouldDecend drops a per-node
+        //pow() and just reads this uniform.
+        MemoryUtil.memPutFloat(ptr, (float) Math.pow(1.0 + (double) invP00 * invP00 + (double) invP11 * invP11, 1.5));ptr += 4;
     }
 
     private void bindings(Viewport<?> viewport) {
@@ -373,7 +393,8 @@ public class HierarchicalOcclusionTraverser {
         //}
         if (count != 0) {
             var buffer = new MemoryBuffer(count*8L+8).cpyFrom(ptr-8);
-            //Write back the exact count into the new memory buffer (not the download stream buffer)
+            // Never mutate the mapped download stream: it can still be owned by the GPU. Put the
+            // clamped count in the independent request batch instead.
             MemoryUtil.memPutInt(buffer.address, count);
             this.nodeManager.submitRequestBatch(buffer);// the -8 is because we incremented it by 8
         }

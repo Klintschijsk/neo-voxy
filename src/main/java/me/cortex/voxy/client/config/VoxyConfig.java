@@ -211,6 +211,11 @@ public class VoxyConfig {
     public void sanitize() {
         this.subDivisionSize = Math.clamp(this.subDivisionSize, MIN_SUBDIVISION_SIZE, MAX_SUBDIVISION_SIZE);
         this.requestDistance = Math.clamp(this.requestDistance, MIN_REQUEST_DISTANCE, MAX_REQUEST_DISTANCE);
+        // Older builds measured this percentage against one sixteenth of the LOD radius.
+        if (this.fogDistancePercent > 200) {
+            this.fogDistancePercent = Math.max(5, Math.round(this.fogDistancePercent / 16.0f));
+        }
+        this.fogDistancePercent = Math.clamp(this.fogDistancePercent, 5, 200);
         this.skyFogDistance = Math.clamp(this.skyFogDistance, 0, 1024);
         this.cloudDistance = Math.clamp(this.cloudDistance, 0, MAX_CLOUD_DISTANCE);
         this.fogIntensity = Math.clamp(this.fogIntensity, 0.0f, 1.0f);

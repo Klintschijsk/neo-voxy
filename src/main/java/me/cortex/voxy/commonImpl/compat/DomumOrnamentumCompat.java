@@ -1,6 +1,7 @@
 package me.cortex.voxy.commonImpl.compat;
 
 import me.cortex.voxy.common.world.other.Mapper;
+import me.cortex.voxy.common.config.section.SectionStorage;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
@@ -33,6 +34,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 
 public final class DomumOrnamentumCompat {
+    public static final String DISGUISE_TABLE = "disguise_domum";
     public static final String VARIANT_TYPE = "domum_ornamentum";
     private static final BlockEntity[] NO_BLOCK_ENTITIES = new BlockEntity[0];
 
@@ -214,15 +216,25 @@ public final class DomumOrnamentumCompat {
         return result == null ? NO_BLOCK_ENTITIES : result.toArray(BlockEntity[]::new);
     }
 
-    public static void beginSection(Mapper mapper, BlockEntity[] blockEntities,
-                                    LevelChunkSection section, int sectionY) {
+    public static void beginSection(Mapper mapper, SectionStorage storage, BlockEntity[] blockEntities,
+                                    LevelChunkSection section, int sectionX, int sectionY, int sectionZ) {
         if (!LOADED) {
             return;
         }
         SectionMappings mappings = SECTION_MAPPINGS.get();
         mappings.reset();
-        if (mapper == null || blockEntities == null || blockEntities.length == 0
-                || section == null || !section.maybeHas(DOMUM_STATE_PREDICATE)) {
+        if (mapper == null || section == null) {
+            return;
+        }
+        if (blockEntities == null || blockEntities.length == 0) {
+            if (section.maybeHas(DOMUM_STATE_PREDICATE)) {
+                int restored = DisguiseStore.load(storage, DISGUISE_TABLE,
+                        sectionX, sectionY, sectionZ, mappings::put);
+                mappings.active = restored != 0;
+            }
+            return;
+        }
+        if (!section.maybeHas(DOMUM_STATE_PREDICATE)) {
             return;
         }
 
@@ -278,6 +290,20 @@ public final class DomumOrnamentumCompat {
             }
         }
         mappings.active = mappings.touchedCount != 0;
+        if (storage != null) {
+            if (mappings.touchedCount == 0) {
+                DisguiseStore.clear(storage, DISGUISE_TABLE, sectionX, sectionY, sectionZ);
+            } else {
+                int[] packed = new int[mappings.touchedCount * 2];
+                for (int i = 0; i < mappings.touchedCount; i++) {
+                    int index = Short.toUnsignedInt(mappings.touched[i]);
+                    packed[i * 2] = index;
+                    packed[i * 2 + 1] = mappings.ids[index];
+                }
+                DisguiseStore.save(storage, DISGUISE_TABLE, sectionX, sectionY, sectionZ,
+                        packed, mappings.touchedCount);
+            }
+        }
     }
 
     public static void endSection() {

@@ -383,30 +383,34 @@ public final class KineticSnapshots {
             //A loaded chunk is the authority on its own blocks: any snapshot here whose kinetic BE is
             //gone (machine broken or disassembled into something else) is a ghost - drop it. Unloaded
             //chunks are never touched, so leave-behinds stay frozen.
-            for (int sy = level.getMinSection(); sy < level.getMaxSection(); sy++) {
-                Bucket bucket = SECTIONS.get(BlockPos.asLong(cx, sy, cz));
-                if (bucket == null) {
-                    continue;
+            if (!SECTIONS.isEmpty()) {
+                for (int sy = level.getMinSection(); sy < level.getMaxSection(); sy++) {
+                    Bucket bucket = SECTIONS.get(BlockPos.asLong(cx, sy, cz));
+                    if (bucket == null) {
+                        continue;
+                    }
+                    bucket.geoms.keySet().removeIf(snapPos -> {
+                        if ((snapPos.getX() >> 4) != cx || (snapPos.getZ() >> 4) != cz) {
+                            return false;
+                        }
+                        if (level.getBlockEntity(snapPos) instanceof KineticBlockEntity) {
+                            return false;
+                        }
+                        bucket.dirty = true;
+                        BEARING_POSITIONS.remove(snapPos);
+                        return true;
+                    });
                 }
-                bucket.geoms.keySet().removeIf(snapPos -> {
-                    if ((snapPos.getX() >> 4) != cx || (snapPos.getZ() >> 4) != cz) {
-                        return false;
-                    }
-                    if (level.getBlockEntity(snapPos) instanceof KineticBlockEntity) {
-                        return false;
-                    }
-                    bucket.dirty = true;
-                    BEARING_POSITIONS.remove(snapPos);
-                    return true;
-                });
             }
+            boolean chunkIsShipBorne = me.cortex.voxy.client.compat.ShipBorne.isShipBorne(
+                    (double) (cx << 4), (double) (cz << 4));
             for (var be : levelChunk.getBlockEntities().values()) {
                 if (!(be instanceof KineticBlockEntity kbe)) {
                     continue;
                 }
                 BlockPos bePos = kbe.getBlockPos();
                 double distSq = bePos.distToCenterSqr(camX, camY, camZ);
-                if (distSq <= reachSq || me.cortex.voxy.client.compat.ShipBorne.isShipBorne(bePos)) {
+                if (distSq <= reachSq || chunkIsShipBorne) {
                     //Machines whose animation lives only in a BER have no visual, so nothing queues a
                     //remove when the player comes back inside - the frozen copy overlaps the live
                     //spinning render wherever the boundary section still draws (the turntable ghost).

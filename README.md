@@ -36,23 +36,13 @@ Neo-Voxy 为远距离地形提供高性能 LOD 渲染，并针对 NeoForge、Sod
 | 功能 | 1.21.1 | 26.1.2 | 说明 |
 |---|:---:|:---:|---|
 | 远距离地形 LOD | ✅ | ✅ | 在原版区块范围外渲染简化地形 |
-| NeoForge 原生运行 | ✅ | ✅ | 分别适配对应版本的 NeoForge |
-| Sodium 渲染集成 | ✅ | ✅ | 接入区块渲染、深度与设置界面 |
-| Iris 光影兼容 | ✅ | ✅ | 最终效果仍取决于具体光影包 |
+| Sodium / Iris 集成 | ✅ | ✅ | 接入区块、深度、设置与光影管线 |
 | 圆形 LOD 淡入 | ✅ | ✅ | 以玩家为中心平滑交接原版区块与 LOD |
-| 水体独立交接 | ✅ | ✅ | 水体不使用圆形抖动淡入，减少边界色差和缝隙 |
-| Iris 阴影边界协同过渡 | ✅ | ✅ | 复用现有阴影绘制，不增加额外地形批次 |
-| 父级 LOD、空洞与移动闪烁修复 | ✅ | ✅ | 改善重载、快速移动和层级转换后的缺块 |
-| 保存、退出及存储关闭修复 | ✅ | ✅ | 等待待写数据并安全释放世界资源 |
-| 自动关闭 Sodium 区块淡入 | — | ✅ | 避免 26.1.2 原生区块淡入与 LOD 交接叠加 |
-| 无光影水体、水下雾和熔岩修复 | ✅ | — | 处理透明度、介质雾、液面高度和岸线衔接 |
-| 失明与黑暗效果同步到 LOD | ✅ | — | LOD 使用原版实时限制性雾参数 |
 | 树叶 LOD 质量模式 | ✅ | — | 快速、平衡、质量三档 |
 | FakeSight 风格扩展区块请求 | ✅ | — | 移动时限流，静止时逐步扩展至目标距离 |
 | 远距离玩家与乘骑物 | ✅ | — | 可选轻量快照、名称与位置共享 |
 | 远距离信标光柱 | ✅ | — | 从持久化 LOD 数据恢复位置、颜色与遮挡分段 |
 | 专项模组模型兼容 | ✅ | — | 详见下方兼容性表格 |
-| 性能诊断命令 | ✅ | — | 包含帧阶段、GPU 标记和阻塞诊断 |
 
 `—` 表示该分支尚未提供专项实现，不代表对应模组一定无法与基础地形 LOD 同时运行。
 
@@ -115,23 +105,13 @@ compatibility implementations originate from **NHblock**.
 | Feature | 1.21.1 | 26.1.2 | Notes |
 |---|:---:|:---:|---|
 | Distant terrain LOD | ✅ | ✅ | Simplified terrain outside the vanilla chunk radius |
-| Native NeoForge support | ✅ | ✅ | Ported independently for each game version |
-| Sodium renderer integration | ✅ | ✅ | Chunk rendering, depth, and settings integration |
-| Iris shader support | ✅ | ✅ | Final compatibility still depends on the shader pack |
+| Sodium / Iris integration | ✅ | ✅ | Chunk, depth, settings, and shader-pipeline integration |
 | Circular LOD fade | ✅ | ✅ | Camera-centred handoff between vanilla chunks and LOD |
-| Separate water handoff | ✅ | ✅ | Water avoids the circular dither transition |
-| Iris shadow-boundary transition | ✅ | ✅ | Reuses existing shadow draws without another terrain pass |
-| Parent LOD, hole, and movement-flash fixes | ✅ | ✅ | Improves reloads, fast travel, and hierarchy refinement |
-| Save, shutdown, and storage-close fixes | ✅ | ✅ | Flushes pending writes and releases world resources safely |
-| Automatic Sodium chunk-fade disable | — | ✅ | Prevents the 26.1.2 vanilla fade from stacking with LOD handoff |
-| No-shader water, underwater fog, and lava fixes | ✅ | — | Transparency, medium fog, fluid height, and shoreline handling |
-| Blindness and Darkness on LOD | ✅ | — | Reuses vanilla's live restrictive fog parameters |
 | Leaf LOD quality modes | ✅ | — | Fast, Balanced, and Quality modes |
 | FakeSight-style extended chunk requests | ✅ | — | Throttled while moving and expanded gradually while stationary |
 | Distant players and ridden vehicles | ✅ | — | Optional lightweight snapshots, names, and position sharing |
 | Distant beacon beams | ✅ | — | Restores position, colour, and occlusion segments from persistent LOD data |
 | Dedicated mod model integrations | ✅ | — | See the compatibility table below |
-| Performance diagnostics | ✅ | — | Frame stages, GPU markers, and stall diagnostics |
 
 `—` means that no dedicated implementation exists in that branch. It does not necessarily mean the
 mod cannot run alongside basic terrain LOD rendering.
