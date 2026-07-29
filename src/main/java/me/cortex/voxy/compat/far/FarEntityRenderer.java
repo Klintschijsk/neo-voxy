@@ -2,6 +2,7 @@ package me.cortex.voxy.compat.far;
 
 import com.mojang.authlib.GameProfile;
 import com.mojang.blaze3d.vertex.PoseStack;
+import me.cortex.voxy.common.Logger;
 import me.cortex.voxy.client.config.VoxyConfig;
 import me.cortex.voxy.compat.far.FarEntityProtocol.ItemSnapshot;
 import me.cortex.voxy.compat.far.FarPlayerTracker.TrackedPlayer;
@@ -16,6 +17,8 @@ import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.nbt.NbtAccounter;
+import net.minecraft.nbt.NbtIo;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
@@ -29,6 +32,7 @@ import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 
 import java.util.HashMap;
+import java.io.ByteArrayInputStream;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
@@ -52,6 +56,8 @@ final class FarEntityRenderer {
     private final FarPlayerTracker tracker;
     private final Map<UUID, PlayerProxy> playerProxies = new HashMap<>();
     private final Map<UUID, Entity> vehicleProxies = new HashMap<>();
+    private final Map<UUID, Integer> vehicleProxyRevisions = new HashMap<>();
+    private final Map<UUID, Integer> failedVehicleRevisions = new HashMap<>();
     private final Set<UUID> activePlayers = new HashSet<>();
     private final Set<UUID> activeProxyVehicles = new HashSet<>();
     private final Set<UUID> renderedProxyVehicles = new HashSet<>();
@@ -69,6 +75,8 @@ final class FarEntityRenderer {
         }
         this.playerProxies.clear();
         this.vehicleProxies.clear();
+        this.vehicleProxyRevisions.clear();
+        this.failedVehicleRevisions.clear();
         this.activePlayers.clear();
         this.activeProxyVehicles.clear();
         this.renderedProxyVehicles.clear();
@@ -173,14 +181,19 @@ final class FarEntityRenderer {
                     }
                     if (!useLiveVehicle && this.renderedProxyVehicles.add(tracked.vehicleUuid())) {
                         poseStack.pushPose();
-                        dispatcher.render(vehicle,
-                                tracked.renderVehicleX(progress) - cameraPosition.x,
-                                tracked.renderVehicleY(progress) - cameraPosition.y,
-                                tracked.renderVehicleZ(progress) - cameraPosition.z,
-                                tracked.renderVehicleYaw(progress), 0.0F,
-                                poseStack, buffers, LightTexture.FULL_BRIGHT);
-                        poseStack.popPose();
-                        renderedAny = true;
+                        try {
+                            dispatcher.render(vehicle,
+                                    tracked.renderVehicleX(progress) - cameraPosition.x,
+                                    tracked.renderVehicleY(progress) - cameraPosition.y,
+                                    tracked.renderVehicleZ(progress) - cameraPosition.z,
+                                    tracked.renderVehicleYaw(progress), 0.0F,
+                                    poseStack, buffers, LightTexture.FULL_BRIGHT);
+                            renderedAny = true;
+                        } catch (Throwable throwable) {
+                            this.rejectVehicleProxy(tracked, player, vehicle, throwable);
+                        } finally {
+                            poseStack.popPose();
+                        }
                     }
                 } else if (player != null && player.isPassenger()) {
                     player.stopRiding();
@@ -191,14 +204,29 @@ final class FarEntityRenderer {
 
             if (player != null) {
                 poseStack.pushPose();
-                dispatcher.render(player,
-                        positionX - cameraPosition.x,
-                        positionY - cameraPosition.y,
-                        positionZ - cameraPosition.z,
-                        tracked.renderBodyYaw(progress), 0.0F,
-                        poseStack, buffers, LightTexture.FULL_BRIGHT);
-                poseStack.popPose();
-                renderedAny = true;
+                try {
+                    dispatcher.render(player,
+                            positionX - cameraPosition.x,
+                            positionY - cameraPosition.y,
+                            positionZ - cameraPosition.z,
+                            tracked.renderBodyYaw(progress), 0.0F,
+                            poseStack, buffers, LightTexture.FULL_BRIGHT);
+                    renderedAny = true;
+                } catch (Throwable throwable) {
+                    Entity proxyVehicle = tracked.hasVehicle()
+                            ? this.vehicleProxies.get(tracked.vehicleUuid()) : null;
+                    if (proxyVehicle != null && player.getVehicle() == proxyVehicle) {
+                        this.rejectVehicleProxy(tracked, player, proxyVehicle, throwable);
+                    } else if (throwable instanceof RuntimeException runtimeException) {
+                        throw runtimeException;
+                    } else if (throwable instanceof Error error) {
+                        throw error;
+                    } else {
+                        throw new RuntimeException(throwable);
+                    }
+                } finally {
+                    poseStack.popPose();
+                }
             }
         }
 
@@ -216,22 +244,40 @@ final class FarEntityRenderer {
             Map.Entry<UUID, Entity> entry = vehicleIterator.next();
             if (!this.activeProxyVehicles.contains(entry.getKey())) {
                 entry.getValue().ejectPassengers();
+                this.vehicleProxyRevisions.remove(entry.getKey());
                 vehicleIterator.remove();
             }
         }
     }
 
     private Entity getVehicleProxy(ClientLevel level, TrackedPlayer tracked) {
+        if (Objects.equals(this.failedVehicleRevisions.get(tracked.vehicleUuid()),
+                tracked.vehicleDataRevision())) {
+            return null;
+        }
         return this.vehicleProxies.compute(tracked.vehicleUuid(), (uuid, current) -> {
-            if (current != null && current.level() == level && tracked.vehicleTypeId().equals(typeId(current))) {
+            if (current != null && current.level() == level
+                    && tracked.vehicleTypeId().equals(typeId(current))
+                    && Objects.equals(this.vehicleProxyRevisions.get(uuid), tracked.vehicleDataRevision())) {
                 return current;
             }
-            return createVehicleProxy(level, tracked.vehicleTypeId());
+            if (current != null) {
+                current.ejectPassengers();
+            }
+            Entity created = createVehicleProxy(level, tracked);
+            if (created != null) {
+                this.vehicleProxyRevisions.put(uuid, tracked.vehicleDataRevision());
+                this.failedVehicleRevisions.remove(uuid);
+            } else {
+                this.failedVehicleRevisions.put(uuid, tracked.vehicleDataRevision());
+            }
+            return created;
         });
     }
 
-    private static Entity createVehicleProxy(ClientLevel level, String entityTypeId) {
+    private static Entity createVehicleProxy(ClientLevel level, TrackedPlayer tracked) {
         try {
+            String entityTypeId = tracked.vehicleTypeId();
             EntityType<?> entityType = BuiltInRegistries.ENTITY_TYPE.get(ResourceLocation.parse(entityTypeId));
             if (entityType == null) {
                 return null;
@@ -240,14 +286,39 @@ final class FarEntityRenderer {
             if (entity == null) {
                 return null;
             }
+            byte[] renderData = tracked.vehicleRenderData();
+            if (renderData.length != 0) {
+                var tag = NbtIo.readCompressed(
+                        new ByteArrayInputStream(renderData),
+                        NbtAccounter.create(FarEntityProtocol.MAX_VEHICLE_DATA_BYTES * 16L));
+                entity.load(tag);
+                if (entity.isRemoved()) {
+                    return null;
+                }
+            }
+            entity.setUUID(tracked.vehicleUuid());
             entity.setId(nextProxyId());
             entity.noPhysics = true;
             entity.setNoGravity(true);
             entity.setInvisible(false);
             return entity;
-        } catch (RuntimeException ignored) {
+        } catch (Throwable throwable) {
+            Logger.warn("Could not create far vehicle proxy for", tracked.vehicleTypeId(), throwable);
             return null;
         }
+    }
+
+    private void rejectVehicleProxy(TrackedPlayer tracked, PlayerProxy player,
+                                    Entity vehicle, Throwable throwable) {
+        FAR_MOUNT_ERRORS.increment();
+        this.failedVehicleRevisions.put(tracked.vehicleUuid(), tracked.vehicleDataRevision());
+        this.vehicleProxyRevisions.remove(tracked.vehicleUuid());
+        this.vehicleProxies.remove(tracked.vehicleUuid(), vehicle);
+        vehicle.ejectPassengers();
+        if (player != null && player.getVehicle() == vehicle) {
+            player.stopRiding();
+        }
+        Logger.warn("Disabled a failing far vehicle proxy for", tracked.vehicleTypeId(), throwable);
     }
 
     private static void applyVehicleState(Entity vehicle, TrackedPlayer tracked, float progress) {
