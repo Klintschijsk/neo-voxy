@@ -1,29 +1,74 @@
 package me.cortex.voxy.client;
 
 import me.cortex.voxy.client.config.VoxyConfig;
+import me.cortex.voxy.client.core.IGetVoxyRenderSystem;
+import me.cortex.voxy.common.Logger;
 import me.cortex.voxy.commonImpl.VoxyCommon;
+import net.minecraft.client.Minecraft;
 
 public class ClientSessionEvents {
-    public static boolean inSession = false;
+    public static volatile boolean inSession = false;
+    private static boolean closingSession = false;
 
     public static void sessionStart() {
-        if (inSession) throw new IllegalStateException("Cannot start new session while in a session");
-        inSession = true;
+        synchronized (ClientSessionEvents.class) {
+            if (inSession || closingSession) {
+                throw new IllegalStateException("Cannot start a new Voxy session while another session is active");
+            }
+            inSession = true;
+        }
 
-        //Should never try creating multiple instances via session start
-        if (VoxyCommon.getInstance() != null) throw new IllegalStateException();
+        try {
+            //Should never try creating multiple instances via session start
+            if (VoxyCommon.getInstance() != null) throw new IllegalStateException();
 
-        if (VoxyCommon.isAvailable()) {
-            if (VoxyConfig.CONFIG.enabled) {
+            if (VoxyCommon.isAvailable() && VoxyConfig.CONFIG.enabled) {
                 VoxyCommon.createInstance();
             }
+        } catch (RuntimeException exception) {
+            synchronized (ClientSessionEvents.class) {
+                inSession = false;
+            }
+            throw exception;
         }
     }
 
     public static void sessionEnd() {
-        if (!inSession) throw new IllegalStateException("Cannot end a session while not in a session");
-        inSession = false;
+        synchronized (ClientSessionEvents.class) {
+            //Minecraft can reach both disconnect and clearClientLevel for one leave operation.
+            //Do not use inSession as the only ownership signal here.  A failed/partially completed
+            //disconnect can clear it before the native storage handle is gone, and the world-selection
+            //screen may then try to delete the save while RocksDB still owns <world>/voxy/LOCK.
+            if (closingSession || (!inSession && VoxyCommon.getInstance() == null)) return;
+            inSession = false;
+            closingSession = true;
+        }
 
-        VoxyCommon.shutdownInstance();
+        try {
+            //A capture only ends from the render loop, which stops running here - left armed it would
+            //keep the watchdog spinning and GPU timestamp queries enabled for the rest of the process.
+            //Diagnostics must never take the shutdown below down with them: failing to reach
+            //shutdownInstance leaks the RocksDB handle and strands closingSession, which bricks every
+            //later session start.
+            try {
+                if (FrameProfiler.isActive()) {
+                    Logger.info(FrameProfiler.stopAndDump());
+                }
+            } catch (Throwable t) {
+                Logger.error("Failed to close the frame capture on session end", t);
+            }
+
+            //Release the render system first. It owns a WorldEngine reference and must be gone
+            //before the save queue and RocksDB backend are closed.
+            var minecraft = Minecraft.getInstance();
+            if (minecraft.levelRenderer instanceof IGetVoxyRenderSystem renderHook) {
+                renderHook.voxy$shutdownRenderer();
+            }
+            VoxyCommon.shutdownInstance();
+        } finally {
+            synchronized (ClientSessionEvents.class) {
+                closingSession = false;
+            }
+        }
     }
 }

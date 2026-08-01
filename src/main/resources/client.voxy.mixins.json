@@ -15,6 +15,7 @@
     "minecraft.MixinFogRenderer",
     "minecraft.MixinGameRenderer",
     "minecraft.MixinLevelRenderer",
+    "minecraft.MixinLevelStorageAccess",
     "minecraft.MixinMinecraft",
     "minecraft.MixinRenderSystem",
     "minecraft.MixinWindow",

@@ -35,7 +35,8 @@ struct QuadData {
 };
 
 uint makeQuadFlags(uint faceData, uint modelId, ivec2 quadSize, const in BlockModel model, uint face) {
-    //bit: 0-use cuttout, 1-dont use mipmaps, 2|3-tint state, 4|6-face, 8|11-width, 12|15-height, 16|31-model id
+    //bit: 0-use cutout, 1-balanced leaf cutout, 2|3-tint state, 4|6-face,
+    //7-lava boundary, 8|11-width, 12|15-height, 16|31-model id
     uint flags = 0;
 
     flags |= modelId<<16;//Model id
@@ -46,9 +47,8 @@ uint makeQuadFlags(uint faceData, uint modelId, ivec2 quadSize, const in BlockMo
         flags |= uint(any(greaterThan(quadSize, ivec2(1)))) & faceHasAlphaCuttoutOverride(faceData);
     }
 
-    //TODO: remove, there is no non mip code path anymore
-    //flags |= uint(!modelHasMipmaps(model))<<1;//Not mipmaps
-
+    flags |= modelUsesBalancedLeafCutout(model) ? 2u : 0u;
+    flags |= modelIsLava(model) ? (1u << 7u) : 0u;
     flags |= faceTintState(faceData)<<2;
     flags |= face<<4;//Face
 
@@ -112,13 +112,43 @@ uvec3 makeRemainingAttributes(const in BlockModel model, const in Quad quad, uin
     attributes.z = addin|(face<<8);
     #endif
 
+    // Bit 11 is outside the packed face (8..10) and additive-light (0..7) fields. Water keeps the
+    // original independent translucent boundary; all other models may use the circular inner clip.
+    attributes.z |= modelUsesFluidDatum(model) ? (1u << 11u) : 0u;
+
     return attributes;
+}
+
+uint makeBalancedLeafSeed(const in Quad quad, ivec3 lodPos, uint lodLevel, uint face) {
+    uvec3 worldPos = (uvec3(lodPos) << lodLevel) * 32u
+            + (uvec3(extractPos(quad)) << lodLevel);
+    uint hash = worldPos.x * 0x8da6b343u;
+    hash ^= worldPos.y * 0xd8163841u;
+    hash ^= worldPos.z * 0xcb1ab31fu;
+    hash ^= face * 0x165667b1u;
+    hash ^= lodLevel * 0x9e3779b9u;
+    hash ^= hash >> 16u;
+    hash *= 0x7feb352du;
+    hash ^= hash >> 15u;
+    return hash & 0xFFFFu;
+}
+
+float resolveFluidTopIndentation(BlockModel model, uint face, float bakedIndentation, float localY, float lodScale, ivec3 lodPos, uint lodLevel) {
+    if (lodLevel == 0u || face != 1u || !modelUsesFluidDatum(model)) return bakedIndentation;
+
+    float coarseBottom = localY * lodScale + float((lodPos.y << lodLevel) << 5);
+    float datumPosition = (fluidDatumY - coarseBottom) / lodScale;
+    if (datumPosition <= 0.0 || datumPosition > 1.0) return bakedIndentation;
+
+    //UP faces use 1-indentation. Keep the result within the face-data encoding range.
+    return clamp(1.0 - datumPosition, 0.0, 62.0 / 64.0);
 }
 
 void setupQuad(out QuadData quad, const in Quad rawQuad, uvec2 sPos, bool generateAttributes) {
     uint lodLevel = getLoDLevel(sPos);
     float lodScale = 1<<lodLevel;
-    ivec3 baseSection = (getLoDPosition(sPos)<<lodLevel) - baseSectionPos;
+    ivec3 lodPos = getLoDPosition(sPos);
+    ivec3 baseSection = (lodPos<<lodLevel) - baseSectionPos;
 
     uint face = extractFace(rawQuad);
     uint modelId = extractStateId(rawQuad);
@@ -129,6 +159,11 @@ void setupQuad(out QuadData quad, const in Quad rawQuad, uvec2 sPos, bool genera
     if (generateAttributes) {
         quad.attributeData.x = makeQuadFlags(faceData, modelId, quadSize, model, face);
         quad.attributeData.yzw = makeRemainingAttributes(model, rawQuad, lodLevel, face);
+        if (modelUsesBalancedLeafCutout(model)) {
+            // Bits 16..31 are otherwise unused. The fragment shader combines this
+            // stable world seed with the tile coordinate of merged leaf quads.
+            quad.attributeData.w |= makeBalancedLeafSeed(rawQuad, lodPos, lodLevel, face) << 16u;
+        }
     }
 
     vec4 faceSize = getFaceSize(faceData);
@@ -136,7 +171,8 @@ void setupQuad(out QuadData quad, const in Quad rawQuad, uvec2 sPos, bool genera
     faceSize *= 2;
     #endif
     vec3 quadStart = extractPos(rawQuad);
-    float depthOffset = extractFaceIndentation(faceData);
+    float depthOffset = resolveFluidTopIndentation(
+            model, face, extractFaceIndentation(faceData), quadStart.y, lodScale, lodPos, lodLevel);
     quadStart += swizzelDataAxis(face>>1, vec3(faceSize.xz, mix(depthOffset, 1-depthOffset, float(face&1u))));
 
     quad.lodScale = lodScale;
@@ -150,10 +186,13 @@ void setupQuad(out QuadData quad, const in Quad rawQuad, uvec2 sPos, bool genera
     quad.uvCorner = faceSize.xz;
 }
 
-vec4 getQuadCornerPos(in QuadData quad, uint cornerId) {
+vec3 getQuadCornerPoint(in QuadData quad, uint cornerId) {
     vec2 cornerMask = vec2((cornerId>>1)&1u, cornerId&1u)*quad.lodScale;
-    vec3 point = quad.basePoint + swizzelDataAxis(quad.axis,vec3(quad.quadSizeAddin*cornerMask,0));
-    vec4 pos = MVP * vec4(point, 1.0f);
+    return quad.basePoint + swizzelDataAxis(quad.axis,vec3(quad.quadSizeAddin*cornerMask,0));
+}
+
+vec4 getQuadCornerPos(in QuadData quad, uint cornerId) {
+    vec4 pos = MVP * vec4(getQuadCornerPoint(quad, cornerId), 1.0f);
     pos.xy += taaOffset*pos.w;
     return pos;
 }

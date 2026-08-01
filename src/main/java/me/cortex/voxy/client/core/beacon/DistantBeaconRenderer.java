@@ -37,6 +37,9 @@ public final class DistantBeaconRenderer implements LodPipelineHooks.Renderer {
             ResourceLocation.withDefaultNamespace("textures/entity/beacon_beam.png");
 
     private static final float CORE_RADIUS = 0.2f;
+    // Keep the far beam below one block wide. This is enough to survive sub-pixel loss at long range
+    // without turning a distant beacon into a solid tower.
+    private static final float MAX_CORE_RADIUS = 0.82f;
 
     public static int lastFrameBeamsDrawn;
 
@@ -100,24 +103,34 @@ public final class DistantBeaconRenderer implements LodPipelineHooks.Renderer {
             double vanillaRange = Math.min(VANILLA_BEAM_RANGE,
                     Minecraft.getInstance().options.getEffectiveRenderDistance() * 16.0);
             double vanillaRangeSq = vanillaRange * vanillaRange;
+            double maximumRange = VoxyConfig.CONFIG.createRenderDistance(
+                    VoxyConfig.CONFIG.distantBeaconMaxChunks);
+            double wideningRange = Math.max(1.0, maximumRange - vanillaRange);
             lastVanillaRange = (int) vanillaRange;
             int vanillaOwned = 0;
             for (var beam : this.built) {
                 double bdx = beam.x - viewport.cameraX, bdz = beam.z - viewport.cameraZ;
-                if (bdx * bdx + bdz * bdz < vanillaRangeSq) {
+                double horizontalSq = bdx * bdx + bdz * bdz;
+                if (horizontalSq < vanillaRangeSq) {
                     vanillaOwned++;
                     continue;
                 }
+                // Beacon counts are normally tiny, so one sqrt per visible candidate is preferable to
+                // squared interpolation: the beam now becomes readable through the middle distance too.
+                float widthProgress = (float) Math.clamp(
+                        (Math.sqrt(horizontalSq) - vanillaRange) / wideningRange, 0.0, 1.0);
+                float radius = CORE_RADIUS + (MAX_CORE_RADIUS - CORE_RADIUS) * widthProgress;
                 //A beam is a 1024-block column, so its box is tall and thin
                 if (!DistantVisibility.isBoxVisible(viewport,
-                        beam.x - CORE_RADIUS, beam.y, beam.z - CORE_RADIUS,
-                        beam.x + CORE_RADIUS, beam.topY, beam.z + CORE_RADIUS)) {
+                        beam.x - radius, beam.y, beam.z - radius,
+                        beam.x + radius, beam.topY, beam.z + radius)) {
                     continue;
                 }
                 transform.set(viewport.MVP).translate(
                         (float) (beam.x - viewport.cameraX),
                         (float) (beam.y - viewport.cameraY),
-                        (float) (beam.z - viewport.cameraZ));
+                        (float) (beam.z - viewport.cameraZ))
+                        .scale(radius / CORE_RADIUS, 1.0f, radius / CORE_RADIUS);
                 DistantShaders.uploadTransform(transform);
                 beam.mesh.draw();
                 drawn++;

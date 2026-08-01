@@ -4,6 +4,7 @@ import com.teamtea.eclipticseasons.api.EclipticSeasonsApi;
 import com.teamtea.eclipticseasons.client.util.ClientCon;
 import com.teamtea.eclipticseasons.common.core.map.MapChecker;
 import com.teamtea.eclipticseasons.config.CommonConfig;
+import java.lang.ref.WeakReference;
 import me.cortex.voxy.client.config.VoxyConfig;
 import java.lang.reflect.Method;
 import java.util.function.IntConsumer;
@@ -29,6 +30,12 @@ import org.jetbrains.annotations.Nullable;
 
 public class VoxyTool {
     private static final int maxBlockId = 1048575;
+    private static final int INITIAL_REFRESH_DELAY_TICKS = 200;
+    private static final int ENGINE_RETRY_TICKS = 40;
+    // Do not keep a disconnected ClientLevel alive merely because no further level tick can clear it.
+    private static WeakReference<Level> initialRefreshLevel = new WeakReference<>(null);
+    private static int initialRefreshCountdown = INITIAL_REFRESH_DELAY_TICKS;
+    private static boolean initialRefreshStarted;
 
     public static boolean isVoxyTest() {
         return VoxyConfig.CONFIG.eclipticSeasonsSnowLod;
@@ -128,14 +135,42 @@ public class VoxyTool {
             return;
         }
         Level level = ClientCon.getUseLevel();
-        if (level == null || !ClientCon.getAgent().isSnowChange() || SeasonalSnowRefresher.isRunning()) {
+        if (level == null) {
+            initialRefreshLevel = new WeakReference<>(null);
+            initialRefreshStarted = false;
+            initialRefreshCountdown = INITIAL_REFRESH_DELAY_TICKS;
             return;
         }
+
+        if (level != initialRefreshLevel.get()) {
+            initialRefreshLevel = new WeakReference<>(level);
+            initialRefreshStarted = false;
+            // Let the remote Voxy store open and ingest its first batches before walking it. Starting
+            // at ClientLevel construction can finish against an empty store and never reach server LOD.
+            initialRefreshCountdown = INITIAL_REFRESH_DELAY_TICKS;
+        }
+
+        boolean seasonChanged = ClientCon.getAgent().isSnowChange();
+        if (!seasonChanged && initialRefreshStarted) {
+            return;
+        }
+        if (!seasonChanged && initialRefreshCountdown-- > 0) {
+            return;
+        }
+        if (SeasonalSnowRefresher.isRunning()) {
+            return;
+        }
+
         WorldEngine engine = WorldIdentifier.ofEngineNullable(level);
         if (engine == null || !engine.isLive()) {
+            initialRefreshCountdown = ENGINE_RETRY_TICKS;
             return;
         }
-        ClientCon.agent.setSnowChange(false);
+
+        if (seasonChanged) {
+            ClientCon.agent.setSnowChange(false);
+        }
+        initialRefreshStarted = true;
         SeasonalSnowRefresher.start(level, engine);
     }
 
