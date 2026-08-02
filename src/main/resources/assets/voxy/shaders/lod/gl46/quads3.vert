@@ -57,9 +57,10 @@ void main() {
 
     uint cornerId = gl_VertexID&3;
 
-    // Squared distance avoids a square root for every vertex. It is used only by independently-marked
-    // lava, and merged quads are small relative to the handoff radius, so interpolation is sufficient.
-    vec2 boundaryOffset = (getQuadCornerPoint(quad, cornerId) - cameraSubPos).xz;
+    // Match the stencil handoff's camera-space sphere.  X/Z-only distance leaves a cylindrical LOD
+    // cutout beneath high-altitude players even after vanilla stops drawing the ground there.
+    // Squared distance still avoids a square root for every vertex.
+    vec3 boundaryOffset = getQuadCornerPoint(quad, cornerId) - cameraSubPos;
     boundaryDistanceSquared = dot(boundaryOffset, boundaryOffset);
 
     gl_Position =

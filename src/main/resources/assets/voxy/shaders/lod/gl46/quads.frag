@@ -159,7 +159,7 @@ vec4 computeColour(vec2 texturePos, vec4 colour) {
 void main() {
     // Partial/cutout/translucent vanilla models leave holes in the source depth buffer. Stencil alone
     // would let their simplified LOD proxy show through those holes even deep inside the vanilla area.
-    // Clip geometrically at the exact fade start, then allow every model to fill the real transition.
+    // Clip geometrically at the exact 3-D fade start, then allow every model to fill the real transition.
     // Water is exempt because it deliberately retains its independent translucent chunk boundary.
     if (circularLodBoundaryEnabled > 0.5
             && !useIndependentWaterBoundary()

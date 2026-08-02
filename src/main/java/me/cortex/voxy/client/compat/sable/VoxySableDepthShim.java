@@ -627,6 +627,18 @@ public final class VoxySableDepthShim {
             glViewport(0, 0, this.width, this.height);
             //restoreMutableState just put the caller's scissor back; the bracketed pass runs under ours
             this.applyScissor();
+
+            //Sable renders every sub-level terrain layer through this bracket, including custom
+            //translucent layers used by Aeronautics' hot air.  Some of those layers arrive with depth
+            //writes disabled (and shader pipelines can also leave a non-terrain depth function).  That
+            //is normally harmless at vanilla distance, but here it lets an interior translucent volume
+            //draw over the already-rendered balloon shell after the shell has been redirected through
+            //our combined LOD framebuffer.  Make the sub-level pass use an ordinary, writable terrain
+            //depth buffer; restoreAll() reinstates the exact caller state immediately afterward.
+            //Reverse-Z never reaches this point: begin() deliberately rejects it above.
+            glEnable(GL_DEPTH_TEST);
+            glDepthFunc(GL_LEQUAL);
+            glDepthMask(true);
         }
 
         private void restoreAll() {
