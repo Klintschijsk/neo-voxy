@@ -113,7 +113,8 @@ final class FarEntityRenderer {
         double maximumDistanceSquared = (double) maximumDistance * maximumDistance;
         int vanillaDistance = minecraft.options.getEffectiveRenderDistance() * 16;
         double vanillaDistanceSquared = (double) (vanillaDistance + 16) * (vanillaDistance + 16);
-        int animationDistance = VoxyConfig.CONFIG.farPlayerAnimationDistance;
+        int animationDistance = VoxyConfig.CONFIG.farPlayerAnimationDistance == 0
+                ? maximumDistance : VoxyConfig.CONFIG.farPlayerAnimationDistance;
         double animationDistanceSquared = (double) animationDistance * animationDistance;
         int animationTick = localPlayer.tickCount;
         long now = System.nanoTime();

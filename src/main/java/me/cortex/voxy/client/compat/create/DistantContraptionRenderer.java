@@ -93,6 +93,7 @@ public final class DistantContraptionRenderer implements LodPipelineHooks.Render
 
         boolean renderStateActive = false;
         int drawn = 0;
+        long nowNanos = System.nanoTime();
         var transform = new Matrix4f();
         try {
             for (var snapEntry : snapshots.entrySet()) {
@@ -122,7 +123,8 @@ public final class DistantContraptionRenderer implements LodPipelineHooks.Render
                     if (live.position().distanceToSqr(entityCam) <= reachSq) {
                         continue;
                     }
-                } else if (live == null && distSq < reachSq && snap.movedWhileSeen()) {
+                } else if (live == null && distSq < reachSq && snap.movedWhileSeen()
+                        && !DistantContraptionManager.hasFreshRemotePose(snap, nowNanos)) {
                     continue;
                 }
                 //Before any state setup, so a frame with every contraption behind the camera never binds

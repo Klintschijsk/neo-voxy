@@ -66,7 +66,7 @@
   "voxy.config.farEntities.names": "Show distant player names",
   "voxy.config.farEntities.names.tooltip": "Shows name tags above distant player proxies.",
   "voxy.config.farEntities.animationDistance": "Player animation distance",
-  "voxy.config.farEntities.animationDistance.tooltip": "Only animate distant players inside this range. Set to 0 for static proxies and lower CPU cost.",
+  "voxy.config.farEntities.animationDistance.tooltip": "Only animate distant players inside this range. Set to 0 to follow the LOD render distance.",
   "voxy.config.farEntities.sharePosition": "Share my distant position",
   "voxy.config.farEntities.sharePosition.tooltip": "Allow other Voxy clients on the same server to receive your distant-player snapshot.",
   "voxy.config.compat": "Integrations",

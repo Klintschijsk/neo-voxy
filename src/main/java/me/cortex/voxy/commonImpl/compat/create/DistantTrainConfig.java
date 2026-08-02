@@ -22,6 +22,8 @@ public final class DistantTrainConfig {
     //Client (integrated-server host) preference.
     public static volatile boolean clientEnabled = true;
     public static volatile double clientMaxDistance = HARD_MAX;
+    public static volatile boolean clientContraptionsEnabled = true;
+    public static volatile double clientContraptionMaxDistance = HARD_MAX;
 
     //Server (dedicated admin) uniform ceiling.
     public static volatile boolean serverEnabled = true;
@@ -35,6 +37,11 @@ public final class DistantTrainConfig {
     public static void updateClientConfig(boolean enabled, double maxDistanceBlocks) {
         clientEnabled = enabled;
         clientMaxDistance = clampDistance(maxDistanceBlocks);
+    }
+
+    public static void updateClientContraptionConfig(boolean enabled, double maxDistanceBlocks) {
+        clientContraptionsEnabled = enabled;
+        clientContraptionMaxDistance = clampDistance(maxDistanceBlocks);
     }
 
     public static void updateServerConfig(boolean enabled, double maxDistanceBlocks, int intervalTicks) {
@@ -54,5 +61,13 @@ public final class DistantTrainConfig {
 
     public static int sampleInterval() {
         return sampleIntervalTicks;
+    }
+
+    public static boolean contraptionsEnabled() {
+        return clientContraptionsEnabled && serverEnabled;
+    }
+
+    public static double contraptionMaxDistance() {
+        return Math.min(clientContraptionMaxDistance, serverMaxDistance);
     }
 }

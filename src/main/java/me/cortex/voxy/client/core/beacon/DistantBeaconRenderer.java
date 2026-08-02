@@ -42,7 +42,8 @@ public final class DistantBeaconRenderer implements LodPipelineHooks.Renderer {
             ResourceLocation.withDefaultNamespace("textures/entity/beacon_beam.png");
 
     private static final float CORE_RADIUS = 0.2f;
-    private static final float MAX_CORE_RADIUS = 0.82f;
+    private static final float WIDTH_PER_BLOCK = 0.0006f;
+    private static final float MAX_CORE_RADIUS = 4.8f;
 
     public static int lastFrameBeamsDrawn;
     //Re-solves per frame. A solve is a bounded column walk, but the first sight of a beacon-heavy
@@ -154,9 +155,6 @@ public final class DistantBeaconRenderer implements LodPipelineHooks.Renderer {
             double vanillaRange = Math.min(VANILLA_BEAM_RANGE,
                     Minecraft.getInstance().options.getEffectiveRenderDistance() * 16.0);
             double vanillaRangeSq = vanillaRange * vanillaRange;
-            double maximumRange = VoxyConfig.CONFIG.createRenderDistance(
-                    VoxyConfig.CONFIG.distantBeaconMaxChunks);
-            double wideningRange = Math.max(1.0, maximumRange - vanillaRange);
             lastVanillaRange = (int) vanillaRange;
             int vanillaOwned = 0;
             for (var beam : this.built) {
@@ -166,9 +164,8 @@ public final class DistantBeaconRenderer implements LodPipelineHooks.Renderer {
                     vanillaOwned++;
                     continue;
                 }
-                float widthProgress = (float) Math.clamp(
-                        (Math.sqrt(horizontalSq) - vanillaRange) / wideningRange, 0.0, 1.0);
-                float radius = CORE_RADIUS + (MAX_CORE_RADIUS - CORE_RADIUS) * widthProgress;
+                float radius = Math.min(MAX_CORE_RADIUS, CORE_RADIUS
+                        + (float) Math.max(0.0, Math.sqrt(horizontalSq) - vanillaRange) * WIDTH_PER_BLOCK);
                 //A beam is a 1024-block column, so its box is tall and thin
                 if (!DistantVisibility.isBoxVisible(viewport,
                         beam.x - radius, beam.y, beam.z - radius,

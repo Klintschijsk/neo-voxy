@@ -47,7 +47,7 @@ public class VoxyNeoForgeConfig {
     private static final ModConfigSpec.DoubleValue SUB_DIVISION_SIZE = BUILDER
             .comment("Subdivision size for LOD rendering (28-256)",
                      "Lower = more detailed LODs but more GPU load")
-            .defineInRange("subDivisionSize", 63.0, 28.0, 256.0);
+            .defineInRange("subDivisionSize", 123.0, 28.0, 256.0);
 
     private static final ModConfigSpec.BooleanValue USE_ENVIRONMENTAL_FOG = BUILDER
             .comment("Apply environmental fog to LOD terrain")
@@ -107,8 +107,8 @@ public class VoxyNeoForgeConfig {
 
     private static final ModConfigSpec.IntValue FAR_PLAYER_ANIMATION_DISTANCE = BUILDER
             .comment("Maximum distance in blocks for far-player walk animation.",
-                     "Set to 0 to keep far proxies static and reduce CPU cost.")
-            .defineInRange("farPlayerAnimationDistance", 1024, 0, 32768);
+                     "Set to 0 to follow the LOD render distance.")
+            .defineInRange("farPlayerAnimationDistance", 0, 0, 32768);
 
     private static final ModConfigSpec.BooleanValue SHARE_FAR_PLAYER_POSITION = BUILDER
             .comment("Allow other Voxy clients on the same server to receive your far-player snapshot.")

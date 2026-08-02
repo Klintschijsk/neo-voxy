@@ -277,7 +277,9 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                                         Component.translatable("voxy.config.farEntities.animationDistance"),
                                         ()->CFG.farPlayerAnimationDistance, v->CFG.farPlayerAnimationDistance=v,
                                         new Range(0, 32768, 64))
-                                        .setFormatter(v->Component.literal(v + " blocks"))
+                                        .setFormatter(v->v == 0
+                                                ? Component.translatable("voxy.config.compat.distanceFollowLod")
+                                                : Component.literal(v + " blocks"))
                                         .setEnabler("voxy:far_players")
                                         .setImpact(OptionImpact.LOW),
                                 new BoolOption(

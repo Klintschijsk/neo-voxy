@@ -2,6 +2,7 @@ package me.cortex.voxy.commonImpl.compat.create;
 
 import com.simibubi.create.Create;
 import com.simibubi.create.content.contraptions.Contraption;
+import com.simibubi.create.content.contraptions.ControlledContraptionEntity;
 import com.simibubi.create.content.trains.entity.Carriage;
 import com.simibubi.create.content.trains.entity.CarriageBogey;
 import com.simibubi.create.content.trains.entity.Train;
@@ -9,6 +10,8 @@ import me.cortex.voxy.common.Logger;
 import me.cortex.voxy.commonImpl.compat.create.DistantTrainProtocol.BogeyPose;
 import me.cortex.voxy.commonImpl.compat.create.DistantTrainProtocol.CarriagePose;
 import me.cortex.voxy.commonImpl.compat.create.DistantTrainProtocol.CarriageShapePayload;
+import me.cortex.voxy.commonImpl.compat.create.DistantTrainProtocol.ContraptionPose;
+import me.cortex.voxy.commonImpl.compat.create.DistantTrainProtocol.ContraptionPosesPayload;
 import me.cortex.voxy.commonImpl.compat.create.DistantTrainProtocol.ShapeBlock;
 import me.cortex.voxy.commonImpl.compat.create.DistantTrainProtocol.ShapeBogey;
 import me.cortex.voxy.commonImpl.compat.create.DistantTrainProtocol.TrainPosesPayload;
@@ -23,6 +26,8 @@ import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
+import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
@@ -75,6 +80,10 @@ public final class CreateTrainSampler {
     //Shape payloads are built once per carriage and reused for every player
     private final Map<Long, CarriageShapePayload> shapeCache = new ConcurrentHashMap<>();
     private final Set<Long> failedShapes = ConcurrentHashMap.newKeySet();
+    private final Map<ResourceKey<Level>, Set<ControlledContraptionEntity>> loadedContraptions = new ConcurrentHashMap<>();
+    private final Map<UUID, RemoteContraptionState> contraptionStates = new ConcurrentHashMap<>();
+
+    private record RemoteContraptionState(ContraptionPose pose, boolean moving) {}
 
     //Key for the per-round pose cache: a carriage pose is identical for every player in a dimension
     private record PoseKey(long shapeId, ResourceKey<Level> dim) {}
@@ -95,10 +104,106 @@ public final class CreateTrainSampler {
         }
         this.tickCounter = 0;
         var server = event.getServer();
+        this.sampleContraptionsSafe(server);
         if (CTT_LOADED && this.submitToTrainWorker(server)) {
             return;
         }
         this.sampleSafe(server);
+    }
+
+    @SubscribeEvent
+    public void onEntityJoin(EntityJoinLevelEvent event) {
+        if (!event.getLevel().isClientSide() && event.getEntity() instanceof ControlledContraptionEntity contraption) {
+            this.loadedContraptions.computeIfAbsent(event.getLevel().dimension(), ignored -> ConcurrentHashMap.newKeySet())
+                    .add(contraption);
+        }
+    }
+
+    @SubscribeEvent
+    public void onEntityLeave(EntityLeaveLevelEvent event) {
+        if (!event.getLevel().isClientSide() && event.getEntity() instanceof ControlledContraptionEntity contraption) {
+            var entities = this.loadedContraptions.get(event.getLevel().dimension());
+            if (entities != null) {
+                entities.remove(contraption);
+            }
+            this.contraptionStates.remove(contraption.getUUID());
+        }
+    }
+
+    private void sampleContraptionsSafe(MinecraftServer server) {
+        try {
+            this.sampleContraptions(server);
+        } catch (Throwable e) {
+            Logger.error("Distant contraption pose sampling failed", e);
+        }
+    }
+
+    private void sampleContraptions(MinecraftServer server) {
+        if (!DistantTrainConfig.contraptionsEnabled() || this.loadedContraptions.isEmpty()) {
+            return;
+        }
+        double maximumDistance = DistantTrainConfig.contraptionMaxDistance();
+        double maximumDistanceSq = maximumDistance * maximumDistance;
+        Map<ResourceKey<Level>, List<ContraptionPose>> movingByDimension = new java.util.HashMap<>();
+        for (var dimensionEntry : this.loadedContraptions.entrySet()) {
+            List<ContraptionPose> moving = null;
+            for (ControlledContraptionEntity entity : dimensionEntry.getValue()) {
+                if (entity.isRemoved() || entity.getContraption() == null) {
+                    continue;
+                }
+                var axis = entity.getRotationAxis();
+                if (axis == null) {
+                    continue;
+                }
+                var pose = new ContraptionPose(entity.getUUID(), entity.getX(), entity.getY(), entity.getZ(),
+                        (byte) axis.ordinal(), entity.getAngle(1.0f));
+                var previous = this.contraptionStates.get(entity.getUUID());
+                boolean changed = previous != null && poseChanged(previous.pose(), pose);
+                if (changed || previous != null && previous.moving()) {
+                    if (moving == null) {
+                        moving = new ArrayList<>();
+                    }
+                    moving.add(pose);
+                }
+                this.contraptionStates.put(entity.getUUID(), new RemoteContraptionState(pose, changed));
+            }
+            if (moving != null) {
+                movingByDimension.put(dimensionEntry.getKey(), moving);
+            }
+        }
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            var source = movingByDimension.get(player.level().dimension());
+            if (source == null) {
+                continue;
+            }
+            double minimumDistance = minSendDistance(server, player);
+            double minimumDistanceSq = minimumDistance * minimumDistance;
+            List<ContraptionPose> poses = null;
+            for (ContraptionPose pose : source) {
+                double dx = pose.x() - player.getX();
+                double dy = pose.y() - player.getY();
+                double dz = pose.z() - player.getZ();
+                double distanceSq = dx * dx + dy * dy + dz * dz;
+                if (distanceSq < minimumDistanceSq || distanceSq > maximumDistanceSq) {
+                    continue;
+                }
+                if (poses == null) {
+                    poses = new ArrayList<>();
+                }
+                poses.add(pose);
+            }
+            if (poses != null) {
+                PacketDistributor.sendToPlayer(player, new ContraptionPosesPayload(
+                        player.level().dimension().location(), poses));
+            }
+        }
+    }
+
+    private static boolean poseChanged(ContraptionPose a, ContraptionPose b) {
+        double dx = a.x() - b.x(), dy = a.y() - b.y(), dz = a.z() - b.z();
+        return dx * dx + dy * dy + dz * dz > 1.0e-8
+                || a.axis() != b.axis()
+                || Math.abs(net.minecraft.util.Mth.wrapDegrees(a.angle() - b.angle())) > 0.01f;
     }
 
     private void sampleSafe(MinecraftServer server) {
@@ -150,6 +255,8 @@ public final class CreateTrainSampler {
         this.visibleTrains.clear();
         this.shapeCache.clear();
         this.failedShapes.clear();
+        this.loadedContraptions.clear();
+        this.contraptionStates.clear();
     }
 
     //Contraption.fromNBT deserialization per carriage is heavy; a long train entering the window

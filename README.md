@@ -46,6 +46,12 @@ Neo-Voxy 为远距离地形提供高性能 LOD 渲染，并针对 NeoForge、Sod
 
 `—` 表示该分支尚未提供专项实现，不代表对应模组一定无法与基础地形 LOD 同时运行。
 
+### 近期渲染优化
+
+- **LOD 淡入：** 圆形交接按渲染类型处理，并为树叶、流体、熔岩和信标采用独立规则，减少透明重现、接缝、近距离虚影及高空观察时的空洞。
+- **Create 动态结构：** 已加载区块中的结构持续更新远景姿态；区块加载器维持加载时，服务端仅低频同步运动结构的位置和旋转，客户端复用已有模型并插值，不重复烘焙。
+- **信标光柱：** 保留正确颜色和 LOD 遮挡，并使用有上限的距离宽度曲线，使远处仍可辨认且不会过粗。
+
 ### 模组兼容性
 
 | 模组或组件 | 1.21.1 | 26.1.2 | 兼容说明 |
@@ -115,6 +121,17 @@ compatibility implementations originate from **NHblock**.
 
 `—` means that no dedicated implementation exists in that branch. It does not necessarily mean the
 mod cannot run alongside basic terrain LOD rendering.
+
+### Recent rendering improvements
+
+- **LOD fade:** The circular handoff handles render types separately and gives leaves, fluids, lava,
+  and beacon beams dedicated rules, reducing transparency pop, seams, near-range ghosts, and
+  high-altitude holes.
+- **Create contraptions:** Contraptions in loaded chunks keep their distant pose updated. When a chunk
+  loader keeps them active, the server sends only low-rate movement poses; the client interpolates
+  the existing cached model without rebaking it.
+- **Beacon beams:** Correct colours and LOD occlusion are retained, while a capped distance-width curve
+  keeps beams visible at long range without becoming excessively thick.
 
 ### Mod compatibility
 

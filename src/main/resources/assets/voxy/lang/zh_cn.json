@@ -66,7 +66,7 @@
   "voxy.config.farEntities.names": "显示远距离玩家名称",
   "voxy.config.farEntities.names.tooltip": "在远距离玩家代理上方显示名称标签。",
   "voxy.config.farEntities.animationDistance": "玩家动画距离",
-  "voxy.config.farEntities.animationDistance.tooltip": "仅在此距离内计算远距离玩家行走动画；设为 0 可让代理保持静态并进一步降低 CPU 开销。",
+  "voxy.config.farEntities.animationDistance.tooltip": "仅在此距离内计算远距离玩家行走动画；设为 0 时跟随 LOD 渲染距离。",
   "voxy.config.farEntities.sharePosition": "共享自己的远距离位置",
   "voxy.config.farEntities.sharePosition.tooltip": "允许同一服务器上的其他 Voxy 客户端接收你的远距离玩家快照。",
   "voxy.config.compat": "联动",

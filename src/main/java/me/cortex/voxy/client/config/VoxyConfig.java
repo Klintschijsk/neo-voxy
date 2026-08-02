@@ -62,7 +62,7 @@ public class VoxyConfig {
     public int distantKineticGpuBudgetMiB = 32;
     public int simulatedContraptionRenderDistancePercent = 100;
     public int serviceThreads = (int) Math.max(CpuLayout.getCoreCount()/1.5, 1);
-    public float subDivisionSize = 28;
+    public float subDivisionSize = 123;
     public int skyFogDistance = 96;
     public float fogIntensity = 1.0f;
     public float fogDensity = 0.0f;
@@ -84,7 +84,7 @@ public class VoxyConfig {
     public boolean enableFarPlayerRendering = true;
     public boolean enableFarVehicleRendering = true;
     public boolean renderFarPlayerNames = true;
-    public int farPlayerAnimationDistance = 1024;
+    public int farPlayerAnimationDistance = 0;
     public boolean shareFarPlayerPosition = true;
     public boolean joinMessageShown = false;
     public boolean upgradeCleanupNoticeShown = false;
@@ -248,6 +248,10 @@ public class VoxyConfig {
         DistantTrainConfig.updateClientConfig(
                 this.isRenderingEnabled() && this.distantTrains,
                 this.createRenderDistance(this.distantTrainMaxChunks)
+        );
+        DistantTrainConfig.updateClientContraptionConfig(
+                this.isRenderingEnabled() && this.distantContraptions,
+                this.createRenderDistance(this.distantContraptionMaxChunks)
         );
     }
 

@@ -5,6 +5,8 @@ import com.simibubi.create.content.contraptions.AbstractContraptionEntity;
 import com.simibubi.create.content.contraptions.Contraption;
 import com.simibubi.create.content.trains.entity.CarriageContraptionEntity;
 import me.cortex.voxy.client.config.VoxyConfig;
+import me.cortex.voxy.commonImpl.compat.create.DistantTrainProtocol.ContraptionPose;
+import me.cortex.voxy.commonImpl.compat.create.DistantTrainProtocol.ContraptionPosesPayload;
 import me.cortex.voxy.commonImpl.compat.create.DistantTrainProtocol.ShapeBlock;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -20,13 +22,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-//Client-side "leave-behind snapshot" store for distant Create contraptions (bearings/windmills,
-//pistons, gantries, mounted/minecart contraptions). Unlike trains - which the server streams because
-//they run in unloaded chunks - a contraption is an entity the player necessarily walked past, so the
-//data is already client-side. While a contraption sits inside the render distance we keep its baked
-//block mesh and its live world transform up to date; once it crosses out (or its chunk unloads) the
-//snapshot freezes and DistantContraptionRenderer draws it statically, holding the pose/rotation it
-//had when the player left. Pure client, no server sampling, no protocol.
+//Caches Create contraption meshes and applies either a live entity transform or a low-rate remote pose.
 public final class DistantContraptionManager {
     private DistantContraptionManager() {}
 
@@ -64,8 +60,6 @@ public final class DistantContraptionManager {
         //Set once a bake ran on a non-empty contraption but produced no drawable mesh (all non-MODEL
         //blocks); stops the per-tick 64KB re-bake retry for structures that can never draw.
         boolean bakeGaveNothing;
-        //Bearing/piston-driven: pose froze at the reach boundary (one refresh on the crossing tick)
-        boolean frozenControlled;
         //The entity's world position changed between the last two refreshes. An anchored contraption
         //(bearing) freezes with only its angle stale; a translating one (gantry, piston, minecart
         //mount) freezes at a position the real structure immediately leaves, and every packet about
@@ -74,6 +68,7 @@ public final class DistantContraptionManager {
         //misplaced over loaded terrain; the renderer draws it only past the render distance, where a
         //leave-behind is the only information there is.
         boolean movedWhileSeen;
+        long remoteUpdatedAtNanos;
         //Network id of the entity behind the last refresh, for the renderer's frame-time lookup -
         //Level.getEntity(int) is the public O(1) path; the UUID re-check guards against id reuse
         int entityId = -1;
@@ -105,6 +100,16 @@ public final class DistantContraptionManager {
     }
 
     private static final Map<UUID, Snapshot> SNAPSHOTS = new ConcurrentHashMap<>();
+    private static final Map<UUID, RemotePose> REMOTE_POSES = new ConcurrentHashMap<>();
+    private static final long REMOTE_TIMEOUT_NANOS = 1_500_000_000L;
+
+    private static final class RemotePose {
+        ContraptionPose previous;
+        ContraptionPose current;
+        ResourceLocation dimension;
+        long receivedAtNanos;
+        long intervalNanos = 250_000_000L;
+    }
     //Read from storage on world entry and baked a few per tick, nearest first, so re-entering a world
     //with a lot of stored structures does not stall on one frame's worth of mesh uploads.
     private static final int BAKES_PER_TICK = 2;
@@ -120,13 +125,6 @@ public final class DistantContraptionManager {
     //(the player walked away horizontally) simply drops out of entitiesForRendering, so its snapshot
     //stops refreshing and freezes at the last pose. Only bounded by the LOD radius (past it we never
     //draw). Runs on the client tick - applyLocalTransforms only reads entity state, no render context.
-    //Did this controlled contraption's bearing/piston block just self-recapture its kinetic snapshot?
-    //Consuming the notification re-freezes the structure pose on the same tick (drivetrain alignment).
-    private static boolean anchorRecaptured(AbstractContraptionEntity ce) {
-        var anchor = ((me.cortex.voxy.client.mixin.create.AccessorControlledContraptionEntity) ce).voxy$getControllerPos();
-        return anchor != null && KineticSnapshots.consumeAnchorRecapture(anchor);
-    }
-
     public static void update(ClientLevel level, double camX, double camY, double camZ, double maxDist) {
         if (!VoxyConfig.CONFIG.isRenderingEnabled() || !VoxyConfig.CONFIG.distantContraptions) {
             if (!SNAPSHOTS.isEmpty()) {
@@ -138,6 +136,7 @@ public final class DistantContraptionManager {
         long now = System.currentTimeMillis();
         double maxDistSq = maxDist * maxDist;
         var dimId = level.dimension().location();
+        applyRemotePoses(dimId, System.nanoTime(), now);
 
         var seenThisTick = new java.util.HashSet<UUID>();
         var liveBodies = new ArrayList<double[]>();
@@ -213,82 +212,7 @@ public final class DistantContraptionManager {
                 liveBodies.add(new double[]{ce.getX(), ce.getY(), ce.getZ(), snap.boundRadius});
                 continue;
             }
-            //Bearing/piston/gantry-driven contraptions freeze at the reach boundary rather than
-            //staying live: their controller block's moving parts (the bearing's top disc) are frozen
-            //there by the kinetic snapshot, and a disc stopped mid-spin under a still-rotating sail
-            //reads as misalignment. Freezing both halves at the same boundary keeps them meshed.
-            //lastSeen still refreshes so the frozen snapshot is not evicted while loaded.
-            if (ce instanceof com.simibubi.create.content.contraptions.ControlledContraptionEntity
-                    && snap.lightPacked >= 0) {
-                var mc = net.minecraft.client.Minecraft.getInstance();
-                double reach = mc.options.getEffectiveRenderDistance() * 16.0;
-                double camDx = ce.getX() - camX, camDy = ce.getY() - camY, camDz = ce.getZ() - camZ;
-                if (camDx * camDx + camDy * camDy + camDz * camDz > reach * reach) {
-                    //One last full refresh ON the crossing tick, then freeze: without it the frozen
-                    //pose is the tick before the boundary while the bearing disc snapshot captures the
-                    //tick after - at high rpm that couple of degrees reads as the halves misaligning.
-                    if (!snap.frozenControlled) {
-                        snap.frozenControlled = true;
-                        //Freeze tick: recapture the controller's kinetic snapshot now, so the bearing
-                        //disc and the structure hold the same tick's angle - each side freezing on
-                        //whichever tick it happened to cross the boundary was the residual mesh offset
-                        var anchor = ((me.cortex.voxy.client.mixin.create.AccessorControlledContraptionEntity) ce).voxy$getControllerPos();
-                        if (anchor != null) {
-                            KineticSnapshots.recaptureAt(anchor);
-                        }
-                    } else if (anchorRecaptured(ce)) {
-                        //The bearing disc just recaptured on its own (its boundary crossing, or the
-                        //sweep): fall through to the full pose refresh below so both halves re-freeze
-                        //on this same tick
-                    } else {
-                        //Settle-follow: a frozen structure that keeps spinning stays frozen, but when
-                        //it decelerates to a stop after the freeze (power cut), the frozen pose is
-                        //stale mid-spin while the bearing disc recaptures the stopped angle. Track the
-                        //live pose while the per-tick change is small (settling), hold while large.
-                        SCRATCH_POSE.pushPose();
-                        try {
-                            ce.applyLocalTransforms(SCRATCH_POSE, 1.0f);
-                            var live = SCRATCH_POSE.last().pose();
-                            float ax = snap.local.m00(), ay = snap.local.m01(), az = snap.local.m02();
-                            float bx = live.m00(), by = live.m01(), bz = live.m02();
-                            double dot = (ax * bx + ay * by + az * bz)
-                                    / (Math.sqrt(ax * ax + ay * ay + az * az) * Math.sqrt(bx * bx + by * by + bz * bz) + 1.0e-9);
-                            if (dot > 0.9986) { //under ~3 deg since the freeze pose: settling, follow it
-                                snap.local.set(live);
-                            }
-                        } catch (Throwable ignored) {
-                        } finally {
-                            SCRATCH_POSE.popPose();
-                        }
-                        //A held snapshot is still accounted for. Motion has to come from the entity's
-                        //own last tick: the diff against the frozen snap.x measures the whole stroke
-                        //travelled since the freeze, so it never clears and a machine that parks
-                        //while held would stay marked as moving - suppressed inside the reach and
-                        //vetoed from disk for as long as it stands there. Parking re-anchors it to
-                        //its resting spot; the pose is already settle-followed above, and a spinning
-                        //bearing translates by nothing, so its disc pairing freeze is untouched. The
-                        //live body is published every tick because the supersession pass reaps the
-                        //previous stroke's ghost, and a stroke cycle can be shorter than the gaps
-                        //between full-refresh ticks.
-                        double hmx = ce.getX() - ce.xOld, hmy = ce.getY() - ce.yOld, hmz = ce.getZ() - ce.zOld;
-                        boolean parked = hmx * hmx + hmy * hmy + hmz * hmz <= 1.0e-9;
-                        snap.movedWhileSeen = !parked;
-                        if (parked) {
-                            snap.x = ce.getX();
-                            snap.y = ce.getY();
-                            snap.z = ce.getZ();
-                        }
-                        snap.entityId = ce.getId();
-                        liveBodies.add(new double[]{ce.getX(), ce.getY(), ce.getZ(), snap.boundRadius});
-                        snap.lastSeenMs = now;
-                        continue;
-                    }
-                } else {
-                    snap.frozenControlled = false;
-                }
-            }
-            //Live pose while in range - frozen the moment the player leaves (also the shared refresh
-            //path for the freeze tick and the anchor-recapture re-freeze above)
+            //Keep the cached transform live whenever the client has the entity.
             SCRATCH_POSE.pushPose();
             try {
                 ce.applyLocalTransforms(SCRATCH_POSE, 1.0f);
@@ -482,6 +406,64 @@ public final class DistantContraptionManager {
 
         enforceGpuBudget(camX, camY, camZ);
         snapshotCount = SNAPSHOTS.size();
+    }
+
+    public static void handleRemotePoses(ContraptionPosesPayload payload) {
+        long now = System.nanoTime();
+        for (ContraptionPose pose : payload.poses()) {
+            REMOTE_POSES.compute(pose.id(), (id, track) -> {
+                if (track == null || !payload.dimension().equals(track.dimension)) {
+                    track = new RemotePose();
+                    track.previous = pose;
+                } else {
+                    track.previous = track.current == null ? pose : track.current;
+                    track.intervalNanos = Math.clamp(now - track.receivedAtNanos,
+                            50_000_000L, 1_000_000_000L);
+                }
+                track.current = pose;
+                track.dimension = payload.dimension();
+                track.receivedAtNanos = now;
+                return track;
+            });
+        }
+    }
+
+    private static void applyRemotePoses(ResourceLocation dimension, long nowNanos, long nowMs) {
+        REMOTE_POSES.entrySet().removeIf(entry -> {
+            RemotePose track = entry.getValue();
+            long age = nowNanos - track.receivedAtNanos;
+            if (age > REMOTE_TIMEOUT_NANOS) {
+                return true;
+            }
+            Snapshot snap = SNAPSHOTS.get(entry.getKey());
+            if (snap == null || !dimension.equals(track.dimension) || track.current == null) {
+                return false;
+            }
+            ContraptionPose a = track.previous == null ? track.current : track.previous;
+            ContraptionPose b = track.current;
+            float t = Math.clamp((float) age / track.intervalNanos, 0.0f, 1.0f);
+            snap.x = a.x() + (b.x() - a.x()) * t;
+            snap.y = a.y() + (b.y() - a.y()) * t;
+            snap.z = a.z() + (b.z() - a.z()) * t;
+            float angle = a.angle() + net.minecraft.util.Mth.wrapDegrees(b.angle() - a.angle()) * t;
+            snap.local.identity().translate(0.5f, 0.5f, 0.5f);
+            switch (b.axis()) {
+                case 0 -> snap.local.rotateX((float) Math.toRadians(angle));
+                case 1 -> snap.local.rotateY((float) Math.toRadians(angle));
+                default -> snap.local.rotateZ((float) Math.toRadians(angle));
+            }
+            snap.local.translate(-0.5f, -0.5f, -0.5f);
+            snap.dim = dimension;
+            snap.lastSeenMs = nowMs;
+            snap.remoteUpdatedAtNanos = nowNanos;
+            snap.movedWhileSeen = true;
+            return false;
+        });
+    }
+
+    public static boolean hasFreshRemotePose(Snapshot snap, long nowNanos) {
+        return snap.remoteUpdatedAtNanos != 0
+                && nowNanos - snap.remoteUpdatedAtNanos <= REMOTE_TIMEOUT_NANOS;
     }
 
     //Consecutive-refresh difference when the window is warm; across a gap the stored position is old
@@ -872,7 +854,6 @@ public final class DistantContraptionManager {
         snap.y = ce.getY();
         snap.z = ce.getZ();
         snap.movedWhileSeen = false;
-        snap.frozenControlled = false;
         snap.live = false;
         var level = Minecraft.getInstance().level;
         if (level != null) {
@@ -910,6 +891,7 @@ public final class DistantContraptionManager {
             }
         }
         SNAPSHOTS.clear();
+        REMOTE_POSES.clear();
         loadedFor = null;
         snapshotCount = 0;
     }

@@ -126,6 +126,37 @@ public final class DistantTrainProtocol {
         }
     }
 
+    public record ContraptionPose(UUID id, double x, double y, double z, byte axis, float angle) {
+        public static final StreamCodec<ByteBuf, ContraptionPose> CODEC = StreamCodec.of(
+                (buf, pose) -> {
+                    net.minecraft.core.UUIDUtil.STREAM_CODEC.encode(buf, pose.id());
+                    buf.writeDouble(pose.x());
+                    buf.writeDouble(pose.y());
+                    buf.writeDouble(pose.z());
+                    buf.writeByte(pose.axis());
+                    buf.writeFloat(pose.angle());
+                },
+                buf -> new ContraptionPose(
+                        net.minecraft.core.UUIDUtil.STREAM_CODEC.decode(buf),
+                        buf.readDouble(), buf.readDouble(), buf.readDouble(),
+                        buf.readByte(), buf.readFloat()));
+    }
+
+    public record ContraptionPosesPayload(ResourceLocation dimension, List<ContraptionPose> poses)
+            implements CustomPacketPayload {
+        public static final Type<ContraptionPosesPayload> TYPE = new Type<>(
+                ResourceLocation.fromNamespaceAndPath("voxy", "contraption_poses"));
+        public static final StreamCodec<ByteBuf, ContraptionPosesPayload> CODEC = StreamCodec.composite(
+                ResourceLocation.STREAM_CODEC.cast(), ContraptionPosesPayload::dimension,
+                ContraptionPose.CODEC.apply(ByteBufCodecs.list()), ContraptionPosesPayload::poses,
+                ContraptionPosesPayload::new);
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
     public static ResourceLocation dimensionId(Level level) {
         return level.dimension().location();
     }

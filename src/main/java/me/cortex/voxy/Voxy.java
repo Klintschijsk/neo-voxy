@@ -129,6 +129,15 @@ public class Voxy {
                         ctx.enqueueWork(() -> me.cortex.voxy.client.compat.create.DistantTrainManager.handlePoses(payload));
                     }
                 });
+        registrar.playToClient(
+                me.cortex.voxy.commonImpl.compat.create.DistantTrainProtocol.ContraptionPosesPayload.TYPE,
+                me.cortex.voxy.commonImpl.compat.create.DistantTrainProtocol.ContraptionPosesPayload.CODEC,
+                (payload, ctx) -> {
+                    if (FMLLoader.getDist() == Dist.CLIENT && ModList.get().isLoaded("create")) {
+                        ctx.enqueueWork(() -> me.cortex.voxy.client.compat.create.DistantContraptionManager
+                                .handleRemotePoses(payload));
+                    }
+                });
     }
 
     private void registerFarEntityPayloads(net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent event) {
