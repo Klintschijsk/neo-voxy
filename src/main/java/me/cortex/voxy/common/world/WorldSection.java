@@ -137,6 +137,8 @@ public final class WorldSection {
 
 
     public static int RELEASE_HINT_POSSIBLE_REUSE = 1;
+    /** One-shot bulk walkers should not displace the mesh workers' LRU working set. */
+    public static int RELEASE_HINT_DONT_CACHE = 2;
     //Unload but specify possible reuse hints
     public int release(int hints) {
         return release(true, hints);

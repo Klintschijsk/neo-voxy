@@ -87,6 +87,12 @@ bool useIndependentWaterBoundary() {
     return ((interData.w >> 11u) & 1u) == 1u;
 }
 
+bool useOriginalLeafHandoff() {
+    // Keep the long-standing balanced-leaf marker as a compatibility fallback for a model buffer
+    // produced immediately before a renderer/resource reload, while bit 12 covers every leaf mode.
+    return useBalancedLeafCutout() || ((interData.w >> 12u) & 1u) == 1u;
+}
+
 vec2 varyBalancedLeafUV(vec2 localUV, vec2 tile, out uint transform) {
     uvec2 tilePos = uvec2(max(tile, vec2(0.0f)));
     uint hash = interData.w >> 16u;
@@ -161,8 +167,12 @@ void main() {
     // would let their simplified LOD proxy show through those holes even deep inside the vanilla area.
     // Clip geometrically at the exact 3-D fade start, then allow every model to fill the real transition.
     // Water is exempt because it deliberately retains its independent translucent chunk boundary.
+    // Leaves retain the per-pixel depth/stencil ownership handoff. Applying either the circular
+    // geometry cutoff or Sodium's coarse section-AABB mask removes the LOD canopy before the
+    // matching vanilla cutout pixels exist, producing a blocky transparent shell while approaching.
     if (circularLodBoundaryEnabled > 0.5
             && !useIndependentWaterBoundary()
+            && !useOriginalLeafHandoff()
             && boundaryDistanceSquared < lodBoundaryFadeStart * lodBoundaryFadeStart) {
         discard;
         return;
@@ -233,6 +243,9 @@ void main() {
     #ifdef TRANSLUCENT
     const bool useChunkBounds = true;
     #else
+    // The section-AABB depth mask is the legacy handoff only when circular ownership is disabled.
+    // Do not re-enable it per material: it describes whole visible Sodium sections, not real leaf
+    // pixels, and combining it with the circular stencil creates a second, mismatched cutoff.
     bool useChunkBounds = circularLodBoundaryEnabled < 0.5;
     #endif
     if (useChunkBounds) {

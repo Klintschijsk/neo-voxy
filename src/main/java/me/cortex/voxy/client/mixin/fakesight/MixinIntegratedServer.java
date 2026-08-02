@@ -35,12 +35,7 @@ public abstract class MixinIntegratedServer {
             this.voxy$resetRequestExpansion();
             return originalDistance;
         }
-        // Keep the radius stable while travelling, but never drive the local server at the protocol
-        // ceiling. A 127-chunk radius is roughly 65k chunks and makes chunk generation, ticket updates
-        // and saving monopolise the integrated-server thread, which presents as a client FPS freeze.
-        int safeRequestDistance = Math.max(originalDistance, Math.min(
-                VoxyConfig.CONFIG.getRequestDistance(),
-                VoxyConfig.MAX_INTEGRATED_REQUEST_DISTANCE));
+        int safeRequestDistance = Math.max(originalDistance, VoxyConfig.CONFIG.getRequestDistance());
 
         if (this.voxy$currentRequestDistance < originalDistance) {
             this.voxy$currentRequestDistance = originalDistance;
@@ -68,8 +63,6 @@ public abstract class MixinIntegratedServer {
             this.voxy$movementPauseTicks--;
         } else if (this.voxy$currentRequestDistance < safeRequestDistance
                 && ++this.voxy$expansionTicks >= VOXY_EXPANSION_INTERVAL_TICKS) {
-            // One extra ring every two seconds. This makes enabling the option incremental rather
-            // than synchronously creating thousands of chunk tickets in one tick.
             this.voxy$currentRequestDistance++;
             this.voxy$expansionTicks = 0;
         }

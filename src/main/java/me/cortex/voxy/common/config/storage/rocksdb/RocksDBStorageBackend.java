@@ -258,8 +258,10 @@ public class RocksDBStorageBackend extends StorageBackend {
 
     @Override
     public void iteratePositions(int level, LongConsumer consumer) {
-        try (var stack = MemoryStack.stackPush()) {
-            try (var iter = this.db.newIterator(this.worldSections, this.sectionReadOps)) {
+        // This is a one-shot full walk; do not evict useful data by admitting every scanned block.
+        try (var stack = MemoryStack.stackPush();
+             var scanOps = new ReadOptions().setFillCache(false)) {
+            try (var iter = this.db.newIterator(this.worldSections, scanOps)) {
                 ByteBuffer keyBuff = stack.calloc(8);
                 long keyBuffPtr = MemoryUtil.memAddress(keyBuff);
                 //TODO: this can be optimized if needed by useing a prefix-seek https://github.com/facebook/rocksdb/wiki/Prefix-Seek

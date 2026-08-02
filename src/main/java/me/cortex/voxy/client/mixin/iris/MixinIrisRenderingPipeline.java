@@ -50,6 +50,23 @@ public class MixinIrisRenderingPipeline implements IGetVoxyPatchData, IGetIrisVo
         }
     }
 
+    @Inject(method = "finalizeLevelRendering", at = @At("TAIL"))
+    private void voxy$renderUnpatchedShaderFallback(CallbackInfo ci) {
+        // A native voxy.json pipeline writes the shader pack's complete G-buffer and remains on the
+        // original fast path. Packs without it receive the conservative RGBA fallback only after
+        // Iris has finished its pack-specific composite/final stages.
+        if (this.patchData != null) {
+            return;
+        }
+        var levelRenderer = Minecraft.getInstance().levelRenderer;
+        if (levelRenderer instanceof IGetVoxyRenderSystem access) {
+            var renderer = access.voxy$getRenderSystem();
+            if (renderer != null) {
+                renderer.renderUnpatchedIrisFallback();
+            }
+        }
+    }
+
     @Override
     public IrisShaderPatch voxy$getPatchData() {
         return this.patchData;

@@ -85,6 +85,11 @@ public class VoxyRenderSystem {
     private final int[] viewportDimensions = new int[4];
     private final Matrix4f projectionScratch = new Matrix4f();
     private final Matrix4f modifiedProjectionScratch = new Matrix4f();
+    // Shader packs without a native Voxy program cannot safely receive ordinary RGBA output while
+    // Iris is still filling its pack-specific G-buffer. Keep only the current frame's viewport and
+    // perform the same NormalRenderPipeline pass after Iris has produced the final colour image.
+    // This moves existing work; it does not add another LOD render or a shader-pack scan.
+    private Viewport<?> pendingUnpatchedIrisViewport;
 
 
     public String getPipelineName() { return this.pipeline == null ? "none" : this.pipeline.getClass().getSimpleName(); }
@@ -356,6 +361,11 @@ public class VoxyRenderSystem {
     }
 
     public void renderOpaque(Viewport<?> viewport) {
+        // Iris also invokes Sodium terrain rendering for its shadow pass. It must never replace the
+        // pending main-camera viewport or run the normal fallback into a shadow framebuffer.
+        if (IrisUtil.irisShadowActive()) {
+            return;
+        }
         if (viewport == null) {
             return;
         }
@@ -366,8 +376,34 @@ public class VoxyRenderSystem {
         terrainFogStartAtRender = RenderSystem.getShaderFogStart();
         terrainFogEndAtRender = RenderSystem.getShaderFogEnd();
         if (visionRestricted()) {
+            this.pendingUnpatchedIrisViewport = null;
             return;
         }
+
+        if (IrisUtil.irisShaderPackEnabled() && this.pipeline instanceof NormalRenderPipeline) {
+            this.pendingUnpatchedIrisViewport = viewport;
+            return;
+        }
+
+        this.pendingUnpatchedIrisViewport = null;
+        this.renderOpaqueNow(viewport);
+    }
+
+    /**
+     * Completes the compatibility fallback for shader packs which do not provide a Voxy pipeline.
+     * Called once from Iris after its final pass, when the bound target once again contains ordinary
+     * RGBA colour and Minecraft's shared world depth. Native Voxy-aware packs never enter this path.
+     */
+    public void renderUnpatchedIrisFallback() {
+        Viewport<?> viewport = this.pendingUnpatchedIrisViewport;
+        this.pendingUnpatchedIrisViewport = null;
+        if (viewport == null || !(this.pipeline instanceof NormalRenderPipeline)) {
+            return;
+        }
+        this.renderOpaqueNow(viewport);
+    }
+
+    private void renderOpaqueNow(Viewport<?> viewport) {
 
         //Cheap and idempotent; done here so the profiler can attribute work to the render thread
         //without a ThreadLocal on every instrumented call
@@ -616,6 +652,7 @@ public class VoxyRenderSystem {
     }
 
     public void shutdown() {
+        this.pendingUnpatchedIrisViewport = null;
         Logger.info("Flushing download stream");
         DownloadStream.INSTANCE.flushWaitClear();
         Logger.info("Shutting down rendering");

@@ -28,8 +28,8 @@ side="BOTH"
 
 [[dependencies.voxy]]
 modId="sodium"
-type="optional"
-versionRange="[0.6.13,)"
+type="required"
+versionRange="[0.8.12,0.9)"
 ordering="AFTER"
 side="CLIENT"
 

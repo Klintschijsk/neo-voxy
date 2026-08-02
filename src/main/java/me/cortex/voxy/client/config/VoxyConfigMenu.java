@@ -243,14 +243,6 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                                         v->CFG.enableExtendedRequestDistance=v)
                                         .setPostChangeFlags("voxy:refresh_chunk_request")
                                         .setImpact(OptionImpact.HIGH),
-                                new BoolOption(
-                                        "voxy:fakesight_follow_lod",
-                                        Component.translatable("voxy.config.fakesight.followLod"),
-                                        ()->CFG.followLodRequestDistance,
-                                        v->CFG.followLodRequestDistance=v)
-                                        .setPostChangeFlags("voxy:refresh_chunk_request")
-                                        .setEnabler("voxy:fakesight_enabled")
-                                        .setImpact(OptionImpact.HIGH),
                                 new IntOption(
                                         "voxy:fakesight_request_distance",
                                         Component.translatable("voxy.config.fakesight.distance"),
@@ -259,9 +251,7 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                                                 VoxyConfig.MAX_REQUEST_DISTANCE, 1))
                                         .setFormatter(v->Component.literal(Integer.toString(v)))
                                         .setPostChangeFlags("voxy:refresh_chunk_request")
-                                        .setEnabler(s -> s.readBooleanOption(ResourceLocation.parse("voxy:fakesight_enabled"))
-                                                        && !s.readBooleanOption(ResourceLocation.parse("voxy:fakesight_follow_lod")),
-                                                "voxy:fakesight_enabled", "voxy:fakesight_follow_lod")
+                                        .setEnabler("voxy:fakesight_enabled")
                                         .setImpact(OptionImpact.HIGH)
                         )
                 ).setEnablerAND("voxy:enabled", "voxy:rendering"),

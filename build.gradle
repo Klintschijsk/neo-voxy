@@ -439,6 +439,16 @@ tasks.named('build') {
 }
 
 def pythonExecutable = System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('windows') ? 'python' : 'python3'
+def pythonAvailable = providers.provider {
+    try {
+        providers.exec {
+            commandLine pythonExecutable, '--version'
+            ignoreExitValue = true
+        }.result.get().exitValue == 0
+    } catch (Exception ignored) {
+        false
+    }
+}
 
 // Validate mixin configuration (registration, exclusions, remap flags)
 task validateMixinConfig(type: Exec) {
@@ -462,14 +472,12 @@ task validateMixinSignatures(type: Exec) {
     commandLine pythonExecutable, 'scripts/validate_mixin_targets.py'
     environment 'PYTHONIOENCODING', 'utf-8'
 
-    // Only run if script and MC sources exist
     onlyIf {
-        file('scripts/validate_mixin_targets.py').exists() &&
-        file('.reference/minecraft/1.21.1/decompiled').exists()
+        file('scripts/validate_mixin_targets.py').exists() && pythonAvailable.get()
     }
 
-    // Ignore failures if sources not available or script has issues (optional validation)
-    ignoreExitValue = true
+    // The validator skips unresolved optional targets; reported violations are definite failures.
+    ignoreExitValue = false
 }
 
 // Validate mixin configurations after JAR creation

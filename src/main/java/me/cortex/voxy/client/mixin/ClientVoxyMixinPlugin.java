@@ -92,6 +92,12 @@ public class ClientVoxyMixinPlugin implements IMixinConfigPlugin {
             //Disassembly is the one removal with an explicit signal: kill the frozen snapshot at once
             //instead of letting the 2s presence grace show a ghost where the blocks just landed
             mixins.add("create.MixinContraptionDisassembly");
+            // Remove a frozen kinetic copy as soon as the live block leaves a loaded chunk.
+            mixins.add("create.MixinLevelChunkKineticRemoval");
+            // Gantry identity, per-entity Flywheel presence, and a shared capture clock.
+            mixins.add("create.AccessorGantryContraptionEntity");
+            mixins.add("create.AccessorFlywheelStorage");
+            mixins.add("create.MixinAnimationTickHolder");
         }
 
         // EclipticSeasons snow-LOD compat: client-gated even for the common-class targets, because the shared

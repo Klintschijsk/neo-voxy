@@ -494,7 +494,8 @@ public class ModelFactory {
         //TODO: add thing for `blockState.hasEmissiveLighting()` and `blockState.getLuminance()`
 
         boolean isFluid = isFluidBlockState(blockState);
-        boolean balancedLeaf = isLeafBlockState(blockState)
+        boolean leafModel = isLeafBlockState(blockState);
+        boolean balancedLeaf = leafModel
                 && VoxyConfig.CONFIG.getLeafLodMode() == VoxyConfig.LeafLodMode.BALANCED;
 
         int modelId = -1;
@@ -767,6 +768,9 @@ public class ModelFactory {
         // translucent surface does not provide a reliable depth owner for a dithered overlap.
         boolean lava = isFluid && blockState.getFluidState().is(FluidTags.LAVA);
         modelFlags |= lava ? 64 : 0;
+        // All leaf quality modes retain per-pixel depth/stencil ownership instead of the circular
+        // geometry clip. This avoids dropping the LOD canopy before vanilla cutout pixels exist.
+        modelFlags |= leafModel ? 128 : 0;
 
         //modelFlags |= blockRenderLayer == RenderLayer.getSolid()?0:1;// should discard alpha
         MemoryUtil.memPutInt(uploadPtr, modelFlags); uploadPtr += 4;

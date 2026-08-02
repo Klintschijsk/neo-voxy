@@ -207,7 +207,7 @@ public final class SeasonalSnowRefresher {
                         remipIntoParents(engine, mapper, section, section._rawOrNull());
                     }
                 } finally {
-                    section.release();
+                    section.release(WorldSection.RELEASE_HINT_DONT_CACHE);
                 }
                 scanned++;
 
@@ -347,7 +347,7 @@ public final class SeasonalSnowRefresher {
             }
         } finally {
             if (above != null) {
-                above.release();
+                above.release(WorldSection.RELEASE_HINT_DONT_CACHE);
             }
         }
         return changed;
@@ -557,4 +557,3 @@ public final class SeasonalSnowRefresher {
         }
     }
 }
-

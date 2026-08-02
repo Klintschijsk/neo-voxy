@@ -112,9 +112,10 @@ uvec3 makeRemainingAttributes(const in BlockModel model, const in Quad quad, uin
     attributes.z = addin|(face<<8);
     #endif
 
-    // Bit 11 is outside the packed face (8..10) and additive-light (0..7) fields. Water keeps the
-    // original independent translucent boundary; all other models may use the circular inner clip.
+    // Bits 11 and 12 are outside the packed face (8..10) and additive-light (0..7) fields. Water
+    // keeps its translucent boundary; leaves retain per-pixel depth/stencil ownership.
     attributes.z |= modelUsesFluidDatum(model) ? (1u << 11u) : 0u;
+    attributes.z |= modelIsLeaf(model) ? (1u << 12u) : 0u;
 
     return attributes;
 }

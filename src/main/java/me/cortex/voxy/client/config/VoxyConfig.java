@@ -28,11 +28,7 @@ public class VoxyConfig {
     }
 
     public static final int MIN_REQUEST_DISTANCE = 8;
-    // ClientInformation serializes the view distance as one signed byte.
-    public static final int MAX_REQUEST_DISTANCE = 127;
-    // A 127-chunk integrated-server radius covers roughly 65k chunks and can stall both the server
-    // and client render thread. Dedicated servers retain their own configured limit.
-    public static final int MAX_INTEGRATED_REQUEST_DISTANCE = 32;
+    public static final int MAX_REQUEST_DISTANCE = 48;
     public static final int MAX_CLOUD_DISTANCE = 128;
     public static final float MIN_SUBDIVISION_SIZE = 28.0f;
     public static final float MAX_SUBDIVISION_SIZE = 256.0f;
@@ -49,60 +45,38 @@ public class VoxyConfig {
     public boolean enableRendering = true;
     public boolean ingestEnabled = true;
     public float sectionRenderDistance = 16;
-    // Aero/sable: master switch for extending simulated-contraption rendering out to LOD distances.
     public boolean sableLodRendering = true;
-    // Create: render distant trains (server-sampled poses + client-baked carriage meshes).
     public boolean distantTrains = true;
-    // Create: render the track network beyond render distance as simplified rail geometry.
     public boolean distantTracks = true;
-    // Create: hold a frozen client-side snapshot of contraptions (bearings/pistons/gantries/mounted)
-    // the player walked past, drawn statically beyond the render distance.
     public boolean distantContraptions = true;
-    // Draw beacon beams past vanilla's own block-entity render range. The beam is rebuilt from the
-    // persistent Voxy voxel store, so it remains available when the source chunk is not loaded.
     public boolean distantBeacons = true;
-    // Maximum beacon-beam distance in chunks. 0 follows Voxy's LOD radius.
-    public int distantBeaconMaxChunks = 192;
-    // Create: cull placed kinetic machine moving parts (rotating shafts/gears/machine animations)
-    // beyond the render distance so they stop floating over the LOD. Off = Create draws them natively.
+    public int distantBeaconMaxChunks = 0;
     public boolean distantKinetics = true;
-    // Create: hide kinetic moving parts that are provably invisible (all open faces covered by opaque
-    // blocks; encased blocks only need their two axis ends covered). Pure render savings, active even
-    // with voxy rendering off; complements the raycast culler, which cannot catch this case.
     public boolean kineticEnclosedCulling = true;
-    // Create distant-integration render caps, in CHUNKS. 0 follows Voxy's LOD radius. Bounded defaults
-    // keep tiny distant machinery from holding meshes and draw calls all the way to the terrain horizon.
-    public int distantTrainMaxChunks = 96;
-    public int distantTrackMaxChunks = 96;
-    public int distantContraptionMaxChunks = 64;
-    public int distantKineticMaxChunks = 48;
-    // GPU working-set budgets. Contraption source data is retained for cheap rebuilds; kinetic captures
-    // are evicted whole because retaining their recorded vertex streams would cost more than the mesh.
+    // Zero uses the full LOD radius.
+    public int distantTrainMaxChunks = 0;
+    public int distantTrackMaxChunks = 0;
+    public int distantContraptionMaxChunks = 0;
+    public int distantKineticMaxChunks = 0;
     public int distantContraptionGpuBudgetMiB = 48;
     public int distantKineticGpuBudgetMiB = 32;
-    // Aero/sable: render simulated contraptions within this % of voxy's LOD render distance.
-    public int simulatedContraptionRenderDistancePercent = 50;
+    public int simulatedContraptionRenderDistancePercent = 100;
     public int serviceThreads = (int) Math.max(CpuLayout.getCoreCount()/1.5, 1);
     public float subDivisionSize = 28;
     public int skyFogDistance = 96;
     public float fogIntensity = 1.0f;
     public float fogDensity = 0.0f;
-    // Scales voxy's self-defined LOD fog distance (100 = fog reaches full at voxy's render edge).
     public int fogDistancePercent = 100;
     public boolean adaptCloudDistance = true;
     public int cloudDistance = 0;
     public boolean dontUseSodiumBuilderThreads = false;
     public int renderPressure = 2;
-    // Small overlap retained for the existing section-boundary safety path.
     public int lodBoundaryBuffer = 1;
     public boolean enableLodBoundaryFade = true;
     public int lodBoundaryFadeLength = 16;
     public int lodBoundaryInset = 8;
     public int earthCurveRatio = 0;
-    // FakeSight-style chunk request extension. 127 is the protocol ceiling because vanilla writes
-    // ClientInformation.viewDistance as a signed byte.
     public boolean enableExtendedRequestDistance = false;
-    public boolean followLodRequestDistance = true;
     public int requestDistance = 48;
     public String ssaoMode;
     public boolean useEnvironmentalFog = true;
@@ -112,17 +86,11 @@ public class VoxyConfig {
     public boolean renderFarPlayerNames = true;
     public int farPlayerAnimationDistance = 1024;
     public boolean shareFarPlayerPosition = true;
-    // Persisted separately from the user-facing master switch so the credits message is shown once.
     public boolean joinMessageShown = false;
-    // Separate migration notice: existing installations that already saw the credits still receive
-    // the update/cache cleanup advice once after upgrading.
     public boolean upgradeCleanupNoticeShown = false;
 
     public int getRequestDistance() {
-        int requested = this.followLodRequestDistance
-                ? Math.round(this.sectionRenderDistance * 32.0f)
-                : this.requestDistance;
-        return Math.clamp(requested, MIN_REQUEST_DISTANCE, MAX_REQUEST_DISTANCE);
+        return Math.clamp(this.requestDistance, MIN_REQUEST_DISTANCE, MAX_REQUEST_DISTANCE);
     }
 
     public int getFarEntityRenderDistanceBlocks() {
@@ -268,8 +236,6 @@ public class VoxyConfig {
         }
     }
 
-    // Aero/sable: push the live render-distance/percent to the sable contraption-LOD calculator.
-    // SableContraptionRenderDistance has no sable-type references, so this is safe even without sable.
     public void syncSableContraptionRenderDistance() {
         SableContraptionRenderDistance.updateClientConfig(
                 this.isRenderingEnabled() && this.sableLodRendering,
@@ -278,8 +244,6 @@ public class VoxyConfig {
         );
     }
 
-    // Create: push the distant-train enable flag + render distance to the server-side sampler bridge,
-    // so the pose-stream window matches what the client actually draws (integrated server bandwidth).
     public void syncDistantTrainConfig() {
         DistantTrainConfig.updateClientConfig(
                 this.isRenderingEnabled() && this.distantTrains,
@@ -287,8 +251,6 @@ public class VoxyConfig {
         );
     }
 
-    // Effective distant-render radius in blocks. sectionRenderDistance counts 32-chunk sections, so
-    // the block radius is 32 * 16 * sectionRenderDistance.
     public double createLodRadius() {
         return 32.0 * 16.0 * this.sectionRenderDistance;
     }
