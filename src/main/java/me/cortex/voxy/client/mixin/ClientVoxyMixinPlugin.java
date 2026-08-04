@@ -18,6 +18,7 @@ public class ClientVoxyMixinPlugin implements IMixinConfigPlugin {
     private static boolean sableInstalled;
     private static boolean eclipticSeasonsInstalled;
     private static boolean createInstalled;
+    private static boolean sodiumExtraInstalled;
 
     private static boolean isLoadedEarly(String modId) {
         var list = LoadingModList.get();
@@ -32,6 +33,7 @@ public class ClientVoxyMixinPlugin implements IMixinConfigPlugin {
         sableInstalled = isLoadedEarly("sable");
         eclipticSeasonsInstalled = isLoadedEarly("eclipticseasons");
         createInstalled = isLoadedEarly("create");
+        sodiumExtraInstalled = isLoadedEarly("sodium_extra");
     }
 
     @Override
@@ -98,6 +100,9 @@ public class ClientVoxyMixinPlugin implements IMixinConfigPlugin {
             mixins.add("create.AccessorGantryContraptionEntity");
             mixins.add("create.AccessorFlywheelStorage");
             mixins.add("create.MixinAnimationTickHolder");
+        }
+        if (sodiumExtraInstalled) {
+            mixins.add("sodiumextra.MixinFogDistanceHelper");
         }
 
         // EclipticSeasons snow-LOD compat: client-gated even for the common-class targets, because the shared
