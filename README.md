@@ -52,6 +52,18 @@ Neo-Voxy 为远距离地形提供高性能 LOD 渲染，并针对 NeoForge、Sod
 - **Create 动态结构：** 已加载区块中的结构持续更新远景姿态；区块加载器维持加载时，服务端仅低频同步运动结构的位置和旋转，客户端复用已有模型并插值，不重复烘焙。
 - **信标光柱：** 保留正确颜色和 LOD 遮挡，并使用有上限的距离宽度曲线，使远处仍可辨认且不会过粗。
 
+### LOD Fade in example (Eclipse shader)
+
+Before
+<img width="1500" height="900" alt="image" src="https://github.com/user-attachments/assets/d4c960b7-f749-497b-8257-cc07195eedc6" />
+
+
+After
+<img width="1500" height="900" alt="image" src="https://github.com/user-attachments/assets/6352b8df-b23e-40ca-9ada-d1332d3e277c" />
+
+
+
+
 ### 模组兼容性
 
 | 模组或组件 | 1.21.1 | 26.1.2 | 兼容说明 |
