@@ -54,11 +54,11 @@ Neo-Voxy 为远距离地形提供高性能 LOD 渲染，并针对 NeoForge、Sod
 
 ### LOD Fade in example (Eclipse shader)
 
-Before
+Enable LOD Fade in
 <img width="1500" height="900" alt="image" src="https://github.com/user-attachments/assets/d4c960b7-f749-497b-8257-cc07195eedc6" />
 
 
-After
+Disable
 <img width="1500" height="900" alt="image" src="https://github.com/user-attachments/assets/6352b8df-b23e-40ca-9ada-d1332d3e277c" />
 
 
