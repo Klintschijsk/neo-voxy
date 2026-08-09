@@ -1,7 +1,5 @@
 package me.cortex.voxy.client.core;
 
-import com.mojang.blaze3d.pipeline.DepthStencilState;
-import com.mojang.blaze3d.platform.CompareOp;
 import com.mojang.blaze3d.systems.RenderSystem;
 import me.cortex.voxy.client.core.gl.shader.Shader;
 import me.cortex.voxy.client.core.util.IrisUtil;
@@ -14,7 +12,16 @@ public record RenderProperties(boolean isZero2One, boolean isReverseZ, boolean u
 
     public <T extends Shader.Builder<J>, J extends Shader> T apply(T builder) {
         return (T) builder.defineIf("USE_ZERO_ONE_DEPTH", this.isZero2One)
-                .defineIf("USE_REVERSE_Z", this.isReverseZ);
+                .defineIf("USE_REVERSE_Z", this.isReverseZ)
+                //Rasterized window depth is 0.5*ndc+0.5 under default clip control regardless of
+                //the projection's ndc range; shaders converting between sampled window depth and
+                //analytic ndc must apply this map or every mixed comparison carries a constant bias
+                .defineIf("WINDOW_HALF_NDC", windowIsHalfNdc());
+    }
+
+    //Queried per shader compile (cheap) so a pipeline rebuild picks up a changed clip-control mode
+    public static boolean windowIsHalfNdc() {
+        return glGetInteger(org.lwjgl.opengl.GL45C.GL_CLIP_DEPTH_MODE) != org.lwjgl.opengl.GL45C.GL_ZERO_TO_ONE;
     }
 
     public int closerEqualDepthCompare() {
@@ -59,14 +66,10 @@ public record RenderProperties(boolean isZero2One, boolean isReverseZ, boolean u
         return false;
     }
 
-    private static boolean useReverseZ() {
-        return IrisUtil.irisShaderPackEnabled()?false:DepthStencilState.DEFAULT.depthTest().equals(CompareOp.GREATER_THAN_OR_EQUAL);
-    }
-
     public static RenderProperties getRenderProperties() {
         RenderProperties properties = new RenderProperties(
-                RenderSystem.getDevice().getDeviceInfo().isZZeroToOne(),
-                useReverseZ(),
+                true,
+                false,
                 false);
 
         if (IrisUtil.IRIS_INSTALLED && IrisUtil.SHADER_SUPPORT) {

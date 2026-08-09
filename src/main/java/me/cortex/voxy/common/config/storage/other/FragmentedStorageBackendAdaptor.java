@@ -9,7 +9,6 @@ import me.cortex.voxy.common.config.storage.StorageBackend;
 import me.cortex.voxy.common.config.storage.StorageConfig;
 import me.cortex.voxy.common.util.MemoryBuffer;
 import net.minecraft.world.level.levelgen.RandomSupport;
-
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -52,6 +51,47 @@ public class FragmentedStorageBackendAdaptor extends StorageBackend {
     @Override
     public void setSectionData(long key, MemoryBuffer data) {
         this.backends[this.getSegmentId(key)].setSectionData(key, data);
+    }
+
+    //One sub-batch per backend, routed by the same segment id as setSectionData. Commit is not atomic
+    //across fragments, which is fine: sections are independent, regenerable keys.
+    @Override
+    public SectionWriteBatch createSectionWriteBatch() {
+        var subBatches = new SectionWriteBatch[this.backends.length];
+        return new SectionWriteBatch() {
+            @Override
+            public void put(long key, MemoryBuffer data) {
+                int segment = FragmentedStorageBackendAdaptor.this.getSegmentId(key);
+                var sub = subBatches[segment];
+                if (sub == null) {
+                    sub = subBatches[segment] = FragmentedStorageBackendAdaptor.this.backends[segment].createSectionWriteBatch();
+                }
+                sub.put(key, data);
+            }
+
+            @Override
+            public long dataSize() {
+                long total = 0;
+                for (var sub : subBatches) {
+                    if (sub != null) total += sub.dataSize();
+                }
+                return total;
+            }
+
+            @Override
+            public void commit() {
+                for (var sub : subBatches) {
+                    if (sub != null) sub.commit();
+                }
+            }
+
+            @Override
+            public void close() {
+                for (var sub : subBatches) {
+                    if (sub != null) sub.close();
+                }
+            }
+        };
     }
 
     @Override

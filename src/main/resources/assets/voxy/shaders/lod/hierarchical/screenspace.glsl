@@ -193,6 +193,18 @@ bool isCulledByHiz() {
 
 //Returns if we should decend into its children or not
 bool shouldDecend() {
-    return _screenSize > minSSS;
+    if (_screenSize > minSSS) {
+        return true;
+    }
+    //Perspective-stretch parity: planar projection stretches equal nodes to LARGER areas at the
+    //screen edges than at the centre (jacobian ~(1+tan^2(theta))^1.5), so the raw area test starves
+    //the middle of the screen of subdivision - centre mushy, edges sharp, worse at high FOV. Boost
+    //each node's area by maxStretch/stretch(nodePos): the centre is judged as if it sat at the
+    //screen's most favourable position, edges get boost~1 and keep their existing behaviour.
+    vec2 ndcCenter = (_minBB.xy + _maxBB.xy) - 1.0f;
+    vec2 tanPos = ndcCenter * vec2(invP00, invP11);
+    float stretchNode = pow(1.0f + dot(tanPos, tanPos), 1.5f);
+    //stretchMax (the screen-edge stretch) is a frame constant supplied as a uniform
+    return _screenSize * (stretchMax / stretchNode) > minSSS;
 }
 

@@ -2,10 +2,12 @@ package me.cortex.voxy.client.core.model;
 
 
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
+import me.cortex.voxy.client.VoxyClient;
 import me.cortex.voxy.common.Logger;
 import me.cortex.voxy.common.world.other.Mapper;
-
 import java.util.List;
+import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -13,7 +15,7 @@ public class ModelBakerySubsystem {
     //Redo to just make it request the block faces with the async texture download stream which
     // basicly solves all the render stutter due to the baking
 
-    private final ModelStore storage;
+    private final ModelStore storage = new ModelStore();
     public final ModelFactory factory;
     private final Mapper mapper;
 
@@ -22,7 +24,6 @@ public class ModelBakerySubsystem {
     private volatile Throwable processingThreadException;
     public ModelBakerySubsystem(Mapper mapper) {
         this.mapper = mapper;
-        this.storage = new ModelStore();
         this.factory = new ModelFactory(mapper, this.storage);
         this.processingThread = new Thread(()->{//TODO replace this with something good/integrate it into the async processor so that we just have less threads overall
             while (this.isRunning) {
@@ -42,9 +43,10 @@ public class ModelBakerySubsystem {
 
     public void tick(long totalBudget) {
         if (this.processingThreadException != null) {
+            Logger.error(this.processingThreadException.getStackTrace().toString(), this.processingThreadException);
             throw new RuntimeException(this.processingThreadException);
         }
-        this.factory.processUploads();
+        this.factory.processUploads(totalBudget);
     }
 
     public void shutdown() {

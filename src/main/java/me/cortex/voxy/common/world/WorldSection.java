@@ -1,6 +1,7 @@
 package me.cortex.voxy.common.world;
 
 
+import me.cortex.voxy.common.world.other.Mapper;
 import me.cortex.voxy.commonImpl.VoxyCommon;
 
 import java.lang.invoke.MethodHandles;
@@ -21,9 +22,11 @@ public final class WorldSection {
     private static final VarHandle NON_EMPTY_BLOCK_HANDLE;
     private static final VarHandle IN_SAVE_QUEUE_HANDLE;
     private static final VarHandle IS_DIRTY_HANDLE;
+    private static final VarHandle DATA_HANDLE;
 
     static {
         try {
+            DATA_HANDLE = MethodHandles.lookup().findVarHandle(WorldSection.class, "data", long[].class);
             ATOMIC_STATE_HANDLE = MethodHandles.lookup().findVarHandle(WorldSection.class, "atomicState", int.class);
             NON_EMPTY_CHILD_HANDLE = MethodHandles.lookup().findVarHandle(WorldSection.class, "nonEmptyChildren", byte.class);
             NON_EMPTY_BLOCK_HANDLE = MethodHandles.lookup().findVarHandle(WorldSection.class, "nonEmptyBlockCount", int.class);
@@ -51,7 +54,13 @@ public final class WorldSection {
 
     //Serialized states
     long metadata;
-    long[] data = null;
+    //null means UNIFORM: every voxel is uniformValue, and no 256KiB array is allocated at all. This is
+    //the common case (air above ground, solid underground, unexplored). Materialisation is one-way and
+    //happens on the first write that differs, so readers only ever need to snapshot this field once.
+    volatile long[] data = null;
+    volatile long uniformValue;
+    //data == null is a legal state now (uniform), so it can no longer double as the released marker
+    private boolean arrayReleased;
     volatile int nonEmptyBlockCount = 0;//Note: only needed for level 0 sections
     volatile byte nonEmptyChildren;
 
@@ -71,20 +80,74 @@ public final class WorldSection {
         this.key = WorldEngine.getWorldSectionId(lvl, x, y, z);
         this.tracker = tracker;
 
-        this.data = ARRAY_REUSE_CACHE.poll();
-        if (this.data == null) {
-            this.data = new long[32 * 32 * 32];
-        } else {
-            ARRAY_REUSE_CACHE_COUNT.decrementAndGet();
-        }
+        //Start uniform - the loaders either fill in a real uniform value or materialise. Nothing is
+        //allocated until something actually needs a per-voxel array.
+        this.data = null;
+        this.uniformValue = Mapper.AIR;
     }
 
     void primeForReuse() {
         ATOMIC_STATE_HANDLE.set(this, 1);
     }
 
-    public long[] _unsafeGetRawDataArray() {
+    public boolean isUniform() {
+        return this.data == null;
+    }
+
+    public long getUniformValue() {
+        return this.uniformValue;
+    }
+
+    //Only legal while the section is still unpublished (construction / load), where there is no
+    //concurrent reader. Publishing null last makes the uniform value visible before the mode flips.
+    public void setUniform(long value) {
+        this.uniformValue = value;
+        DATA_HANDLE.setRelease(this, null);
+    }
+
+    //Single voxel read that never materialises
+    public long get(int idx) {
+        long[] d = this.data;
+        return d == null ? this.uniformValue : d[idx];
+    }
+
+    //Snapshot of the backing array, may be null when uniform. Callers must handle null.
+    public long[] _rawOrNull() {
         return this.data;
+    }
+
+    //Returns the backing array, allocating and filling it with uniformValue if still uniform.
+    //Fast path is a plain volatile read - the lock is only ever taken for the one-time uniform ->
+    //materialized transition. A CAS-and-discard version wasted a full 32768 long fill on every lost
+    //race, and with ten mesh workers all reaching for the same shared neighbour that was ~10% of all
+    //materialisations.
+    public long[] materialize() {
+        long[] d = this.data;
+        if (d != null) {
+            return d;
+        }
+        synchronized (this) {
+            d = this.data;
+            if (d != null) {
+                //Another thread materialised while we waited - no work wasted, just note the contention
+                me.cortex.voxy.commonImpl.PerfStats.sectionMaterializeContended.increment();
+                return d;
+            }
+            long value = this.uniformValue;
+            long[] fresh = ARRAY_REUSE_CACHE.poll();
+            if (fresh == null) {
+                fresh = new long[SECTION_VOLUME];
+            } else {
+                ARRAY_REUSE_CACHE_COUNT.decrementAndGet();
+            }
+            //MUST fill before publishing: arrays out of the reuse pool are never cleared, so a reader
+            //that saw the array before the fill would render the previous section's voxels as ghost
+            //terrain. The release store pairs with the volatile read above.
+            Arrays.fill(fresh, value);
+            DATA_HANDLE.setRelease(this, fresh);
+            me.cortex.voxy.commonImpl.PerfStats.sectionMaterialized.increment();
+            return fresh;
+        }
     }
 
     @Override
@@ -179,14 +242,24 @@ public final class WorldSection {
     }
 
     void _releaseArray() {
-        if (VERIFY_WORLD_SECTION_EXECUTION && this.data == null) {
-            throw new IllegalStateException();
+        if (VERIFY_WORLD_SECTION_EXECUTION && this.arrayReleased) {
+            throw new IllegalStateException("Section array released twice");
+        }
+        this.arrayReleased = true;
+        long[] d = this.data;
+        if (d == null) {
+            //Never materialised - nothing to return to the pool
+            return;
         }
         if (ARRAY_REUSE_CACHE_COUNT.get() < ARRAY_REUSE_CACHE_SIZE) {
-            ARRAY_REUSE_CACHE.add(this.data);
+            ARRAY_REUSE_CACHE.add(d);
             ARRAY_REUSE_CACHE_COUNT.incrementAndGet();
         }
         this.data = null;
+        //Without this the section still answers isUniform() with whatever value it held before it was
+        //materialised, so a late read gets a plausible wrong voxel instead of an obvious failure -
+        //and a neighbour face slice would be filled with it wholesale.
+        this.uniformValue = Mapper.AIR;
     }
 
 
@@ -206,30 +279,6 @@ public final class WorldSection {
             }
         }
         return ((y&M)<<10)|((z&M)<<5)|(x&M);
-    }
-
-    public long set(int x, int y, int z, long id) {
-        //TODO: this needs to update the block counts
-        int idx = getIndex(x,y,z);
-        long old = this.data[idx];
-        this.data[idx] = id;
-        return old;
-    }
-
-    //Generates a copy of the data array, this is to help with atomic operations like rendering
-    public long[] copyData() {
-        this.assertNotFree();
-        return Arrays.copyOf(this.data, this.data.length);
-    }
-
-    public void copyDataTo(long[] cache) {
-        copyDataTo(cache, 0);
-    }
-
-    public void copyDataTo(long[] cache, int dstOffset) {
-        this.assertNotFree();
-        if ((cache.length-dstOffset) < this.data.length) throw new IllegalArgumentException();
-        System.arraycopy(this.data, 0, cache, dstOffset, this.data.length);
     }
 
     public static int getChildIndex(int x, int y, int z) {

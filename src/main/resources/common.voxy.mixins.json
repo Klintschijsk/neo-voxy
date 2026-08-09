@@ -1,12 +1,14 @@
 {
   "required": true,
   "package": "me.cortex.voxy.commonImpl.mixin",
-  "compatibilityLevel": "JAVA_17",
+  "plugin": "me.cortex.voxy.commonImpl.mixin.CommonVoxyMixinPlugin",
+  "compatibilityLevel": "JAVA_21",
   "injectors": {
     "defaultRequire": 1
   },
   "mixins": [
-    "chunky.MixinFabricWorld",
+    "minecraft.AccessorPalettedContainerData",
+    "minecraft.AccessorPalettedContainer",
     "minecraft.MixinWorld"
   ],
   "overwrites": {

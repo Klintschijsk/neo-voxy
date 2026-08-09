@@ -10,7 +10,10 @@ import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 import org.rocksdb.*;
 
+import java.io.File;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -110,6 +113,13 @@ public class RocksDBStorageBackend extends StorageBackend {
 
             this.sectionReadOps = new ReadOptions();
             this.sectionWriteOps = new WriteOptions();
+            //LOD sections are an explicitly regenerable cache (loadSection returns air / deletes corrupt
+            //entries, and re-ingesting chunks rebuilds everything), so the WAL - which roughly doubles
+            //bytes written per section save - buys durability we don't need. Skip it for section writes
+            //and instead flush the section memtable to SST on a clean shutdown (see flush()). An unclean
+            //crash loses only sections written since the last memtable flush, and those regenerate. The
+            //id-mapping CF still uses the default WAL-on write path (small, and load-bearing).
+            this.sectionWriteOps.setDisableWAL(true);
 
             this.closeList.add(options);
             this.closeList.add(cfOpts);
@@ -322,6 +332,59 @@ public class RocksDBStorageBackend extends StorageBackend {
         }
     }
 
+    //One db.write for a group of sections instead of one JNI put + write-group + memtable lock each.
+    //Most valuable on the shutdown flush and on imports, where sections arrive in the thousands.
+    private final class RocksSectionWriteBatch implements SectionWriteBatch {
+        private final WriteBatch batch = new WriteBatch();
+        private int count;
+        private long bytes;
+
+        @Override
+        public void put(long key, MemoryBuffer data) {
+            try (var stack = MemoryStack.stackPush()) {
+                var keyBuff = stack.calloc(8);
+                MemoryUtil.memPutLong(MemoryUtil.memAddress(keyBuff), Long.reverseBytes(swizzlePos(key)));
+                //WriteBatch copies the value here, so the caller's scratch buffer is free after this
+                this.batch.put(RocksDBStorageBackend.this.worldSections, keyBuff, data.asByteBuffer());
+            } catch (RocksDBException e) {
+                throw new RuntimeException(e);
+            }
+            this.count++;
+            this.bytes += data.size;
+        }
+
+        @Override public long dataSize() { return this.bytes; }
+
+        @Override
+        public void commit() {
+            if (this.count == 0) {
+                return;
+            }
+            try {
+                //MUST be sectionWriteOps: it carries setDisableWAL(true). A fresh WriteOptions here
+                //would silently push every section write back through the WAL.
+                RocksDBStorageBackend.this.db.write(RocksDBStorageBackend.this.sectionWriteOps, this.batch);
+            } catch (RocksDBException e) {
+                throw new RuntimeException(e);
+            } finally {
+                //Drop the contents even on failure so a retry cannot double-write
+                this.batch.clear();
+                this.count = 0;
+                this.bytes = 0;
+            }
+        }
+
+        @Override
+        public void close() {
+            this.batch.close();
+        }
+    }
+
+    @Override
+    public SectionWriteBatch createSectionWriteBatch() {
+        return new RocksSectionWriteBatch();
+    }
+
     @Override
     public void deleteSectionData(long key) {
         try {
@@ -359,6 +422,12 @@ public class RocksDBStorageBackend extends StorageBackend {
     public void flush() {
         try {
             this.db.flushWal(true);
+            //Section writes skip the WAL (see ctor), so their data lives only in the memtable until a
+            //flush - persist it to SST here. flush() is only called on world close / force-resave, never
+            //per section, so the memtable flush cost is a shutdown-time one-off, not a hot-path stall.
+            try (var flushOpts = new FlushOptions().setWaitForFlush(true)) {
+                this.db.flush(flushOpts, this.worldSections);
+            }
         } catch (RocksDBException e) {
             throw new RuntimeException(e);
         }

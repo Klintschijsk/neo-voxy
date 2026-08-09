@@ -89,6 +89,7 @@ public class NodeManager {
     private final IntOpenHashSet topLevelNodeIds = new IntOpenHashSet();
     private final LongOpenHashSet topLevelNodes = new LongOpenHashSet();
     private int activeNodeRequestCount;
+    private boolean loggedLevel0Refusal;
 
     private IntConsumer topLevelNodeIdAddedCallback;
     private IntConsumer topLevelNodeIdRemovedCallback;
@@ -1067,8 +1068,9 @@ public class NodeManager {
     }
 
     //==================================================================================================================
-
-    private int _nodeAlreadyInFlightDontSpam = 1;
+    //Our GPU-side request retry makes the "already in flight" case burstable enough to flood the log;
+    //warn the first few, then stay quiet (de8e324 intent, without its stuck-at-zero counter bug).
+    private int alreadyInFlightWarnCount = 0;
 
     public void processRequest(long pos) {
         int nodeId = this.activeSectionMap.get(pos);
@@ -1088,7 +1090,21 @@ public class NodeManager {
 
 
         if (WorldEngine.getLevel(pos) == 0) {
-            Logger.error("Requests cannot exist for bottom level nodes. at: " + WorldEngine.pprintPos(pos) + ". Ignoring request");
+            //A level-0 node cannot subdivide, so the only legitimate cause of its request is a
+            //missing mesh - route it to the geometry repair path. The GPU-side request flag stays
+            //set while the geometry is inbound (stops the traversal re-emitting every frame); the
+            //geometry result rewrites the node, which clears it.
+            if (nodeType == NODE_TYPE_LEAF && this.nodeData.getNodeGeometry(nodeId) == NULL_GEOMETRY_ID) {
+                this.watcher.watch(pos, WorldEngine.UPDATE_TYPE_BLOCK_BIT);
+                return;
+            }
+            //Otherwise the GPU thinks the node is meshless while the CPU disagrees - rewriting the
+            //node uploads the CPU-side mesh pointer, which also stops the re-request
+            if (!this.loggedLevel0Refusal) {
+                this.loggedLevel0Refusal = true;
+                Logger.error("Unexpected request for bottom level node at: " + WorldEngine.pprintPos(pos) + " (logged once)");
+            }
+            this.invalidateNode(nodeId);
             return;
         }
 
@@ -1132,12 +1148,13 @@ public class NodeManager {
 
             //Check if the node is already in-flight, if it is, dont do any processing
             if (this.nodeData.isNodeRequestInFlight(nodeId)) {
-                if (this._nodeAlreadyInFlightDontSpam>=1 && this._nodeAlreadyInFlightDontSpam<100) {
+                if (this.alreadyInFlightWarnCount < 20) {
                     Logger.warn("Tried processing a node that already has a request in flight: " + nodeId + " pos: " + WorldEngine.pprintPos(pos) + " ignoring");
-                    this._nodeAlreadyInFlightDontSpam++;
-                } else if (this._nodeAlreadyInFlightDontSpam==100) {
-                    Logger.warn("Suppressing \"Tried processing node\" warning ;-; (probably gonna regret this)");
-                    this._nodeAlreadyInFlightDontSpam = 0;
+                    if (++this.alreadyInFlightWarnCount == 20) {
+                        Logger.warn("Suppressing further 'request already in flight' warnings");
+                    }
+                } else {
+                    me.cortex.voxy.commonImpl.PerfStats.nodeWarnSuppressed.increment();
                 }
                 return;
             }
