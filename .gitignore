@@ -28,3 +28,6 @@ bin/
 /PRE-PUSH-AUDIT.md
 /UPSTREAM-MERGE-PLAN.md
 __pycache__/
+# Temporary cherry-pick patch files
+patches/
+ck --full --no-reflogs
