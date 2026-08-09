@@ -1,0 +1,236 @@
+plugins {
+    id 'dev.architectury.loom' version '1.6.422'
+    id 'maven-publish'
+}
+
+version = project.mod_version
+group = project.maven_group
+
+base {
+    archivesName = project.archives_base_name
+}
+
+repositories {
+    mavenCentral()
+    maven { url = 'https://maven.blamejared.com/' }
+    maven { url = 'https://maven.neoforged.net/releases' }
+    maven {
+        name = 'Modrinth'
+        url = 'https://api.modrinth.com/maven'
+        content { includeGroup 'maven.modrinth' }
+    }
+}
+
+configurations {
+    lwjglRuntimeBundle
+}
+
+loom {
+    silentMojangMappingsLicense()
+    accessWidenerPath = file('src/main/resources/voxy.accesswidener')
+
+    forge {
+        convertAccessWideners = true
+        mixinConfigs = [
+                'client.voxy.mixins.json',
+                'iris.voxy.mixins.json',
+                'common.voxy.mixins.json'
+        ]
+    }
+
+    mixin.defaultRefmapName = 'voxy-refmap.json'
+
+    runs {
+        client {
+            client()
+            mods {
+                voxy { sourceSet sourceSets.main }
+            }
+        }
+    }
+}
+
+def gitCommitHash = providers.provider {
+    try {
+        def output = new ByteArrayOutputStream()
+        exec {
+            commandLine 'git', 'rev-parse', '--short', 'HEAD'
+            standardOutput = output
+            errorOutput = new ByteArrayOutputStream()
+            ignoreExitValue = true
+        }
+        def value = output.toString().trim()
+        return value.isEmpty() ? '' : value
+    } catch (Exception ignored) {
+        return ''
+    }
+}
+
+processResources {
+    inputs.property 'version', project.version
+    inputs.property 'commit', gitCommitHash
+
+    filesMatching('META-INF/mods.toml') {
+        expand version: project.version, commit: gitCommitHash.get()
+    }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings loom.officialMojangMappings()
+    forge "net.minecraftforge:forge:${project.minecraft_version}-${project.forge_version}"
+
+    // Embeddium is the required chunk renderer. Oculus is optional at runtime, but its Forge jar
+    // supplies the Iris-compatible implementation API used by the shader integration sources.
+    modImplementation "org.embeddedt:embeddium-${project.minecraft_version}:${project.embeddium_version}"
+    modCompileOnly "maven.modrinth:oculus:${project.oculus_compile_version}"
+
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+    compileOnly 'io.github.llamalad7:mixinextras-common:0.3.5'
+    annotationProcessor 'io.github.llamalad7:mixinextras-common:0.3.5'
+
+    implementation platform('org.lwjgl:lwjgl-bom:3.3.1')
+    implementation 'org.lwjgl:lwjgl'
+    implementation 'org.lwjgl:lwjgl-lmdb'
+    implementation 'org.lwjgl:lwjgl-zstd'
+    lwjglRuntimeBundle('org.lwjgl:lwjgl-lmdb:3.3.1') { transitive = false }
+    lwjglRuntimeBundle('org.lwjgl:lwjgl-zstd:3.3.1') { transitive = false }
+    lwjglRuntimeBundle('org.lwjgl:lwjgl-lmdb:3.3.1:natives-windows') { transitive = false }
+    lwjglRuntimeBundle('org.lwjgl:lwjgl-zstd:3.3.1:natives-windows') { transitive = false }
+    lwjglRuntimeBundle('org.lwjgl:lwjgl-lmdb:3.3.1:natives-linux') { transitive = false }
+    lwjglRuntimeBundle('org.lwjgl:lwjgl-zstd:3.3.1:natives-linux') { transitive = false }
+
+    include implementation('redis.clients:jedis:5.1.0')
+    include implementation('org.rocksdb:rocksdbjni:10.2.1')
+    include implementation('org.apache.commons:commons-pool2:2.12.0')
+    implementation 'org.lz4:lz4-java:1.8.0'
+    include implementation('org.tukaani:xz:1.10')
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 17
+    options.fork = false
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+jar {
+    destinationDirectory.set(layout.buildDirectory.dir('intermediate-jars'))
+    archiveClassifier.set('dev')
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from({ configurations.lwjglRuntimeBundle.collect { zipTree(it) } }) {
+        exclude 'META-INF/MANIFEST.MF'
+        exclude 'META-INF/*.SF', 'META-INF/*.RSA', 'META-INF/*.DSA'
+        exclude 'module-info.class', 'META-INF/versions/**/module-info.class'
+    }
+    from('LICENSE.md') {
+        rename { "LICENSE_${project.archives_base_name}.md" }
+    }
+}
+
+tasks.named('remapJar') {
+    destinationDirectory.set(layout.buildDirectory.dir('intermediate-jars'))
+    archiveClassifier.set('unoptimized')
+}
+
+def slimJarOutput = layout.buildDirectory.file(
+        "libs/${project.archives_base_name}-${project.mod_version}-forge-client.jar")
+
+tasks.register('slimJar') {
+    group = 'build'
+    description = 'Creates the Windows/Linux x86_64 distributable JAR'
+    dependsOn tasks.named('remapJar')
+
+    def sourceJar = tasks.named('remapJar').flatMap { it.archiveFile }
+    inputs.file(sourceJar)
+    outputs.file(slimJarOutput)
+
+    doLast {
+        def source = sourceJar.get().asFile
+        def target = slimJarOutput.get().asFile
+        target.parentFile.mkdirs()
+
+        def putEntry = { java.util.zip.ZipOutputStream output, String name, byte[] data,
+                         int requestedMethod, long timestamp ->
+            def entry = new java.util.zip.ZipEntry(name)
+            if (timestamp >= 0L) entry.time = timestamp
+            entry.method = requestedMethod == java.util.zip.ZipEntry.STORED
+                    ? java.util.zip.ZipEntry.STORED : java.util.zip.ZipEntry.DEFLATED
+            if (entry.method == java.util.zip.ZipEntry.STORED) {
+                def crc = new java.util.zip.CRC32()
+                crc.update(data)
+                entry.size = data.length
+                entry.compressedSize = data.length
+                entry.crc = crc.value
+            }
+            output.putNextEntry(entry)
+            if (data.length != 0) output.write(data)
+            output.closeEntry()
+        }
+
+        def rocksKeep = ['librocksdbjni-win64.dll', 'librocksdbjni-linux64.so'] as Set
+        def rewriteRocks = { byte[] inputBytes ->
+            def bytesOut = new ByteArrayOutputStream(inputBytes.length)
+            new java.util.zip.ZipInputStream(new ByteArrayInputStream(inputBytes)).withCloseable { input ->
+                new java.util.zip.ZipOutputStream(bytesOut).withCloseable { output ->
+                    java.util.zip.ZipEntry entry
+                    while ((entry = input.nextEntry) != null) {
+                        byte[] data = entry.directory ? new byte[0] : input.readAllBytes()
+                        String baseName = entry.name.substring(entry.name.lastIndexOf('/') + 1)
+                        boolean nativeFile = baseName.startsWith('librocksdbjni-') &&
+                                (baseName.endsWith('.so') || baseName.endsWith('.dll') ||
+                                 baseName.endsWith('.jnilib') || baseName.endsWith('.dylib'))
+                        if (!nativeFile || rocksKeep.contains(baseName)) {
+                            putEntry(output, entry.name, data, entry.method, entry.time)
+                        }
+                        input.closeEntry()
+                    }
+                }
+            }
+            bytesOut.toByteArray()
+        }
+
+        boolean foundRocks = false
+        if (target.exists() && !target.delete()) {
+            throw new GradleException("Could not replace ${target}")
+        }
+
+        new java.util.zip.ZipFile(source).withCloseable { input ->
+            new java.util.zip.ZipOutputStream(new BufferedOutputStream(new FileOutputStream(target))).withCloseable { output ->
+                def entries = input.entries()
+                while (entries.hasMoreElements()) {
+                    def entry = entries.nextElement()
+                    byte[] data = entry.directory ? new byte[0] : input.getInputStream(entry).withCloseable { it.readAllBytes() }
+                    if (entry.name.startsWith('META-INF/jars/rocksdbjni-') && entry.name.endsWith('.jar')) {
+                        foundRocks = true
+                        data = rewriteRocks(data)
+                    }
+                    int method = entry.name.startsWith('META-INF/jars/') && entry.name.endsWith('.jar')
+                            ? java.util.zip.ZipEntry.STORED : entry.method
+                    putEntry(output, entry.name, data, method, entry.time)
+                }
+            }
+        }
+
+        if (!foundRocks) {
+            target.delete()
+            throw new GradleException('RocksDB nested dependency was not found')
+        }
+        logger.lifecycle(String.format(Locale.ROOT, 'Slim JAR: %.1f MiB -> %.1f MiB',
+                source.length() / 1048576.0d, target.length() / 1048576.0d))
+    }
+}
+
+tasks.named('build') {
+    dependsOn tasks.named('slimJar')
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) { from components.java }
+    }
+}

@@ -1,0 +1,52 @@
+{
+  "voxy.config.title": "Voxy",
+
+  "voxy.config.general.enabled": "启用Voxy",
+  "voxy.config.general.enabled.tooltip": "完全启用或禁用Voxy",
+
+  "voxy.config.general.serviceThreads": "服务线程数",
+  "voxy.config.general.serviceThreads.tooltip": "服务线程池可使用的线程数量",
+
+  "voxy.config.general.useSodiumBuilder": "使用Sodium线程",
+  "voxy.config.general.useSodiumBuilder.tooltip": "将Sodium构建器线程纳入Voxy线程池，可在高渲染距离快速移动时减少卡顿和延迟",
+
+  "voxy.config.general.ingest": "区块摄取",
+  "voxy.config.general.ingest.tooltip": "启用或禁用Voxy将新区块转换为细节层次（LoD）的功能",
+
+  "voxy.config.general.rendering": "Voxy渲染",
+  "voxy.config.general.rendering.tooltip": "启用或禁用Voxy渲染",
+
+  "voxy.config.general.subDivisionSize": "细分尺寸像素^2",
+  "voxy.config.general.subDivisionSize.tooltip": "屏幕空间AABB的最大像素（平方）尺寸，超过此值将细分至更小的LoD（数值越小质量越高）",
+
+  "voxy.config.general.prioritySubdivision": "优先级智能细分",
+  "voxy.config.general.prioritySubdivision.tooltip": "启用基于优先级的LOD细分系统。优先处理视觉重要度高和近距离部分区块，实现更快加载和更平滑过渡",
+
+  "voxy.config.general.render_pressure": "LOD构建压力",
+  "voxy.config.general.render_pressure.tooltip": "控制每帧用于LOD模型构建的时间预算。数值越低越优先保证帧率，数值越高越快补全LOD。预算会根据帧率和队列压力自动调整",
+
+  "voxy.config.general.renderDistance": "渲染距离",
+  "voxy.config.general.renderDistance.tooltip": "Voxy的渲染距离（以区块为单位）",
+
+  "voxy.config.general.environmental_fog": "启用环境雾效",
+  "voxy.config.general.environmental_fog.tooltip": "启用或禁用Voxy渲染的环境雾效",
+
+  "voxy.config.general.fog_intensity": "雾气强度",
+  "voxy.config.general.fog_intensity.tooltip": "调整无光影时LOD环境雾的混合强度",
+  "voxy.config.general.fog_density": "雾气密度",
+  "voxy.config.general.fog_density.tooltip": "为远景增加额外的指数雾密度；0表示关闭额外密度",
+  "voxy.config.general.fog_distance": "雾气距离",
+  "voxy.config.general.fog_distance.tooltip": "按LOD渲染半径的百分比设置雾气终点",
+  "voxy.config.general.sky_fog_distance": "天空雾距离",
+  "voxy.config.general.sky_fog_distance.tooltip": "固定天空雾距离，避免其随原版渲染距离变化",
+  "voxy.config.general.shader_shadow_fade": "光影阴影淡入",
+  "voxy.config.general.shader_shadow_fade.tooltip": "在原版区块与LOD边界使用低开销抖动，使原版光影阴影逐渐交给LOD，减少整区块阴影割裂。仅修改无几何或曲面细分阶段的兼容阴影程序",
+  "voxy.config.general.shader_shadow_fade_length": "阴影淡入长度",
+  "voxy.config.general.shader_shadow_fade_length.tooltip": "阴影交接带宽度（方块）。较短更锐利，较长更平滑",
+
+  "voxy.config.general.vanilla_fog": "启用原版雾效",
+  "voxy.config.general.vanilla_fog.tooltip": "启用或禁用原版雾效",
+
+  "voxy.config.general.render_statistics": "启用渲染统计",
+  "voxy.config.general.render_statistics.tooltip": "在F3菜单中启用渲染统计，便于调试"
+}

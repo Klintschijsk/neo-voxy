@@ -1,0 +1,88 @@
+name: Build Neo Voxy multiversion
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [multiversion]
+  pull_request:
+    branches: [multiversion]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.edition }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - edition: integrations-1.21.1
+            java: '21'
+            artifact: neo-voxy-mc1.21.1-neoforge-integrations
+          - edition: client-1.21.1
+            java: '21'
+            artifact: neo-voxy-mc1.21.1-neoforge-client
+          - edition: client-1.20.1
+            java: '17'
+            artifact: neo-voxy-mc1.20.1-forge-client
+          - edition: client-26.1.2
+            java: '25'
+            artifact: neo-voxy-mc26.1.2-neoforge-client
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ matrix.java }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build release JAR
+        run: bash scripts/build.sh '${{ matrix.edition }}'
+
+      - name: Upload ${{ matrix.artifact }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/*.jar
+          if-no-files-found: error
+          compression-level: 0
+
+  bundle:
+    name: Collect all releases
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release JARs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: neo-voxy-*
+          path: release
+          merge-multiple: true
+
+      - name: Verify release set
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t jars < <(find release -maxdepth 1 -type f -name '*.jar' -print | sort)
+          if (( ${#jars[@]} != 4 )); then
+            printf 'Expected 4 release JARs, found %d:\n' "${#jars[@]}" >&2
+            printf '  %s\n' "${jars[@]}" >&2
+            exit 1
+          fi
+          sha256sum "${jars[@]}"
+
+      - name: Upload multiversion bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: neo-voxy-multiversion
+          path: release/*.jar
+          if-no-files-found: error
+          compression-level: 0

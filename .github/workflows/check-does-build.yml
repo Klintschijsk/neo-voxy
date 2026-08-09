@@ -1,6 +1,8 @@
 name: check-does-build
 
-on: [ push ]
+on:
+  push:
+    branches-ignore: [multiversion]
 jobs:
   build:
     runs-on: ubuntu-latest

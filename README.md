@@ -1,200 +1,134 @@
-# Neo-Voxy
+# Neo Voxy · Multiversion
 
-[简体中文](#简体中文) | [English](#english)
+[简体中文](#简体中文) · [English](#english)
 
-Neo-Voxy is maintained by **JohnSnow** and adds new features on top of
-[NHblock714/voxy](https://github.com/NHblock714/voxy). It currently has separate branches for Minecraft
-**1.21.1** and **26.1.2**.
-
-The Sable, Create, and EclipticSeasons compatibility implementations originate from **NHblock**.
+Neo Voxy is maintained by **JohnSnow** and extends
+[NHblock714/voxy](https://github.com/NHblock714/voxy). The `multiversion` branch keeps four supported
+editions in one repository while preserving an independent Gradle wrapper and toolchain for each game version.
 
 > [!IMPORTANT]
-> If Neo-Voxy behaves incorrectly after an update, delete the Neo-Voxy configuration file and the
-> Voxy cache stored inside the affected world, then launch the game again.
-> The branch "Merge1.21.1neo": Both the server and the client need to be installed, "1211" and "2612" only need the client.
+> 更新后若出现异常，请先删除 Neo Voxy 配置文件和对应存档中的 Voxy 缓存，再重新进入世界。
+> If an update causes problems, delete the Neo Voxy configuration and that world's Voxy cache before retrying.
 
-> [!CAUTION]
-> **Do not enable Neo-Voxy's circular LOD fade together with a shader pack that already implements
-> its own LOD transition, such as Photon.** Disable **Circular LOD Fade** in Neo-Voxy's Sodium video
-> settings page, or the two transitions may cause noise, repeated fading, lighting errors, or a
-> visible shadow boundary.
+> [!WARNING]
+> **Minecraft 1.20.1 的光影支持仍不完善。** Oculus 光影可能出现拖影、天空残影或 LOD 管线不生效；
+> 该版本目前更适合无光影使用。
 
 ## 简体中文
 
-Neo-Voxy 为远距离地形提供高性能 LOD 渲染，并针对 NeoForge、Sodium、Iris 以及部分大型模组
-进行兼容性维护，由 **JohnSnow** 维护。本项目基于
-[NHblock714/voxy](https://github.com/NHblock714/voxy) 添加新功能；Sable、Create 与节气模组
-（EclipticSeasons）兼容均来自 **NHblock**。两个 Minecraft 分支分别构建，**JAR 与缓存不能跨版本混用**。
+### 版本
 
-> [!IMPORTANT]
-> **更新 Neo-Voxy 后若出现问题，请删除 Neo-Voxy 配置文件和对应存档中的 Voxy 缓存，再重新进入游戏。**
-> Merge1.21.1neo分支需要双端安装，其余分支仅客户端需装。
-> 推荐安装Voxy Serve Side进行数据共享。
+| 版本 | 安装方式 | 渲染依赖 | Java | 发布产物 |
+|---|---|---|---:|---|
+| 1.21.1 NeoForge 联动版 | 客户端与服务端 | Sodium 0.8 / Iris | 21 | `neo-voxy-0.3.3-mc1.21.1-neoforge-integrations.jar` |
+| 1.21.1 NeoForge 纯客户端版 | 仅客户端 | Sodium 0.8 / Iris | 21 | `neo-voxy-0.2.18-beta-mc1.21.1-neoforge-client.jar` |
+| 1.20.1 Forge 纯客户端版 | 仅客户端 | Embeddium / Oculus | 17 | `neo-voxy-0.3.3-1.20.1-alpha.1-forge-client.jar` |
+| 26.1.2 NeoForge 纯客户端版 | 仅客户端 | Sodium 0.9 / Iris | 25 | `neo-voxy-0.2.18-beta-mc26.1.2-neoforge-client.jar` |
 
-### 版本与功能对比
+四个发布 JAR 都由各自的 `slimJar` 流程生成：完整依赖包只作为中间文件，不会发布；各版本不需要的
+RocksDB/SQLite 原生库、重复模块描述符和已由游戏提供的旧依赖会从最终产物剔除。实际方块、语言、
+着色器和运行所需资源不会被删除。
 
-| 功能 | 1.21.1 | 26.1.2 | 说明 |
-|---|:---:|:---:|---|
-| 远距离地形 LOD | ✅ | ✅ | 在原版区块范围外渲染简化地形 |
-| Sodium / Iris 集成 | ✅ | ✅ | 接入区块、深度、设置与光影管线 |
-| 圆形 LOD 淡入 | ✅ | ✅ | 以玩家为中心平滑交接原版区块与 LOD |
-| 树叶 LOD 质量模式 | ✅ | — | 快速、平衡、质量三档 |
-| FakeSight 风格扩展区块请求 | ✅ | — | 移动时限流，静止时逐步扩展至目标距离 |
-| 远距离玩家与乘骑物 | ✅ | — | 可选轻量快照、名称与位置共享 |
-| 远距离信标光柱 | ✅ | — | 从持久化 LOD 数据恢复位置、颜色与遮挡分段 |
-| 专项模组模型兼容 | ✅ | — | 详见下方兼容性表格 |
+### 功能对比
 
-`—` 表示该分支尚未提供专项实现，不代表对应模组一定无法与基础地形 LOD 同时运行。
+| 功能 | 1.21.1 联动版 | 1.21.1 客户端版 | 1.20.1 客户端版 | 26.1.2 客户端版 |
+|---|:---:|:---:|:---:|:---:|
+| 远距离地形 LOD | ✅ | ✅ | ✅ | ✅ |
+| LOD 缓存与多级细节 | ✅ | ✅ | ✅ | ✅ |
+| 雾气、流体及交界修复 | ✅ | ✅ | ✅ | ✅ |
+| Sodium/Embeddium 设置集成 | ✅ | ✅ | ✅ | ✅ |
+| Iris/Oculus 光影管线 | ✅ | ✅ | ⚠️ 实验性 | ✅ |
+| 圆形 LOD 淡入及专项交接 | ✅ | ✅ | ✅ | ✅ |
+| 远距离玩家、乘骑物与动画 | ✅ | — | — | — |
+| Create/Sable/节气等专项联动 | ✅ | — | — | — |
 
-### 近期渲染优化
-
-- **LOD 淡入：** 圆形交接按渲染类型处理，并为树叶、流体、熔岩和信标采用独立规则，减少透明重现、接缝、近距离虚影及高空观察时的空洞。
-- **Create 动态结构：** 已加载区块中的结构持续更新远景姿态；区块加载器维持加载时，服务端仅低频同步运动结构的位置和旋转，客户端复用已有模型并插值，不重复烘焙。
-- **信标光柱：** 保留正确颜色和 LOD 遮挡，并使用有上限的距离宽度曲线，使远处仍可辨认且不会过粗。
-
-### LOD Fade in example (Eclipse shader)
-
-Enable LOD Fade in
-<img width="1500" height="900" alt="image" src="https://github.com/user-attachments/assets/d4c960b7-f749-497b-8257-cc07195eedc6" />
-
-
-Disable
-<img width="1500" height="900" alt="image" src="https://github.com/user-attachments/assets/6352b8df-b23e-40ca-9ada-d1332d3e277c" />
-
-
-
+`—` 表示该版本不包含专项功能，并不表示基础 LOD 一定与该模组冲突。
 
 ### 模组兼容性
 
-| 模组或组件 | 1.21.1 | 26.1.2 | 兼容说明 |
-|---|---|---|---|
-| Sodium | ✅ 0.8.12 | ✅ 0.9.1 | 目标版本；不建议跨大版本使用 |
-| Iris | ✅ 1.8.12+ | ✅ 1.11.2 | 光影包需要自行适配远景渲染语义 |
-| Create | ✅ 6.0.10 专项 | 基础兼容 | 1.21.1 提供远景列车、轨道、动态结构及动力部件交接 |
-| Sable | ⚠️ 2.0.3 专项 | 无专项实现 | 保留远景载具加载与距离扩展；高风险联合深度重定向默认关闭 |
-| Domum Ornamentum | ✅ 专项 | 无专项实现 | 根据方块实体纹理数据烘焙独立模型，并采用主材质着色 |
-| Supplementaries / Lumisene | ✅ 专项 | 无专项实现 | 专用流体颜色、透明度及表面模型处理 |
-| EclipticSeasons | ✅ 0.13.8.4.1 专项 | 无专项实现 | 季节积雪 LOD 与季节变化后的可选重载 |
-| bits_n_bobs / Azimuth | ✅ 部分专项 | 无专项实现 | 参与 Create 动力部件的远景快照 |
-| EntityCulling | ✅ 协同 | 无专项实现 | 避免远景 Create 实体在交接前被错误剔除 |
-| Photon 等自带 LOD 淡入的光影 | ⚠️ | ⚠️ | 必须关闭 Neo-Voxy 的圆形 LOD 淡入 |
+| 模组或组件 | 支持版本 | 说明 |
+|---|---|---|
+| Sodium / Iris | 1.21.1、26.1.2 | 使用表中对应的大版本 |
+| Embeddium | 1.20.1 | 基础渲染后端 |
+| Oculus | 1.20.1 | 可启动，但光影 LOD 仍有已知渲染问题 |
+| Create | 1.21.1 联动版 | 远景列车、轨道、动态结构与动力部件 |
+| Sable | 1.21.1 联动版 | 远景物理结构及深度兼容 |
+| EclipticSeasons | 1.21.1 联动版 | 远景季节积雪 |
+| Domum Ornamentum | 1.21.1 联动版 | 方块实体纹理与独立 LOD 模型 |
+| Photon 等自带 LOD 过渡的光影 | 支持光影的版本 | 应关闭 Neo Voxy 的 LOD 淡入，避免双重过渡 |
 
-所有专项联动均按对应模组是否安装进行门控；未安装时不会注册相关监听器、渲染器或高频任务，
-设置界面中的对应选项也会禁用。
+专项联动只在对应模组已安装时启用，未安装时不会注册其监听器或渲染任务。Create、Sable 和
+EclipticSeasons 兼容实现来自 **NHblock**。
 
-### 安装
+### 源码布局
 
-1. 安装对应版本的 Minecraft、NeoForge 和 Java。
-2. 安装表格中对应版本的 Sodium；如需光影，再安装对应 Iris。
-3. 将正确分支生成的 Neo-Voxy JAR 放入实例的 `mods` 文件夹。
-4. 从其他版本迁移前备份世界与旧 Voxy 缓存。
-
-| 分支 | Neo-Voxy 版本 | Java | NeoForge |
-|---|---|---:|---|
-| Minecraft 1.21.1 | 0.3.3 | 21 | 21.1.x |
-| Minecraft 26.1.2 | 0.2.18-beta | 25 | 26.1.2.x |
+| 目录 | 版本 |
+|---|---|
+| 仓库根目录 | 1.21.1 NeoForge 联动版 |
+| `editions/neoforge-1.21.1-client` | 1.21.1 NeoForge 纯客户端版 |
+| `editions/forge-1.20.1-client` | 1.20.1 Forge 纯客户端版 |
+| `editions/neoforge-26.1.2-client` | 26.1.2 NeoForge 纯客户端版 |
 
 ### 构建
 
+Windows 单独构建：
+
 ```powershell
-.\gradlew clean build
+.\scripts\build.ps1 integrations-1.21.1
+.\scripts\build.ps1 client-1.21.1
+.\scripts\build.ps1 client-1.20.1
+.\scripts\build.ps1 client-26.1.2
 ```
 
-1.21.1 分支已将发布包裁剪整合为 Gradle 的 `slimJar` 任务。执行 `build` 会自动生成
-`build/libs/neo-voxy.jar`，不再需要 Python 或 `tools` 目录。该发布包仅保留
-Windows/Linux x86_64 原生库；大体积中间 JAR 存放在 `build/intermediate-jars`，不会出现在发布目录。
+一次构建全部版本：
 
-Create、Sable、EclipticSeasons 等联动所需的公开编译依赖由 Gradle 自动下载。Create 内嵌的
-Ponder/Flywheel 以及 Sable 内嵌的 companion/Rapier 也会自动提取，因此全新检出和 CI 均不需要
-手工维护 `libs/aero-spike`。这些依赖只用于编译，不会让对应模组变成运行时强制前置。
+```powershell
+.\scripts\build-all.ps1
+```
+
+脚本优先读取 `JAVA_HOME_17`、`JAVA_HOME_21`、`JAVA_HOME_25`，也会识别本地 `D:\Java\<版本>`。
+Linux/macOS 可使用 `scripts/build.sh` 与 `scripts/build-all.sh`，并设置相同的 JDK 环境变量。
+最终产物统一复制到 `dist/`。GitHub Actions 工作流位于
+`.github/workflows/build-multiversion.yml`，会并行构建四个版本，并额外生成包含全部 JAR 的
+`neo-voxy-multiversion` artifact。
 
 ## English
 
-Neo-Voxy provides high-performance distant terrain LOD rendering with focused maintenance for
-NeoForge, Sodium, Iris, and selected large mods. The two Minecraft branches are built separately;
-**their JARs and caches are not interchangeable**.
+### Editions and features
 
-This project is maintained by **JohnSnow** and adds new features on top of
-[NHblock714/voxy](https://github.com/NHblock714/voxy). The Sable, Create, and EclipticSeasons
-compatibility implementations originate from **NHblock**.
+| Edition | Installation | Renderer | Shader support | Integrations |
+|---|---|---|---|---|
+| 1.21.1 NeoForge integrations | Client + server | Sodium 0.8 / Iris | Supported | Create, Sable, seasons, Domum and more |
+| 1.21.1 NeoForge client | Client only | Sodium 0.8 / Iris | Supported | None |
+| 1.20.1 Forge client | Client only | Embeddium / Oculus | **Experimental; known ghosting issues** | None |
+| 26.1.2 NeoForge client | Client only | Sodium 0.9 / Iris | Supported | None |
 
-### Version and feature comparison
-
-| Feature | 1.21.1 | 26.1.2 | Notes |
-|---|:---:|:---:|---|
-| Distant terrain LOD | ✅ | ✅ | Simplified terrain outside the vanilla chunk radius |
-| Sodium / Iris integration | ✅ | ✅ | Chunk, depth, settings, and shader-pipeline integration |
-| Circular LOD fade | ✅ | ✅ | Camera-centred handoff between vanilla chunks and LOD |
-| Leaf LOD quality modes | ✅ | — | Fast, Balanced, and Quality modes |
-| FakeSight-style extended chunk requests | ✅ | — | Throttled while moving and expanded gradually while stationary |
-| Distant players and ridden vehicles | ✅ | — | Optional lightweight snapshots, names, and position sharing |
-| Distant beacon beams | ✅ | — | Restores position, colour, and occlusion segments from persistent LOD data |
-| Dedicated mod model integrations | ✅ | — | See the compatibility table below |
-
-`—` means that no dedicated implementation exists in that branch. It does not necessarily mean the
-mod cannot run alongside basic terrain LOD rendering.
-
-### Recent rendering improvements
-
-- **LOD fade:** The circular handoff handles render types separately and gives leaves, fluids, lava,
-  and beacon beams dedicated rules, reducing transparency pop, seams, near-range ghosts, and
-  high-altitude holes.
-- **Create contraptions:** Contraptions in loaded chunks keep their distant pose updated. When a chunk
-  loader keeps them active, the server sends only low-rate movement poses; the client interpolates
-  the existing cached model without rebaking it.
-- **Beacon beams:** Correct colours and LOD occlusion are retained, while a capped distance-width curve
-  keeps beams visible at long range without becoming excessively thick.
-
-### Mod compatibility
-
-| Mod or component | 1.21.1 | 26.1.2 | Compatibility notes |
-|---|---|---|---|
-| Sodium | ✅ 0.8.12 | ✅ 0.9.1 | Target versions; crossing major versions is not recommended |
-| Iris | ✅ 1.8.12+ | ✅ 1.11.2 | Shader packs must understand distant-terrain rendering semantics |
-| Create | ✅ 6.0.10 integration | Basic only | 1.21.1 adds distant trains, tracks, contraptions, and kinetic handoff |
-| Sable | ⚠️ 2.0.3 integration | No dedicated support | Distant loading/range remains; unsafe combined-depth redirection is off by default |
-| Domum Ornamentum | ✅ Integrated | No dedicated support | Independent model baking and main-material tint from block-entity texture data |
-| Supplementaries / Lumisene | ✅ Integrated | No dedicated support | Dedicated fluid colour, transparency, and surface handling |
-| EclipticSeasons | ✅ 0.13.8.4.1 integration | No dedicated support | Seasonal snow LOD and optional reload on season changes |
-| bits_n_bobs / Azimuth | ✅ Partial integration | No dedicated support | Included in Create kinetic snapshots |
-| EntityCulling | ✅ Coordinated | No dedicated support | Prevents premature culling during the Create handoff |
-| Photon-like shaders with built-in LOD fade | ⚠️ | ⚠️ | Disable Neo-Voxy's Circular LOD Fade |
-
-Every dedicated integration is gated by mod presence. When the matching mod is absent, Neo-Voxy does
-not register its listeners, renderers, or recurring work, and the matching settings are disabled.
-
-### Installation
-
-1. Install the matching Minecraft, NeoForge, and Java versions.
-2. Install the matching Sodium version from the table; add Iris if shaders are required.
-3. Put the Neo-Voxy JAR from the correct branch into the instance `mods` directory.
-4. Back up the world and old Voxy cache before migrating from another version.
-
-| Branch | Neo-Voxy version | Java | NeoForge |
-|---|---|---:|---|
-| Minecraft 1.21.1 | 0.3.3 | 21 | 21.1.x |
-| Minecraft 26.1.2 | 0.2.18-beta | 25 | 26.1.2.x |
+All editions provide terrain LODs, persistent caches, multi-level detail, renderer settings, fog/fluid
+fixes, and the circular vanilla-to-LOD transition. Only the 1.21.1 integrations edition contains
+networked distant entities and dedicated mod compatibility. Optional integrations are gated by mod
+presence and do not register work when their target mod is absent.
 
 ### Building
 
+Build one edition on Windows:
+
 ```powershell
-.\gradlew clean build
+.\scripts\build.ps1 integrations-1.21.1
+.\scripts\build.ps1 client-1.21.1
+.\scripts\build.ps1 client-1.20.1
+.\scripts\build.ps1 client-26.1.2
 ```
 
-The 1.21.1 branch now implements release trimming as the Gradle `slimJar` task. `build` automatically
-creates `build/libs/neo-voxy.jar`; Python and the `tools` directory are no longer needed.
-The release JAR keeps only Windows/Linux x86_64 natives. The large intermediate JAR is kept under
-`build/intermediate-jars` and never appears in the release directory.
+Build every edition:
 
-Gradle automatically downloads the public compile-time dependencies required by the Create, Sable,
-EclipticSeasons, and other integrations. It also extracts Create's embedded Ponder/Flywheel and
-Sable's embedded companion/Rapier jars, so fresh clones and CI do not need a manually populated
-`libs/aero-spike` directory. These integrations remain optional at runtime.
+```powershell
+.\scripts\build-all.ps1
+```
 
-## Credits and license
+Set `JAVA_HOME_17`, `JAVA_HOME_21`, and `JAVA_HOME_25` when those JDKs are not discoverable. Bash
+equivalents are available in `scripts/`. Release JARs are placed in `dist/`; the multiversion GitHub
+Actions workflow builds the same four artifacts in parallel and publishes a combined bundle.
 
-Voxy was created by [MCRcortex](https://github.com/MCRcortex). Thanks to the Voxy, Sodium, Iris,
-NeoForge, and compatibility-mod communities and testers.
+## License
 
-This is an unofficial port and is not affiliated with Mojang, Microsoft, NeoForge, Sodium, Iris, or
-the original Voxy author. See [LICENSE.md](LICENSE.md) for the applicable license terms.
+See the license file included with each edition. Third-party bundled libraries retain their own licenses.

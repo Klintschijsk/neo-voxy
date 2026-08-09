@@ -1,6 +1,8 @@
 name: check-does-build-pr
 
-on: [ pull_request ]
+on:
+  pull_request:
+    branches-ignore: [multiversion]
 jobs:
   build:
     runs-on: ubuntu-latest

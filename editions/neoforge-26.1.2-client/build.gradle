@@ -1,0 +1,174 @@
+import java.util.zip.CRC32
+import java.util.zip.ZipEntry
+import java.util.zip.ZipFile
+import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
+
+plugins {
+    id 'net.neoforged.moddev' version '2.0.141'
+    id 'maven-publish'
+}
+
+version = project.mod_version
+group = project.maven_group
+
+base {
+    archivesName = project.archives_base_name
+}
+
+repositories {
+    mavenCentral()
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(25)
+}
+
+neoForge {
+    version = project.neoforge_version
+    accessTransformers.from(file('src/main/resources/META-INF/accesstransformer.cfg'))
+
+    runs {
+        client {
+            client()
+        }
+    }
+
+    mods {
+        voxy {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+dependencies {
+    // The recovered production artifact is the source of truth for these
+    // compile-time APIs and bundled runtime libraries.
+    compileOnly files('libs/compile/sodium-neoforge-0.9.1+mc26.1.2-mod.jar')
+    compileOnly files('libs/compile/iris-neoforge-1.11.2+mc26.1.2.jar')
+    compileOnly fileTree('src/main/resources/META-INF/jarjar') {
+        include '*.jar'
+        // Minecraft 26.1.2 already supplies at.yawk.lz4:lz4-java:1.10.1 as
+        // module org.lz4.java. Compiling and packaging the legacy 1.8.0 copy
+        // creates a duplicate JPMS module during NeoForge startup.
+        exclude 'lz4-java-*.jar'
+    }
+
+    runtimeOnly files('libs/runtime/sodium-neoforge-0.9.1+mc26.1.2.jar')
+    runtimeOnly files('libs/runtime/iris-neoforge-1.11.2+mc26.1.2.jar')
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 25
+    options.deprecation = true
+}
+
+tasks.named('processResources') {
+    // Keep the recovered legacy binary in the source snapshot, but never put
+    // it in the distributable. The game-provided 1.10.1 remains available to
+    // LZ4Compressor at compile time and runtime.
+    exclude 'META-INF/jarjar/lz4-java-*.jar'
+}
+
+jar {
+    destinationDirectory.set(layout.buildDirectory.dir('intermediate-jars'))
+    archiveFileName = "${project.archives_base_name}-${project.version}-unoptimized.jar"
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+def slimJarOutput = layout.buildDirectory.file(
+        "libs/${project.archives_base_name}-${project.version}-mc26.1.2-neoforge-client.jar")
+
+tasks.register('slimJar') {
+    group = 'build'
+    description = 'Creates the compact Windows/Linux x86_64 distributable JAR'
+    dependsOn tasks.named('jar')
+
+    def sourceJar = tasks.named('jar').flatMap { it.archiveFile }
+    inputs.file(sourceJar)
+    outputs.file(slimJarOutput)
+
+    doLast {
+        File source = sourceJar.get().asFile
+        File target = slimJarOutput.get().asFile
+        target.parentFile.mkdirs()
+
+        def putEntry = { ZipOutputStream output, String name, byte[] data,
+                         int requestedMethod, long timestamp ->
+            ZipEntry entry = new ZipEntry(name)
+            if (timestamp >= 0L) entry.time = timestamp
+            entry.method = requestedMethod == ZipEntry.STORED ? ZipEntry.STORED : ZipEntry.DEFLATED
+            if (entry.method == ZipEntry.STORED) {
+                CRC32 crc = new CRC32()
+                crc.update(data)
+                entry.size = data.length
+                entry.compressedSize = data.length
+                entry.crc = crc.value
+            }
+            output.putNextEntry(entry)
+            if (data.length != 0) output.write(data)
+            output.closeEntry()
+        }
+
+        def rewriteNested = { byte[] inputBytes, Closure<Boolean> shouldDrop ->
+            ByteArrayOutputStream bytesOut = new ByteArrayOutputStream(inputBytes.length)
+            new ZipInputStream(new ByteArrayInputStream(inputBytes)).withCloseable { input ->
+                new ZipOutputStream(bytesOut).withCloseable { output ->
+                    ZipEntry entry
+                    while ((entry = input.nextEntry) != null) {
+                        byte[] data = entry.directory ? new byte[0] : input.readAllBytes()
+                        if (!shouldDrop.call(entry.name)) {
+                            putEntry(output, entry.name, data, entry.method, entry.time)
+                        }
+                        input.closeEntry()
+                    }
+                }
+            }
+            bytesOut.toByteArray()
+        }
+
+        def sqliteKeep = ['org/sqlite/native/windows/x86_64/',
+                          'org/sqlite/native/linux/x86_64/']
+        if (target.exists() && !target.delete()) {
+            throw new GradleException("Could not replace ${target}")
+        }
+
+        new ZipFile(source).withCloseable { input ->
+            new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(target))).withCloseable { output ->
+                def entries = input.entries()
+                while (entries.hasMoreElements()) {
+                    ZipEntry entry = entries.nextElement()
+                    byte[] data = entry.directory ? new byte[0] :
+                            input.getInputStream(entry).withCloseable { it.readAllBytes() }
+                    String lower = entry.name.toLowerCase(Locale.ROOT)
+
+                    if (lower.startsWith('meta-inf/jarjar/sqlite-jdbc-') && lower.endsWith('.jar')) {
+                        data = rewriteNested(data, { String nestedName ->
+                            String nested = nestedName.replace('\\', '/').toLowerCase(Locale.ROOT)
+                            nested.startsWith('org/sqlite/native/') && !nested.endsWith('/') &&
+                                    !sqliteKeep.any { nested.startsWith(it) }
+                        })
+                    } else if ((lower.startsWith('meta-inf/jarjar/lwjgl-lmdb-') ||
+                            lower.startsWith('meta-inf/jarjar/lwjgl-zstd-')) && lower.endsWith('.jar')) {
+                        data = rewriteNested(data, { String nestedName ->
+                            nestedName.replace('\\', '/').toLowerCase(Locale.ROOT)
+                                    .matches('meta-inf/versions/[0-9]+/module-info\\.class')
+                        })
+                    }
+
+                    int method = lower.startsWith('meta-inf/jarjar/') && lower.endsWith('.jar')
+                            ? ZipEntry.STORED : entry.method
+                    putEntry(output, entry.name, data, method, entry.time)
+                }
+            }
+        }
+
+        logger.lifecycle(String.format(Locale.ROOT, 'Slim JAR: %.1f MiB -> %.1f MiB',
+                source.length() / 1048576.0d, target.length() / 1048576.0d))
+    }
+}
+
+tasks.named('build') {
+    dependsOn tasks.named('slimJar')
+}

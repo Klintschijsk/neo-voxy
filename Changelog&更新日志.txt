@@ -1,1 +1,24 @@
+0.3.3-1.20.1-alpha.1 (2026-08-09)
+- 修复 Oculus 1.8.3 拒绝 IrisRenderingPipeline 构造器偏移注入的问题，恢复光影包 voxy.json 管线加载。
+- 将原版/LOD 边界遮罩改为仅使用 Embeddium 当前实际绘制的已构建 section，避免整高遮罩造成地形空洞。
+- 保留水体交界面的深度容差修复，并移除会误裁切同列其他高度方块的整列遮罩。
 
+0.3.3-1.20.1-alpha.1 (2026-08-09, shader pipeline follow-up)
+- 修正 `useViewportDims` 的反向判断，避免 Photon 的 TAA/缩放路径读取错误尺寸的深度数据并产生整屏拖影。
+- LOD 绘制后恢复活动纹理单元 0，避免污染 Oculus 后续合成阶段。
+- 补齐 Eclipse Voxy 管线所需的帧计数、云时间和 Voxy 矩阵 uniform，并为构造失败路径增加 GPU 资源释放保护。
+
+0.3.3-1.20.1-alpha.1 (2026-08-09, Photon temporal follow-up)
+- Voxy 在实际绘制时捕获本帧与上一帧矩阵，修复 Photon 时间重投影使用晚一帧矩阵造成的严重历史拖影。
+- Oculus 销毁或重载光影管线时立即使旧 Voxy 管线失效，并在安全时机重建，避免绑定已销毁的 RenderTargets 导致崩溃。
+
+0.3.3-1.20.1-alpha.1 (2026-08-09, shared shader depth fix)
+- 在 Voxy 内部遮挡阶段结束后恢复原版覆盖区域的深度值，避免 Photon、Eclipse 等光影把临时深度哨兵写入时间历史并形成地形拖影。
+- 将光影包转发 SSBO 放入 Voxy 会保存并恢复的绑定区间，防止 Eclipse 等使用 SSBO 的光影污染后续合成阶段。
+- 支持光影包通过 `skipShaderDepthHackFix` 显式关闭深度恢复，保留特殊管线的兼容入口。
+
+multiversion (2026-08-10; 0.3.3 / 0.2.18-beta / 0.3.3-1.20.1-alpha.1)
+- 将 1.21.1 NeoForge 联动版、1.21.1 NeoForge 纯客户端版、1.20.1 Forge 纯客户端版和 26.1.2 NeoForge 纯客户端版合并到统一源码分支。
+- 为四个版本统一独立构建入口、可发布 Slim JAR 命名和无用嵌套运行载荷剔除规则。
+- 新增一键全版本构建脚本及 GitHub Actions 并行构建、校验、汇总工作流。
+- 重写中英双语 README，简要列出版本功能、安装方式、兼容性和 1.20.1 光影支持限制。

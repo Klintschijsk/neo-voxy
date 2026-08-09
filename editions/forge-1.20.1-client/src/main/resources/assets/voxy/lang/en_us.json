@@ -1,0 +1,52 @@
+{
+  "voxy.config.title": "Voxy",
+
+  "voxy.config.general.enabled": "Enable Voxy",
+  "voxy.config.general.enabled.tooltip": "Fully enables or disables voxy",
+
+  "voxy.config.general.serviceThreads": "Service threads",
+  "voxy.config.general.serviceThreads.tooltip": "Number of threads the ServiceThreadPool can use",
+
+  "voxy.config.general.useSodiumBuilder": "Use sodium threads",
+  "voxy.config.general.useSodiumBuilder.tooltip": "Uses sodium builder threads as part of voxys thread pool, can reduce stuttering and lag when moving quickly at high render distance",
+
+  "voxy.config.general.ingest": "Chunk Ingest",
+  "voxy.config.general.ingest.tooltip": "Enables or disables voxies ability to convert new chunks into LoDs",
+
+  "voxy.config.general.rendering": "Voxy Rendering",
+  "voxy.config.general.rendering.tooltip": "Enables or disables voxy rendering",
+
+  "voxy.config.general.subDivisionSize": "Pixels^2 of subdivision size",
+  "voxy.config.general.subDivisionSize.tooltip": "Maximum size in pixels (squared) of screenspace AABB before subdiving to smaller LoDs (Smaller being higher quality)",
+
+  "voxy.config.general.prioritySubdivision": "Priority-Based Subdivision",
+  "voxy.config.general.prioritySubdivision.tooltip": "Enable intelligent LOD subdivision system. Prioritizes nearby and visually important areas for faster loading and smoother transitions",
+
+  "voxy.config.general.render_pressure": "LOD build pressure",
+  "voxy.config.general.render_pressure.tooltip": "Controls the per-frame LOD model build budget. Lower values favor frame rate; higher values catch up faster. The budget also adapts to FPS and queue pressure",
+
+  "voxy.config.general.renderDistance": "Render distance",
+  "voxy.config.general.renderDistance.tooltip": "Render distance of voxy in chunks",
+
+  "voxy.config.general.environmental_fog": "Enable environmental fog",
+  "voxy.config.general.environmental_fog.tooltip": "Enables or disables voxy rendering environmental fog",
+
+  "voxy.config.general.fog_intensity": "Fog intensity",
+  "voxy.config.general.fog_intensity.tooltip": "Controls the blend strength of non-shader LOD environmental fog",
+  "voxy.config.general.fog_density": "Fog density",
+  "voxy.config.general.fog_density.tooltip": "Adds exponential density to distant fog; zero disables the extra density",
+  "voxy.config.general.fog_distance": "Fog distance",
+  "voxy.config.general.fog_distance.tooltip": "Sets the fog end as a percentage of the LOD render radius",
+  "voxy.config.general.sky_fog_distance": "Sky fog distance",
+  "voxy.config.general.sky_fog_distance.tooltip": "Keeps sky fog independent from the vanilla render distance",
+  "voxy.config.general.shader_shadow_fade": "Shader shadow fade",
+  "voxy.config.general.shader_shadow_fade.tooltip": "Uses a low-cost dither near the vanilla/LOD boundary so shader shadows hand over gradually instead of changing by whole chunks. Only compatible shadow programs without geometry or tessellation stages are modified",
+  "voxy.config.general.shader_shadow_fade_length": "Shadow fade length",
+  "voxy.config.general.shader_shadow_fade_length.tooltip": "Width of the shadow handoff band in blocks. Shorter is sharper; longer is smoother",
+
+  "voxy.config.general.vanilla_fog": "Enable vanilla fog",
+  "voxy.config.general.vanilla_fog.tooltip": "Enables or disables vanilla fog effect",
+
+  "voxy.config.general.render_statistics": "Enable render statistics",
+  "voxy.config.general.render_statistics.tooltip": "Enable render statistics in F3 menu, useful for debugging"
+}

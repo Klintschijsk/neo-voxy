@@ -1,0 +1,30 @@
+{
+  "required": true,
+  "minVersion": "0.8.5",
+  "package": "me.cortex.voxy.client.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "client": [
+    "minecraft.MixinClientLevel",
+    "minecraft.MixinClientChunkCache",
+    // "minecraft.MixinClientCommonPacketListenerImpl",
+    "minecraft.MixinClientPacketListener",
+    "minecraft.MixinDebugScreenOverlay",
+    "minecraft.MixinFogRenderer",
+    // "minecraft.MixinGlDebug",
+    "minecraft.MixinMinecraft",
+    "minecraft.MixinRenderSystem",
+    // "minecraft.MixinBlockableEventLoop",
+    "minecraft.MixinLevelRenderer",
+    "minecraft.MixinLevelStorageAccess",
+    "sodium.AccessorChunkTracker",
+    "sodium.AccessorSodiumWorldRenderer",
+    "sodium.MixinChunkJobQueue",
+    // "sodium.MixinDefaultChunkRenderer",
+    "sodium.MixinRenderSectionManager",
+    "sodium.MixinSodiumWorldRenderer",
+    "sodium.MixinSodiumOptionsGUI"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
