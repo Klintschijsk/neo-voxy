@@ -26,3 +26,8 @@ multiversion CI follow-up (2026-08-10; versions unchanged)
 - Upgraded the repository workflows to Node.js 24 based GitHub Actions, removing the Node.js 20 and setup-java v4 deprecation warnings.
 - Replaced parallel intermediate-artifact jobs with one sequential multi-JDK build that publishes only `neo-voxy-multiversion`.
 - Limited CI warning suppression to compatibility deprecation, removal and internal-JDK API diagnostics; local compiler diagnostics remain unchanged.
+
+multiversion CI graph follow-up (2026-08-10; versions unchanged)
+- Restored four visible per-edition build jobs feeding one final bundle job, while keeping `neo-voxy-multiversion` as the only uploaded artifact.
+- Passed release JARs between jobs through run-scoped caches and kept Gradle caches read-only to avoid concurrent cache-save warnings.
+- Kept unavoidable JDK 25 `Unsafe` notices in raw logs without creating GitHub annotations; Java compilation errors remain annotated.
