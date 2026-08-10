@@ -24,3 +24,5 @@ multiversion (2026-08-10; 0.3.3 / 0.2.18-beta / 0.3.3-1.20.1-alpha.1)
 - 重写中英双语 README，简要列出版本功能、安装方式、兼容性和 1.20.1 光影支持限制。
 multiversion CI follow-up (2026-08-10; versions unchanged)
 - Upgraded the repository workflows to Node.js 24 based GitHub Actions, removing the Node.js 20 and setup-java v4 deprecation warnings.
+- Replaced parallel intermediate-artifact jobs with one sequential multi-JDK build that publishes only `neo-voxy-multiversion`.
+- Limited CI warning suppression to compatibility deprecation, removal and internal-JDK API diagnostics; local compiler diagnostics remain unchanged.

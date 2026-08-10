@@ -1,0 +1,10 @@
+gradle.afterProject { project, state ->
+    project.tasks.withType(org.gradle.api.tasks.compile.JavaCompile).configureEach {
+        options.deprecation = false
+        options.compilerArgs.addAll([
+                '-Xlint:-deprecation',
+                '-Xlint:-removal',
+                '-XDignore.symbol.file'
+        ])
+    }
+}

@@ -48,7 +48,12 @@ if [[ -n "${GRADLE_USER_HOME:-}" ]]; then
     gradle_launcher="$cached_launcher"
   fi
 fi
-(cd "$project" && "$gradle_launcher" -I init.gradle clean build --no-daemon --no-configuration-cache)
+
+init_scripts=(-I init.gradle)
+if [[ "${CI:-false}" == "true" ]]; then
+  init_scripts+=(-I "$repo/scripts/ci-javac.gradle")
+fi
+(cd "$project" && "$gradle_launcher" "${init_scripts[@]}" clean build --no-daemon --no-configuration-cache)
 
 source_jar="$project/build/libs/$jar"
 test -f "$source_jar" || { echo "Missing release JAR: $source_jar" >&2; exit 1; }
