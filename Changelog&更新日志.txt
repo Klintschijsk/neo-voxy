@@ -22,3 +22,5 @@ multiversion (2026-08-10; 0.3.3 / 0.2.18-beta / 0.3.3-1.20.1-alpha.1)
 - 为四个版本统一独立构建入口、可发布 Slim JAR 命名和无用嵌套运行载荷剔除规则。
 - 新增一键全版本构建脚本及 GitHub Actions 并行构建、校验、汇总工作流。
 - 重写中英双语 README，简要列出版本功能、安装方式、兼容性和 1.20.1 光影支持限制。
+multiversion CI follow-up (2026-08-10; versions unchanged)
+- Upgraded the repository workflows to Node.js 24 based GitHub Actions, removing the Node.js 20 and setup-java v4 deprecation warnings.
