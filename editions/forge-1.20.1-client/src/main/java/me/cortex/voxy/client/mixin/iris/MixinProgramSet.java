@@ -24,8 +24,6 @@ public class MixinProgramSet implements IGetVoxyPatchData {
     @Shadow @Final private PackDirectives packDirectives;
     @Unique IrisShaderPatch patchData;
 
-    // Mixin 0.8.5 rejects shifted constructor INVOKE injections on Oculus 1.8.3. The patch only
-    // needs the fully constructed ProgramSet, so RETURN is both safer and version-tolerant.
     @Inject(method = "<init>", at = @At("RETURN"))
     private void voxy$injectPatchMaker(AbsolutePackPath directory, Function<AbsolutePackPath, String> sourceProvider, ShaderProperties shaderProperties, ShaderPack pack, CallbackInfo ci) {
         if (VoxyConfig.CONFIG.isRenderingEnabled() && IrisUtil.SHADER_SUPPORT) {

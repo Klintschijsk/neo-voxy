@@ -16,6 +16,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import java.util.List;
 
 @Mixin(SodiumOptionsGUI.class)
+@SuppressWarnings("removal")
 public class MixinSodiumOptionsGUI {
     @Shadow(remap = false) @Final private List<OptionPage> pages;
 

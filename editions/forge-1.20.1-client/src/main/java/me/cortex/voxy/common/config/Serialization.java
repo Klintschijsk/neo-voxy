@@ -5,7 +5,8 @@ import com.google.gson.reflect.TypeToken;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
 import me.cortex.voxy.common.Logger;
-import net.minecraftforge.fml.loading.FMLLoader;
+import me.cortex.voxy.common.platform.PlatformUtil;
+import me.cortex.voxy.commonImpl.VoxyCommon;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -95,26 +96,26 @@ public class Serialization {
         Map<Class<?>, GsonConfigSerialization<?>> serializers = new HashMap<>();
 
         Set<String> clazzs = new LinkedHashSet<>();
-        try {
-            var mod = FMLLoader.getLoadingModList().getModFileById("voxy");
-            if (mod != null) {
-                clazzs.addAll(collectAllClasses(mod.getFile().findResource("/"), BASE_SEARCH_PACKAGE));
-            }
-        } catch (Exception e) {
-            Logger.error("Failed to scan Voxy configuration classes", e);
-        }
+        var path = VoxyCommon.getPlatformUtil().getModRootPath("voxy");
+        clazzs.addAll(collectAllClasses(path, BASE_SEARCH_PACKAGE));
         clazzs.addAll(collectAllClasses(BASE_SEARCH_PACKAGE));
         int count = 0;
         outer:
         for (var clzName : clazzs) {
-            if (!clzName.toLowerCase().contains("config")) {
+            if (VoxyCommon.IS_DEDICATED_SERVER&&clzName.startsWith("me.cortex.voxy.client")) {
+                continue;//Dont load stuff from client path when were on a dedicated server
+            }
+            if (!clzName.toLowerCase(Locale.ROOT).contains("config")) {
                 continue;//Only load classes that contain the word config
             }
             if (clzName.contains("mixin")) {
                 continue;//Dont want to load mixins
             }
+            if (clzName.contains("ModMenuIntegration")) {
+                continue;//Dont want to modmenu incase it doesnt exist
+            }
             if (clzName.contains("VoxyConfigScreenPages")) {
-                continue;//The screen holds UI state, not a serializable config type
+                continue;//Dont want to modmenu incase it doesnt exist
             }
             if (clzName.endsWith("VoxyConfig")) {
                 continue;//Special case to prevent recursive loading pain
@@ -150,7 +151,7 @@ public class Serialization {
                         break;
                     }
                 }
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 Logger.error("Error while setting up config serialization", e);
             }
         }
@@ -169,12 +170,6 @@ public class Serialization {
         try {
             InputStream stream = Serialization.class.getClassLoader()
                     .getResourceAsStream(pack.replaceAll("[.]", "/"));
-            // Forge compatibility: In Forge/ModLauncher environment, getResourceAsStream may return null
-            // for package directories. This is expected behavior and we should gracefully handle it.
-            if (stream == null) {
-                Logger.info("Cannot scan package " + pack + " via ClassLoader (Forge environment), relying on filesystem scan");
-                return List.of();
-            }
             BufferedReader reader = new BufferedReader(new InputStreamReader(stream));
             return reader.lines().flatMap(inner -> {
                 if (inner.endsWith(".class")) {

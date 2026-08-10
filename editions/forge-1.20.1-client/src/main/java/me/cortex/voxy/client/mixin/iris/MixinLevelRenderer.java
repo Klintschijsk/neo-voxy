@@ -4,12 +4,15 @@ import me.cortex.voxy.client.core.IGetVoxyRenderSystem;
 import me.cortex.voxy.client.core.util.IrisUtil;
 import me.jellysquid.mods.sodium.client.render.chunk.ChunkRenderMatrices;
 import net.minecraft.client.Camera;
+//? if 1.21.1
+//import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.LightTexture;
 
 import org.joml.Matrix4f;
+import org.joml.Matrix4fc;
 import org.joml.Vector4f;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -28,23 +31,32 @@ public class MixinLevelRenderer {
 
     @Inject(method = "renderLevel", at = @At("HEAD"))
     private void voxy$injectIrisCompat(
+            //? if 1.21.1
+            //DeltaTracker tickCounter,
+            //? if 1.20.1 {
             PoseStack matrices,
             float tickDelta,
             long limitTime,
+            //?}
             boolean renderBlockOutline,
             Camera camera,
             GameRenderer gameRenderer,
             LightTexture lightTexture,
+            //? if 1.21.1
+            //Matrix4f positionMatrix,
             Matrix4f projectionMatrix,
             CallbackInfo ci) {
+        //? if 1.20.1 {
+        Matrix4f positionMatrix = matrices.last().pose();
+        //?}
         if (IrisUtil.irisShaderPackEnabled()) {
-            var renderer = ((IGetVoxyRenderSystem) this).getVoxyRenderSystem();
+            var renderer = ((IGetVoxyRenderSystem) this).voxy$getRenderSystem();
             if (renderer != null) {
                 //Fixthe fucking viewport dims, fuck iris
                 glViewport(0,0,Minecraft.getInstance().getMainRenderTarget().width, Minecraft.getInstance().getMainRenderTarget().height);
 
                 var pos = camera.getPosition();
-                IrisUtil.CAPTURED_VIEWPORT_PARAMETERS = new IrisUtil.CapturedViewportParameters(new ChunkRenderMatrices(projectionMatrix, matrices.last().pose()), pos.x, pos.y, pos.z);
+                IrisUtil.CAPTURED_VIEWPORT_PARAMETERS = new IrisUtil.CapturedViewportParameters(new ChunkRenderMatrices(projectionMatrix, positionMatrix), pos.x, pos.y, pos.z);
             }
         }
     }

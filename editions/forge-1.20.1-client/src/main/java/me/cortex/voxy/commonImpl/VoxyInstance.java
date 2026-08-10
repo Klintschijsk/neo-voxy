@@ -6,7 +6,6 @@ import me.cortex.voxy.common.thread.ServiceManager;
 import me.cortex.voxy.common.thread.UnifiedServiceThreadPool;
 import me.cortex.voxy.common.util.MemoryBuffer;
 import me.cortex.voxy.common.world.WorldEngine;
-import me.cortex.voxy.common.world.WorldEngineCache;
 import me.cortex.voxy.common.world.service.SectionSavingService;
 import me.cortex.voxy.common.world.service.VoxelIngestService;
 
@@ -32,22 +31,13 @@ public abstract class VoxyInstance {
 
     protected final ImportManager importManager;
 
-//缓存机制
-    protected final WorldEngineCache worldCache;
-
     public VoxyInstance() {
-        this(false, 3, 10); //默认不启用
-    }
-
-    public VoxyInstance(boolean enableCache, int maxCachedWorlds, long cacheMaxIdleMinutes) {
         Logger.info("Initializing voxy instance");
         this.threadPool = new UnifiedServiceThreadPool();
         this.savingService = new SectionSavingService(this.getServiceManager());
         this.ingestService = new VoxelIngestService(this.getServiceManager());
         this.importManager = this.createImportManager();
         this.savingServiceRateLimiter = ()->this.savingService.getTaskCount()<1200;
-        //初始化
-        this.worldCache = new WorldEngineCache(enableCache, maxCachedWorlds, cacheMaxIdleMinutes);
         this.worldCleaner = new Thread(()->{
             try {
                 while (this.isRunning) {
@@ -91,23 +81,8 @@ public abstract class VoxyInstance {
     public VoxelIngestService getIngestService() {
         return this.ingestService;
     }
-    public SectionSavingService getSavingService() {
-        return this.savingService;
-    }
     public ImportManager getImportManager() {
         return this.importManager;
-    }
-    public WorldEngineCache getWorldCache() {
-        return this.worldCache;
-    }
-
-    public java.util.Collection<WorldEngine> getActiveWorlds() {
-        long stamp = this.activeWorldLock.readLock();
-        try {
-            return new ArrayList<>(this.activeWorlds.values());
-        } finally {
-            this.activeWorldLock.unlockRead(stamp);
-        }
     }
 
     //TODO: reference count the world object
@@ -152,18 +127,25 @@ public abstract class VoxyInstance {
     }
 
     public WorldEngine getOrCreate(WorldIdentifier identifier) {
+        return this.getOrCreate(identifier, false);
+    }
+
+    public WorldEngine getOrCreate(WorldIdentifier identifier, boolean incrementRef) {
         if (!this.isRunning) {
             Logger.error("Tried getting world object on voxy instance but its not running");
             return null;
         }
         var world = this.getNullable(identifier);
         if (world != null) {
+            world.markActive();
+            if (incrementRef) world.acquireRef();
             return world;
         }
         long stamp = this.activeWorldLock.writeLock();
 
         if (!this.isRunning) {
             Logger.error("Tried getting world object on voxy instance but its not running");
+            this.activeWorldLock.unlockWrite(stamp);
             return null;
         }
 
@@ -172,6 +154,10 @@ public abstract class VoxyInstance {
             //Create world here
             world = this.createWorld(identifier);
         }
+        world.markActive();
+
+        if (incrementRef) world.acquireRef();
+
         this.activeWorldLock.unlockWrite(stamp);
         identifier.cachedEngineObject = new WeakReference<>(world);
         return world;
@@ -187,42 +173,19 @@ public abstract class VoxyInstance {
         if (this.activeWorlds.containsKey(identifier)) {
             throw new IllegalStateException("Existing world with identifier");
         }
-
-        WorldEngine world = this.worldCache.getOrCreate(identifier, () -> {
-            Logger.info("Creating new world engine: " + identifier.getLongHash() + "@" + System.identityHashCode(this));
-            WorldEngine newWorld = new WorldEngine(this.createStorage(identifier), this);
-            newWorld.setSaveCallback(this.savingService::enqueueSave);
-            return newWorld;
-        });
-
+        Logger.info("Creating new world engine: " + identifier.getLongHash() + "@" + System.identityHashCode(this));
+        var world = new WorldEngine(this.createStorage(identifier), this);
+        world.setSaveCallback(this.savingService::enqueueSave);
         this.activeWorlds.put(identifier, world);
         return world;
     }
 
     public void cleanIdle() {
         List<WorldIdentifier> idleWorlds = null;
-        List<WorldIdentifier> unusedWorlds = null; 
         {
             long stamp = this.activeWorldLock.readLock();
             for (var pair : this.activeWorlds.entrySet()) {
-                WorldEngine world = pair.getValue();
-
-                if (!world.isLive()) {
-                    if (idleWorlds == null) idleWorlds = new ArrayList<>();
-                    idleWorlds.add(pair.getKey());
-                    continue;
-                }
-
-                try {
-                    if (world.isWorldIdle()) {
-                        if (idleWorlds == null) idleWorlds = new ArrayList<>();
-                        idleWorlds.add(pair.getKey());
-                    } else if (!world.isWorldUsed()) {
-                        if (unusedWorlds == null) unusedWorlds = new ArrayList<>();
-                        unusedWorlds.add(pair.getKey());
-                    }
-                } catch (IllegalStateException e) {
-                    Logger.warn("World became invalid during cleanIdle, removing: " + pair.getKey().getLongHash());
+                if (pair.getValue().isWorldIdle()) {
                     if (idleWorlds == null) idleWorlds = new ArrayList<>();
                     idleWorlds.add(pair.getKey());
                 }
@@ -230,60 +193,16 @@ public abstract class VoxyInstance {
             this.activeWorldLock.unlockRead(stamp);
         }
 
-        if (unusedWorlds != null) {
-            long stamp = this.activeWorldLock.readLock();
-            try {
-                for (var id : unusedWorlds) {
-                    var world = this.activeWorlds.get(id);
-                    if (world != null && world.isLive()) {
-                        try {
-                            if (!world.isWorldUsed()) {
-                                boolean cached = this.worldCache.cacheIfNotExists(id, world);
-                                if (cached) {
-                                    Logger.info("World hot-cached while unused: " + id.getLongHash());
-                                }
-                            }
-                        } catch (IllegalStateException e) {
-                        }
-                    }
-                }
-            } finally {
-                this.activeWorldLock.unlockRead(stamp);
-            }
-        }
-
         if (idleWorlds != null) {
-            //Shutdown and cache/free all idle worlds
+            //Shutdown and clear all idle worlds
             long stamp = this.activeWorldLock.writeLock();
             for (var id : idleWorlds) {
                 var world = this.activeWorlds.remove(id);
                 if (world == null) continue;//Race condition between unlock read and acquire write
-
-                if (!world.isLive()) {
-                    Logger.info("World was already freed by GC: " + id.getLongHash());
-                    continue;
-                }
-
-                try {
-                    if (!world.isWorldIdle()) {
-                        this.activeWorlds.put(id, world);
-                        continue;
-                    }//No longer idle
-
-                    Logger.info("World became idle: " + id.getLongHash());
-
-                    this.worldCache.markAsCold(id);
-
-                    //try cache
-                    boolean cached = this.worldCache.cache(id, world);
-
-                    if (!cached) {
-                        Logger.info("Shutting down world not cached: " + id.getLongHash());
-                        world.free();
-                    }
-                } catch (IllegalStateException e) {
-                    Logger.warn("World became invalid: " + id.getLongHash());
-                }
+                if (!world.isWorldIdle()) {this.activeWorlds.put(id, world); continue;}//No longer idle
+                Logger.info("Shutting down idle world: " + id.getLongHash());
+                //If is here close and free the world
+                world.free();
             }
             this.activeWorldLock.unlockWrite(stamp);
         }
@@ -291,6 +210,7 @@ public abstract class VoxyInstance {
 
     public void addDebug(List<String> debug) {
         debug.add("MemoryBuffer, Count/Size (mb): " + MemoryBuffer.getCount() + "/" + (MemoryBuffer.getTotalSize()/1_000_000));
+        //TODO: fixme, doing this.activeWorlds.values() is not thread safe
         debug.add("I/S/AWSC: " + this.ingestService.getTaskCount() + "/" + this.savingService.getTaskCount() + "/[" + this.activeWorlds.values().stream().map(a->""+a.getActiveSectionCount()).collect(Collectors.joining(", ")) + "]");//Active world section count
     }
 
@@ -315,48 +235,31 @@ public abstract class VoxyInstance {
         try {this.ingestService.shutdown();} catch (Exception e) {Logger.error(e);}
         try {this.savingService.shutdown();} catch (Exception e) {Logger.error(e);}
 
-        //close cache
-        try {this.worldCache.shutdown();} catch (Exception e) {Logger.error("world cache error", e);}
 
         long stamp = this.activeWorldLock.writeLock();
 
         if (!this.activeWorlds.isEmpty()) {
             boolean printedNotice = false;
-            for (var world : this.activeWorlds.values()) {
-                //Skip worlds freed
-                if (!world.isLive()) {
-                    Logger.warn("world freed skipping");
-                    continue;
-                }
-
-                try {
-                    if (world.isWorldUsed()) {
-                        if (!printedNotice) {
-                            printedNotice = true;
-                            Logger.error("force free all worlds");
-                        }
-                        while (world.isWorldUsed()) {
-                            if (!world.isLive()) {
-                                Logger.warn("breaking waiting world");
-                                break;
-                            }
-                            try {
-                                //noinspection BusyWait
-                                Thread.sleep(10);
-                            } catch (InterruptedException e) {
-                                throw new RuntimeException(e);
-                            }
+            for (var world : new ArrayList<>(this.activeWorlds.values())) {
+                if (world.isWorldUsed()) {
+                    if (!printedNotice) {
+                        printedNotice = true;
+                        Logger.error("Not all worlds shutdown, force closing worlds");
+                    }
+                    //Dont lock in the loopy thing, this should basicly never happen if it does something horrific happened
+                    this.activeWorldLock.unlockWrite(stamp);
+                    while (world.isWorldUsed()) {
+                        try {
+                            //noinspection BusyWait
+                            Thread.sleep(10);
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
                         }
                     }
-
-                    // Free the world only if still live
-                    if (world.isLive()) {
-                        world.free();
-                    }
-                } catch (IllegalStateException e) {
-                    // World was freed during operation, safe to ignore
-                    Logger.warn("world invalid, continue: " + e.getMessage());
+                    stamp = this.activeWorldLock.writeLock();
                 }
+                //Free the world
+                world.free();
             }
             this.activeWorlds.clear();
         }
@@ -364,7 +267,7 @@ public abstract class VoxyInstance {
         try {this.threadPool.shutdown();} catch (Exception e) {Logger.error(e);}
 
         if (!this.activeWorlds.isEmpty()) {
-            throw new IllegalStateException("not all worlds shutdown");
+            throw new IllegalStateException("Not all worlds shutdown");
         }
         Logger.info("Instance shutdown");
         this.activeWorldLock.unlockWrite(stamp);
@@ -372,5 +275,9 @@ public abstract class VoxyInstance {
 
     public boolean isIngestEnabled(WorldIdentifier worldId) {
         return true;
+    }
+
+    public boolean isRunning() {
+        return this.isRunning;
     }
 }

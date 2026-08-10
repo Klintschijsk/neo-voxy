@@ -40,33 +40,9 @@ public class MixinIrisRenderingPipeline implements IGetVoxyPatchData, IGetIrisVo
     @Inject(method = "beginLevelRendering", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/systems/RenderSystem;activeTexture(I)V", shift = At.Shift.BEFORE), remap = false)
     private void voxy$injectViewportSetup(CallbackInfo ci) {
         if (IrisUtil.CAPTURED_VIEWPORT_PARAMETERS != null) {
-            var renderer = ((IGetVoxyRenderSystem) Minecraft.getInstance().levelRenderer).getVoxyRenderSystem();
+            var renderer = ((IGetVoxyRenderSystem) Minecraft.getInstance().levelRenderer).voxy$getRenderSystem();
             if (renderer != null) {
                 IrisUtil.CAPTURED_VIEWPORT_PARAMETERS.apply(renderer);
-            }
-        }
-    }
-
-    @Inject(method = "destroy", at = @At("HEAD"), remap = false)
-    private void voxy$invalidatePipelineData(CallbackInfo ci) {
-        if (this.pipeline != null) {
-            this.pipeline.invalidate();
-        }
-    }
-
-    @Inject(method = "finalizeLevelRendering", at = @At("HEAD"))
-    private void voxy$renderUnpatchedShaderFallback(CallbackInfo ci) {
-        // Render into Oculus' current world target before its composite and final programs run.
-        // Drawing at TAIL bypassed temporal/post processing and fed the finished image back into
-        // the next frame on packs with history buffers, producing severe sky/terrain trails.
-        if (this.patchData != null) {
-            return;
-        }
-        var levelRenderer = Minecraft.getInstance().levelRenderer;
-        if (levelRenderer instanceof IGetVoxyRenderSystem access) {
-            var renderer = access.getVoxyRenderSystem();
-            if (renderer != null) {
-                renderer.renderUnpatchedIrisFallback();
             }
         }
     }

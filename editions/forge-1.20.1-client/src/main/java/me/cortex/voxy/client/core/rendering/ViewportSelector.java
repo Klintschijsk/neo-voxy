@@ -6,12 +6,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public class ViewportSelector<T extends Viewport<?>> {
-    private static final Object OCULUS_SHADOW_VIEWPORT = new Object();
-
+public class ViewportSelector <T extends Viewport<?>> {
     private final Supplier<T> creator;
     private final T defaultViewport;
-    private final Map<Object, T> extraViewports = new HashMap<>();
+    private final Map<Object, T> extraViewports = new HashMap<>();//TODO should maybe be a weak hashmap with value cleanup queue thing?
 
     public ViewportSelector(Supplier<T> viewportCreator) {
         this.creator = viewportCreator;
@@ -19,13 +17,20 @@ public class ViewportSelector<T extends Viewport<?>> {
     }
 
     private T getOrCreate(Object holder) {
-        return this.extraViewports.computeIfAbsent(holder, ignored -> this.creator.get());
+        return this.extraViewports.computeIfAbsent(holder, a->this.creator.get());
     }
 
+    private static final Object IRIS_SHADOW_OBJECT = new Object();
     public T getViewport() {
-        return IrisUtil.irisShadowActive()
-                ? this.getOrCreate(OCULUS_SHADOW_VIEWPORT)
-                : this.defaultViewport;
+        T viewport = null;
+        if (viewport == null && IrisUtil.irisShadowActive()) {
+            viewport = this.getOrCreate(IRIS_SHADOW_OBJECT);
+        }
+
+        if (viewport == null) {
+            viewport = this.defaultViewport;
+        }
+        return viewport;
     }
 
     public void free() {

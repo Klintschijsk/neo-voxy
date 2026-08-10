@@ -1,21 +1,9 @@
+#import <voxy:lod/pos_util.glsl>
+#import <voxy:lod/lighting.glsl>
 //Common utility functions for decoding and operating on quads
 
 vec3 swizzelDataAxis(uint axis, vec3 data) {
     return mix(mix(data.zxy,data.xzy,bvec3(axis==0)),data,bvec3(axis==1));
-}
-
-uint extractDetail(uvec2 encPos) {
-    return encPos.x>>28;
-}
-
-ivec3 extractLoDPosition(uvec2 encPos) {
-    int y = ((int(encPos.x)<<4)>>24);
-    int x = (int(encPos.y)<<4)>>8;
-    int z = int((encPos.x&((1u<<20)-1))<<4);
-    z |= int(encPos.y>>28);
-    z <<= 8;
-    z >>= 8;
-    return ivec3(x,y,z);
 }
 
 vec4 getFaceSize(uint faceData) {
@@ -58,7 +46,8 @@ uint makeQuadFlags(uint faceData, uint modelId, ivec2 quadSize, const in BlockMo
         flags |= uint(any(greaterThan(quadSize, ivec2(1)))) & faceHasAlphaCuttoutOverride(faceData);
     }
 
-    flags |= uint(!modelHasMipmaps(model))<<1;//Not mipmaps
+    //TODO: remove, there is no non mip code path anymore
+    //flags |= uint(!modelHasMipmaps(model))<<1;//Not mipmaps
 
     flags |= faceTintState(faceData)<<2;
     flags |= face<<4;//Face
@@ -71,23 +60,10 @@ uint packVec4(vec4 vec) {
     return vec_.x|vec_.y|vec_.z|vec_.w;
 }
 
-float faceShadeFactor(uint face, bool isShaded) {
-    uint axis = face>>1u;
-    float axisIs1 = float(int(axis==1u));
-    float axisIs2 = float(int(axis==2u));
-    float axisIs0 = 1.0f - axisIs1 - axisIs2;
 
-    #ifdef DARKENED_TINTING
-    float shaded = axisIs1*0.8f + axisIs2*0.6f + axisIs0*0.9f;
-    float unshaded = 0.9f;
-    return mix(unshaded, shaded, float(int(isShaded)));
-    #else
-    float shaded = axisIs1*0.8f + axisIs2*0.6f + axisIs0*1.0f;
-    float downFactor = mix(1.0f, 0.5f, float(int(face==0u)));
-    float shade = shaded * downFactor;
-    return mix(1.0f, shade, float(int(isShaded)));
-    #endif
-}
+#ifndef PATCHED_SHADER
+float computeDirectionalFaceTint(bool isShaded, uint face);
+#endif
 
 uvec3 makeRemainingAttributes(const in BlockModel model, const in Quad quad, uint lodLevel, uint face) {
     uvec3 attributes = uvec3(0);
@@ -106,8 +82,10 @@ uvec3 makeRemainingAttributes(const in BlockModel model, const in Quad quad, uin
     attributes.y = tintColour;
     #else
     bool isTranslucent = modelIsTranslucent(model);
-    bool hasAO = modelHasMipmaps(model);//TODO: replace with per face AO flag
-    bool isShaded = hasAO;//TODO: make this a per face flag
+
+    //afak, these are the same variable in vanilla, (i.e. shaded == ao)
+    bool isShaded = modelIsShaded(model);
+    bool hasAO = isShaded;
 
     vec4 tinting = getLighting(lighting);
 
@@ -127,8 +105,8 @@ uvec3 makeRemainingAttributes(const in BlockModel model, const in Quad quad, uin
         addin = encodedData;
     }
 
-    //Apply face tint
-    tinting.xyz *= faceShadeFactor(face, isShaded);
+    tinting.rgb *= computeDirectionalFaceTint(isShaded, face);
+
     attributes.x = packVec4(tinting);
     attributes.y = conditionalTinting;
     attributes.z = addin|(face<<8);
@@ -138,9 +116,9 @@ uvec3 makeRemainingAttributes(const in BlockModel model, const in Quad quad, uin
 }
 
 void setupQuad(out QuadData quad, const in Quad rawQuad, uvec2 sPos, bool generateAttributes) {
-    uint lodLevel = extractDetail(sPos);
+    uint lodLevel = getLoDLevel(sPos);
     float lodScale = 1<<lodLevel;
-    ivec3 baseSection = (extractLoDPosition(sPos)<<lodLevel) - baseSectionPos;
+    ivec3 baseSection = (getLoDPosition(sPos)<<lodLevel) - baseSectionPos;
 
     uint face = extractFace(rawQuad);
     uint modelId = extractStateId(rawQuad);
@@ -154,7 +132,9 @@ void setupQuad(out QuadData quad, const in Quad rawQuad, uvec2 sPos, bool genera
     }
 
     vec4 faceSize = getFaceSize(faceData);
-
+    #ifdef USE_SINGLE_TRI
+    faceSize *= 2;
+    #endif
     vec3 quadStart = extractPos(rawQuad);
     float depthOffset = extractFaceIndentation(faceData);
     quadStart += swizzelDataAxis(face>>1, vec3(faceSize.xz, mix(depthOffset, 1-depthOffset, float(face&1u))));
@@ -162,7 +142,11 @@ void setupQuad(out QuadData quad, const in Quad rawQuad, uvec2 sPos, bool genera
     quad.lodScale = lodScale;
     quad.axis = face>>1;
     quad.basePoint = (quadStart*lodScale)+vec3(baseSection<<5);
-    quad.quadSizeAddin = (faceSize.yw + quadSize - 1);
+    #ifdef USE_SINGLE_TRI
+    quad.quadSizeAddin = (faceSize.yw + (quadSize - 1)*2);
+    #else
+    quad.quadSizeAddin = faceSize.yw + quadSize - 1;
+    #endif
     quad.uvCorner = faceSize.xz;
 }
 
@@ -174,8 +158,32 @@ vec4 getQuadCornerPos(in QuadData quad, uint cornerId) {
     return pos;
 }
 
-#ifdef USE_INTERPOLATED_UV
+#ifndef USE_NV_BARRY
 vec2 getCornerUV(const in QuadData quad, uint cornerId) {
     return quad.uvCorner + quad.quadSizeAddin*vec2((cornerId>>1)&1u, cornerId&1u);
+}
+#endif
+
+#ifndef PATCHED_SHADER
+float computeDirectionalFaceTint(bool isShaded, uint face) {
+    //Apply face tint
+    if (isShaded) {
+        //just index on a const array with the face as an index, will be much faster
+        // or use a vector and select/sum
+        // but per face might be easier?
+
+
+        if ((face>>1) == 1) {//NORTH, SOUTH
+            return Z_AXIS_FACE_TINT;
+        } else if ((face>>1) == 2) {//EAST, WEST
+            return X_AXIS_FACE_TINT;
+        } else if (face == 1) {//UP
+            return UP_FACE_TINT;
+        }
+        //DOWN
+        return DOWN_FACE_TINT;
+    } else {
+        return NO_SHADE_FACE_TINT;
+    }
 }
 #endif

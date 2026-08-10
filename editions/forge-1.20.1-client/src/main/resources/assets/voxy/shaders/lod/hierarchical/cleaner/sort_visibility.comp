@@ -18,7 +18,8 @@ layout(binding = OUTPUT_BUFFER_BINDING, std430) restrict volatile buffer Minimum
 };
 
 //Returns the id of the max value
-uint atomicDerefMaxExchangeGlobal(uint atId, uint id, uint value) {
+uint atomicDerefMaxExchangeGlobal(uint atId, uint id) {
+    const uint value = visibility[id];
     while (true) {
         const uint existingId = minVisIds[atId];//TODO: check that this does what we want, and that it obtains the value of atValue, at this point
         if (existingId == id) {//If we are trying to insert self, return -1
@@ -42,15 +43,10 @@ uint atomicDerefMaxExchangeGlobal(uint atId, uint id, uint value) {
 
 //TODO: optimize
 void bubbleSortGlobal(uint start, uint id) {
-    uint value = visibility[id];
     for (uint i = start; i < OUTPUT_SIZE; i++) {
-        uint prevId = id;
-        id = atomicDerefMaxExchangeGlobal(i, id, value);
+        id = atomicDerefMaxExchangeGlobal(i, id);
         if (id == uint(-1)) {
             break;
-        }
-        if (id != prevId) {
-            value = visibility[id];
         }
     }
 }
@@ -61,7 +57,8 @@ shared uint initalSort[OUTPUT_SIZE];
 
 
 //Returns the id of the max value
-uint atomicDerefMaxExchangeLocal(uint atId, uint id, uint value) {
+uint atomicDerefMaxExchangeLocal(uint atId, uint id) {
+    const uint value = visibility[id];
     while (true) {
         const uint existingId = initalSort[atId];//TODO: check that this does what we want, and that it obtains the value of atValue, at this point
         if (existingId == id) {//If we are trying to insert self, return -1
@@ -90,36 +87,24 @@ void bubbleSortInital(uint vis, uint id) {
     }
 
     for (uint i = start; i < OUTPUT_SIZE; i++) {
-        uint prevId = id;
-        id = atomicDerefMaxExchangeLocal(i, id, vis);
-        if (id == uint(-1)) {
-            return;
-        }
-        if (id != prevId) {
-            vis = visibility[id];
-        }
+        id = atomicDerefMaxExchangeLocal(i, id);
     }
 }
 
 bool shouldSortId(uint id) {
-    uvec4 raw = nodes[id];
-    if (raw == uvec4(-1)) {
+    UnpackedNode node;
+    if (unpackNode(node, id)==uvec4(-1)) {
         return false;//Unallocated node
     }
-
-    uint lodLevel = raw.x >> 28;
-    uint meshPtr = raw.z & 0xFFFFFFu;
-    uint flags = ((raw.z>>24)&0xFFu) | (((raw.w>>24)&0xFFu)<<8);
-
-    if (meshPtr == EMPTY_MESH || meshPtr == NULL_MESH) {//|| (!hasChildren(node))
+    if (isEmptyMesh(node) || (!hasMesh(node))) {//|| (!hasChildren(node))
         return false;
     }
-
-    if (lodLevel == MAX_LOD_LAYER) {// (!hasChildren(node)) -> Assume leaf node
+    //TODO: FIXME: DONT HARDCODE TOP LEVEL LOD LEVEL
+    if (node.lodLevel == 4) {// (!hasChildren(node)) -> Assume leaf node
         return false;//Cannot remove geometry from top level node
     }
 
-    if ((flags & 1u) != 0u) {//If a node has a request its not valid to remove
+    if (hasRequested(node)) {//If a node has a request its not valid to remove
         return false;
     }
 

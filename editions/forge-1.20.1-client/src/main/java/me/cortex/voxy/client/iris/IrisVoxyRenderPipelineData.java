@@ -7,6 +7,7 @@ import it.unimi.dsi.fastutil.longs.Long2ObjectFunction;
 import kroppeb.stareval.function.FunctionReturn;
 import kroppeb.stareval.function.Type;
 import me.cortex.voxy.client.core.IrisVoxyRenderPipeline;
+import me.cortex.voxy.client.core.rendering.util.LightMapHelper;
 import me.cortex.voxy.client.mixin.iris.CustomUniformsAccessor;
 import me.cortex.voxy.client.mixin.iris.IrisRenderingPipelineAccessor;
 import me.cortex.voxy.common.Logger;
@@ -22,9 +23,7 @@ import net.irisshaders.iris.gl.uniform.*;
 import net.irisshaders.iris.pipeline.IrisRenderingPipeline;
 import net.irisshaders.iris.targets.RenderTarget;
 import net.irisshaders.iris.targets.RenderTargets;
-import net.irisshaders.iris.uniforms.CapturedRenderingState;
 import net.irisshaders.iris.uniforms.CommonUniforms;
-import net.irisshaders.iris.uniforms.SystemTimeUniforms;
 import net.irisshaders.iris.uniforms.custom.CustomUniforms;
 import net.irisshaders.iris.uniforms.custom.cached.*;
 import org.joml.*;
@@ -41,8 +40,6 @@ import static org.lwjgl.opengl.GL43C.GL_SHADER_STORAGE_BUFFER;
 
 public class IrisVoxyRenderPipelineData {
     public IrisVoxyRenderPipeline thePipeline;
-    private final IrisRenderingPipeline owner;
-    private boolean valid = true;
     public final int[] opaqueDrawTargets;
     public final int[] translucentDrawTargets;
     private final String opaquePatch;
@@ -55,10 +52,10 @@ public class IrisVoxyRenderPipelineData {
     public final float[] resolutionScale;
     public final String TAA;
     public final boolean useViewportDims;
-    public final boolean skipShaderDepthHackFix;
+    public final boolean deferTranslucency;
+    public boolean skipShaderDepthHackFix;
 
-    private IrisVoxyRenderPipelineData(IrisRenderingPipeline owner, IrisShaderPatch patch, int[] opaqueDrawTargets, int[] translucentDrawTargets, StructLayout uniformSet, Runnable blendingSetup, ImageSet imageSet, SSBOSet ssboSet) {
-        this.owner = owner;
+    private IrisVoxyRenderPipelineData(IrisShaderPatch patch, int[] opaqueDrawTargets, int[] translucentDrawTargets, StructLayout uniformSet, Runnable blendingSetup, ImageSet imageSet, SSBOSet ssboSet) {
         this.opaqueDrawTargets = opaqueDrawTargets;
         this.translucentDrawTargets = translucentDrawTargets;
         this.opaquePatch = patch.getPatchOpaqueSource();
@@ -71,6 +68,7 @@ public class IrisVoxyRenderPipelineData {
         this.TAA = patch.getTAAShift();
         this.resolutionScale = patch.getRenderScale();
         this.useViewportDims = patch.useViewportDims();
+        this.deferTranslucency = patch.deferedTranslucentRendering();
         this.skipShaderDepthHackFix = patch.skipShaderDepthHackFix();
     }
 
@@ -88,12 +86,6 @@ public class IrisVoxyRenderPipelineData {
     public Runnable getBlender() {
         return this.blendingSetup;
     }
-    public boolean isValidFor(IrisRenderingPipeline pipeline) {
-        return this.valid && this.owner == pipeline;
-    }
-    public void invalidate() {
-        this.valid = false;
-    }
     public String opaqueFragPatch() {
         return this.opaquePatch;
     }
@@ -105,6 +97,7 @@ public class IrisVoxyRenderPipelineData {
     public static IrisVoxyRenderPipelineData buildPipeline(IrisRenderingPipeline ipipe, IrisShaderPatch patch, CustomUniforms cu, ShaderStorageBufferHolder ssboHolder) {
         var uniforms = createUniformLayoutStructAndUpdater(createUniformSet(cu, patch));
 
+
         var imageSet = createImageSet(ipipe, patch);
 
         var ssboSet = createSSBOLayouts(patch.getSSBOs(), ssboHolder);
@@ -115,7 +108,7 @@ public class IrisVoxyRenderPipelineData {
 
 
         //TODO: need to transform the string patch with the uniform decleration aswell as sampler declerations
-        return new IrisVoxyRenderPipelineData(ipipe, patch, opaqueDrawTargets, translucentDrawTargets, uniforms, patch.createBlendSetup(), imageSet, ssboSet);
+        return new IrisVoxyRenderPipelineData(patch, opaqueDrawTargets, translucentDrawTargets, uniforms, patch.createBlendSetup(), imageSet, ssboSet);
     }
 
     private static int[] getDrawBuffers(int[] targets, ImmutableSet<Integer> stageWritesToAlt, RenderTargets rt) {
@@ -143,6 +136,11 @@ public class IrisVoxyRenderPipelineData {
             case VEC4I -> "ivec4";
         };
     }
+
+    public boolean shouldDeferTranslucency() {
+        return false;
+    }
+
     public record StructLayout(int size, String layout, LongConsumer updater) {}
     private static StructLayout createUniformLayoutStructAndUpdater(List<UniformWritingHolder> uniforms) {
         if (uniforms.size() == 0) {
@@ -355,23 +353,12 @@ public class IrisVoxyRenderPipelineData {
                 return this;
             }
 
-            @Override
-            public DynamicLocationalUniformHolder uniformMatrix(UniformUpdateFrequency updateFrequency, String name, Supplier<Matrix4f> value) {
-                return this.uniformMatrix(name, value, null);
-            }
-
-            @Override
-            public DynamicLocationalUniformHolder uniformMatrix(String name, Supplier<Matrix4f> value, ValueUpdateNotifier notifier) {
-                this.injectDynamicUniformType(name, UniformType.MAT4, offset -> ptr -> value.get().getToAddress(ptr + offset));
-                return this;
-            }
-
             private void injectDynamicUniformType(String name, UniformType type, Long2ObjectFunction<LongConsumer> supplier) {
                 var names = patch.getUniformList();
                 for (int i = 0; i < names.length; i++) {
                     if (names[i].equals(name)) {
                         if (!seenUniforms.add(name)) {
-                            return;
+                            throw new IllegalArgumentException("Already added uniform: " + name);
                         }
                         uniforms.add(new UniformWritingHolder(name, type, supplier));
                         break;
@@ -384,9 +371,20 @@ public class IrisVoxyRenderPipelineData {
                 throw new IllegalStateException("Type not implemented for uniform: " + uniform);
                 //return this;
             }
+            //TODO: override the uniform1b call to specialcase booleans
 
             @Override
             public LocationalUniformHolder addUniform(UniformUpdateFrequency uniformUpdateFrequency, Uniform uniform) {
+                //TODO: error/log the type of uniform that was added (and its location)
+
+                if (uniform instanceof BooleanUniform bu) {
+                    //TODO: need to assert the loc is from a actually valid location
+                    int loc = bu.getLocation();
+                    var ul = patch.getUniformList();
+                    if (loc<ul.length) {
+                        var uniformName = ul[loc];
+                    }
+                }
                 return this;
             }
 
@@ -408,12 +406,6 @@ public class IrisVoxyRenderPipelineData {
             }
         };
         CommonUniforms.addDynamicUniforms(uniformBuilder, FogMode.PER_FRAGMENT);
-        if (Arrays.asList(patch.getUniformList()).contains("isPaleGarden") && !seenUniforms.contains("isPaleGarden")) {
-            uniformBuilder.uniform1i("isPaleGarden", () -> 0, null);
-        }
-        if (Arrays.asList(patch.getUniformList()).contains("endFlashIntensity") && !seenUniforms.contains("endFlashIntensity")) {
-            uniformBuilder.uniform1f("endFlashIntensity", () -> 0.0f, null);
-        }
         cu.assignTo(uniformBuilder);
         cu.mapholderToPass(uniformBuilder, patch);
 
@@ -424,23 +416,6 @@ public class IrisVoxyRenderPipelineData {
             }
             uniforms.add(new UniformWritingHolder(entry.getKey().getName(), Type.convert(entry.getKey().getType()),offset->createWriter(offset, cachedReturn, entry.getKey())));
         });
-
-        VoxyUniforms.addUniforms(uniformBuilder);
-        if (!seenUniforms.contains("framemod4_DH")) {
-            uniformBuilder.uniform1i("framemod4_DH", () -> SystemTimeUniforms.COUNTER.getAsInt() & 3, null);
-        }
-        if (!seenUniforms.contains("cloudTime")) {
-            uniformBuilder.uniform1f("cloudTime", () -> CapturedRenderingState.INSTANCE.getCloudTime(), null);
-        }
-        if (!seenUniforms.contains("moonElevation")) {
-            uniformBuilder.uniform1f("moonElevation", () -> 0.0f, null);
-        }
-        if (!seenUniforms.contains("shadowProjectionInverse")) {
-            uniformBuilder.uniformMatrix("shadowProjectionInverse", Matrix4f::new, null);
-        }
-        if (!seenUniforms.contains("unsigned_WmoonVecSmooth")) {
-            uniformBuilder.uniform3f("unsigned_WmoonVecSmooth", Vector3f::new, null);
-        }
 
         if (uniforms.size() != patch.getUniformList().length) {
             Set<String> uniformsUnseen = new HashSet<>(List.of(patch.getUniformList()));
@@ -463,6 +438,12 @@ public class IrisVoxyRenderPipelineData {
         Set<String> samplerNameSet = new LinkedHashSet<>(samplerDataSet.keySet());
         if (samplerNameSet.isEmpty()) return null;
         Set<TextureWSampler> samplerSet = new LinkedHashSet<>();
+
+        //Built up the external samplers list
+        Map<String, IntSupplier> externalTextures = new HashMap<>();
+        externalTextures.put("lightmap", LightMapHelper::getLightmapTextureId);
+
+
         SamplerHolder samplerBuilder = new SamplerHolder() {
             @Override
             public boolean hasSampler(String s) {
@@ -504,7 +485,13 @@ public class IrisVoxyRenderPipelineData {
             @Override
             public void addExternalSampler(int texture, String... names) {
                 if (!this.hasSampler(names)) return;
-                samplerSet.add(new TextureWSampler(this.name(names), ()->texture, -1));
+                var name = this.name(names);
+                var ex = externalTextures.get(name);
+                if (ex != null) {
+                    samplerSet.add(new TextureWSampler(name, ex, 0));//unbind any sampler and use the externalTextureSupplier
+                } else {
+                    samplerSet.add(new TextureWSampler(name, () -> texture, -1));
+                }
             }
         };
 
@@ -525,7 +512,7 @@ public class IrisVoxyRenderPipelineData {
 
         //samplerSet contains our samplers
         if (samplerSet.size() != samplerNameSet.size()) {
-            Logger.error("Did not find all requested samplers. Found [" + samplerSet.stream().map(a->a.name).collect(Collectors.joining()) + "] expected " + samplerNameSet);
+            Logger.error("Did not find all requested samplers. Found [" + samplerSet.stream().map(a->a.name).collect(Collectors.joining(", ")) + "] expected " + samplerNameSet);
         }
 
         //TODO: generate a layout (defines) for all the samplers with the correct types
@@ -547,8 +534,9 @@ public class IrisVoxyRenderPipelineData {
                 int unit = j+base;
                 var ts = samplers[j];
                 glBindTextureUnit(unit, ts.texture.getAsInt());
-                if (ts.sampler != -1) {
-                    glBindSampler(unit, ts.sampler);
+                int sampler = ts.sampler;
+                if (sampler != -1) {
+                    glBindSampler(unit, sampler);
                 }//TODO: might need to bind sampler 0
             }
         };

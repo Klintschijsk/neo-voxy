@@ -33,12 +33,11 @@ loom {
         convertAccessWideners = true
         mixinConfigs = [
                 'client.voxy.mixins.json',
-                'iris.voxy.mixins.json',
                 'common.voxy.mixins.json'
         ]
     }
 
-    mixin.defaultRefmapName = 'voxy-refmap.json'
+    mixin.defaultRefmapName = 'voxy.refmap.json'
 
     runs {
         client {
@@ -86,8 +85,9 @@ dependencies {
     modCompileOnly "maven.modrinth:oculus:${project.oculus_compile_version}"
 
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
-    compileOnly 'io.github.llamalad7:mixinextras-common:0.3.5'
-    annotationProcessor 'io.github.llamalad7:mixinextras-common:0.3.5'
+    compileOnly 'io.github.llamalad7:mixinextras-common:0.5.4'
+    annotationProcessor 'io.github.llamalad7:mixinextras-common:0.5.4'
+    include implementation('io.github.llamalad7:mixinextras-forge:0.5.4')
 
     implementation platform('org.lwjgl:lwjgl-bom:3.3.1')
     implementation 'org.lwjgl:lwjgl'
@@ -105,6 +105,7 @@ dependencies {
     include implementation('org.apache.commons:commons-pool2:2.12.0')
     implementation 'org.lz4:lz4-java:1.8.0'
     include implementation('org.tukaani:xz:1.10')
+    include implementation('org.xerial:sqlite-jdbc:3.49.1.0')
 }
 
 tasks.withType(JavaCompile).configureEach {

@@ -3,9 +3,11 @@ package me.cortex.voxy.client.core.rendering.hierachical;
 import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import me.cortex.voxy.client.RenderStatistics;
 import me.cortex.voxy.client.config.VoxyConfig;
+import me.cortex.voxy.client.core.AbstractRenderPipeline;
 import me.cortex.voxy.client.core.gl.GlBuffer;
 import me.cortex.voxy.client.core.gl.shader.AutoBindingShader;
 import me.cortex.voxy.client.core.gl.shader.Shader;
+import me.cortex.voxy.client.core.gl.shader.ShaderLoader;
 import me.cortex.voxy.client.core.gl.shader.ShaderType;
 import me.cortex.voxy.client.core.rendering.Viewport;
 import me.cortex.voxy.client.core.rendering.building.RenderGenerationService;
@@ -16,6 +18,8 @@ import me.cortex.voxy.common.Logger;
 import me.cortex.voxy.common.util.MemoryBuffer;
 import me.cortex.voxy.common.world.WorldEngine;
 import org.lwjgl.system.MemoryUtil;
+
+import java.util.List;
 
 import static me.cortex.voxy.client.core.rendering.util.PrintfDebugUtil.PRINTF_processor;
 import static org.lwjgl.opengl.GL11.*;
@@ -41,14 +45,6 @@ public class HierarchicalOcclusionTraverser {
     private final AsyncNodeManager nodeManager;
     private final NodeCleaner nodeCleaner;
     private final RenderGenerationService meshGen;
-
-    private int warmupFrameCount = 0;
-    private static final int WARMUP_FRAMES = 120; 
-    private static final float WARMUP_SUBDIVISION_MULTIPLIER = 0.25f; 
-
-    //计算优先级
-    private volatile Viewport<?> cachedViewport;
-    private volatile float cachedMinSSS;
 
     private final GlBuffer requestBuffer;
 
@@ -79,7 +75,36 @@ public class HierarchicalOcclusionTraverser {
 
     private final int hizSampler = glGenSamplers();
 
-    private final AutoBindingShader traversal = Shader.makeAuto(PRINTF_processor)
+    private AutoBindingShader traversal;
+
+    private AbstractRenderPipeline pipeline;//Used to bind shader taa uniforms
+
+    public HierarchicalOcclusionTraverser(AsyncNodeManager nodeManager, NodeCleaner nodeCleaner, RenderGenerationService meshGen) {
+        this.nodeCleaner = nodeCleaner;
+        this.nodeManager = nodeManager;
+        this.meshGen = meshGen;
+        this.requestBuffer = new GlBuffer(MAX_REQUEST_QUEUE_SIZE*8L+8).zero();
+        this.nodeBuffer = new GlBuffer(nodeManager.maxNodeCount*16L).fill(-1);
+
+
+        glSamplerParameteri(this.hizSampler, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
+        glSamplerParameteri(this.hizSampler, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glSamplerParameteri(this.hizSampler, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glSamplerParameteri(this.hizSampler, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+
+        this.topNode2idxMapping.defaultReturnValue(-1);
+        this.nodeManager.setTLNAddRemoveCallbacks(this::addTLN, this::remTLN);
+    }
+
+    public void lateStageCompile(AbstractRenderPipeline pipeline) {
+        String taa = pipeline.taaFunction("getTAA");
+        var scr = ShaderLoader.parse("voxy:lod/hierarchical/traversal_dev.comp");
+        if (taa != null) {
+            scr += "\n\n\n" + taa;
+            this.pipeline = pipeline;
+        }
+        this.traversal = Shader.makeAuto(PRINTF_processor)
+            .apply(pipeline.properties::apply)
             .defineIf("DEBUG", HIERARCHICAL_SHADER_DEBUG)
             .define("MAX_ITERATIONS", MAX_ITERATIONS)
             .define("LOCAL_SIZE_BITS", LOCAL_WORK_SIZE_BITS)
@@ -102,22 +127,11 @@ public class HierarchicalOcclusionTraverser {
             .defineIf("HAS_STATISTICS", RenderStatistics.enabled)
             .defineIf("STATISTICS_BUFFER_BINDING", RenderStatistics.enabled, STATISTICS_BUFFER_BINDING)
 
-            .add(ShaderType.COMPUTE, "voxy:lod/hierarchical/traversal_dev.comp")
+            .defineIf("TAA", taa != null)
+
+            .addSource(ShaderType.COMPUTE, scr)
             .compile();
 
-
-    public HierarchicalOcclusionTraverser(AsyncNodeManager nodeManager, NodeCleaner nodeCleaner, RenderGenerationService meshGen) {
-        this.nodeCleaner = nodeCleaner;
-        this.nodeManager = nodeManager;
-        this.meshGen = meshGen;
-        this.requestBuffer = new GlBuffer(MAX_REQUEST_QUEUE_SIZE*8L+8).zero();
-        this.nodeBuffer = new GlBuffer(nodeManager.maxNodeCount*16L).fill(-1);
-
-
-        glSamplerParameteri(this.hizSampler, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
-        glSamplerParameteri(this.hizSampler, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glSamplerParameteri(this.hizSampler, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glSamplerParameteri(this.hizSampler, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 
         this.traversal
                 .ubo("SCENE_UNIFORM_BINDING", this.uniformBuffer)
@@ -126,9 +140,6 @@ public class HierarchicalOcclusionTraverser {
                 .ssbo("NODE_QUEUE_META_BINDING", this.queueMetaBuffer)
                 .ssbo("RENDER_TRACKER_BINDING", this.nodeCleaner.visibilityBuffer)
                 .ssboIf("STATISTICS_BUFFER_BINDING", this.statisticsBuffer);
-
-        this.topNode2idxMapping.defaultReturnValue(-1);
-        this.nodeManager.setTLNAddRemoveCallbacks(this::addTLN, this::remTLN);
     }
 
     private void addTLN(int id) {
@@ -195,16 +206,7 @@ public class HierarchicalOcclusionTraverser {
 
         //MemoryUtil.memPutFloat(ptr, viewport.height); ptr += 4;
 
-        //动态调整阈值
-        float screenspaceAreaDecreasingSize = VoxyConfig.CONFIG.subDivisionSize * VoxyConfig.CONFIG.subDivisionSize;
-
-        if (warmupFrameCount < WARMUP_FRAMES) {
-            float warmupProgress = (float) warmupFrameCount / WARMUP_FRAMES; // 0.0 -> 1.0
-            float multiplier = WARMUP_SUBDIVISION_MULTIPLIER + (1.0f - WARMUP_SUBDIVISION_MULTIPLIER) * warmupProgress;
-            screenspaceAreaDecreasingSize *= multiplier;
-            warmupFrameCount++;
-        }
-
+        final float screenspaceAreaDecreasingSize = VoxyConfig.CONFIG.subDivisionSize*VoxyConfig.CONFIG.subDivisionSize;
         //Screen space size for descending
         MemoryUtil.memPutFloat(ptr, (float) (screenspaceAreaDecreasingSize) /(viewport.width*viewport.height)); ptr += 4;
 
@@ -216,24 +218,17 @@ public class HierarchicalOcclusionTraverser {
         MemoryUtil.memPutInt(ptr, this.nodeCleaner.visibilityId); ptr += 4;
 
         {
-            //改进的队列大小计算
-            final double TARGET_COUNT = 4000;
-            double currentTaskCount = this.meshGen.getTaskCount();
-            int baseRequestSize = MAX_REQUEST_QUEUE_SIZE / 2; // 默认至少一半
-
-            if (warmupFrameCount < WARMUP_FRAMES) {
-                baseRequestSize = MAX_REQUEST_QUEUE_SIZE;
-            } else {
-                double iFillness = Math.max(0, (TARGET_COUNT - currentTaskCount) / TARGET_COUNT);
-                iFillness = Math.sqrt(iFillness);
-
-                int dynamicSize = (int) Math.ceil(iFillness * MAX_REQUEST_QUEUE_SIZE);
-                baseRequestSize = Math.max(baseRequestSize, dynamicSize);
-            }
-
-            MemoryUtil.memPutInt(ptr, Math.max(0, Math.min(MAX_REQUEST_QUEUE_SIZE, baseRequestSize)));
-            ptr += 4;
+            final double TARGET_COUNT = 4000;//TODO: make this configurable, or at least dynamically computed based on throughput rate of mesh gen
+            double iFillness = Math.max(0, (TARGET_COUNT - this.meshGen.getTaskCount()) / TARGET_COUNT);
+            iFillness = Math.pow(iFillness, 2);
+            final int requestSize = (int) Math.ceil(iFillness * MAX_REQUEST_QUEUE_SIZE);
+            MemoryUtil.memPutInt(ptr, Math.max(0, Math.min(MAX_REQUEST_QUEUE_SIZE, requestSize)));ptr += 4;
         }
+
+        //Put the render distance here so that it can generate a correct circle, TODO: make it not top level section sized
+        MemoryUtil.memPutFloat(ptr, (float) Math.pow(VoxyConfig.CONFIG.sectionRenderDistance*16*32,2));ptr += 4;
+
+
     }
 
     private void bindings(Viewport<?> viewport) {
@@ -249,18 +244,12 @@ public class HierarchicalOcclusionTraverser {
         this.uploadUniform(viewport);
         //UploadStream.INSTANCE.commit(); //Done inside traversal
 
-        //缓存viewport用于后续计算
-        this.cachedViewport = viewport;
-        float screenspaceAreaDecreasingSize = VoxyConfig.CONFIG.subDivisionSize * VoxyConfig.CONFIG.subDivisionSize;
-        if (warmupFrameCount < WARMUP_FRAMES) {
-            float warmupProgress = (float) warmupFrameCount / WARMUP_FRAMES;
-            float multiplier = WARMUP_SUBDIVISION_MULTIPLIER + (1.0f - WARMUP_SUBDIVISION_MULTIPLIER) * warmupProgress;
-            screenspaceAreaDecreasingSize *= multiplier;
-        }
-        this.cachedMinSSS = screenspaceAreaDecreasingSize / (viewport.width * viewport.height);
-
         this.traversal.bind();
         this.bindings(viewport);
+
+        //Bind shader uniforms for taa if we have a pipeline
+        if (this.pipeline != null) this.pipeline.bindUniforms();
+
         PrintfDebugUtil.bind();
 
         if (RenderStatistics.enabled) {
@@ -334,7 +323,10 @@ public class HierarchicalOcclusionTraverser {
 
         //Dont need to use indirect to dispatch the first iteration
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT|GL_COMMAND_BARRIER_BIT|GL_BUFFER_UPDATE_BARRIER_BIT);
-        glDispatchCompute(firstDispatchSize, 1,1);
+        if (firstDispatchSize!=0) {
+            //for some reason amd driver loves spitting out errors when its 0 (even tho it should just ignore it afak) so we do it ourselves
+            glDispatchCompute(firstDispatchSize, 1,1);
+        }
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT|GL_COMMAND_BARRIER_BIT);
 
         //Dispatch max iterations
@@ -382,78 +374,7 @@ public class HierarchicalOcclusionTraverser {
         //    Logger.warn("Count larger than 'maxRequestCount', overflow captured. Overflowed by " + (count-REQUEST_QUEUE_SIZE));
         //}
         if (count != 0) {
-            //渐进式优先级细分
-            if (VoxyConfig.CONFIG.enablePrioritySubdivision && count > 1 && this.cachedViewport != null) {
-                sortRequestsByPriority(ptr, count);
-            }
-            
             this.nodeManager.submitRequestBatch(new MemoryBuffer(count*8L+8).cpyFrom(ptr-8));// the -8 is because we incremented it by 8
-        }
-    }
-
-    private void sortRequestsByPriority(long ptr, int count) {
-        Viewport<?> viewport = this.cachedViewport;
-        if (viewport == null) return;
-        double camSecX = viewport.section.x;
-        double camSecY = viewport.section.y;
-        double camSecZ = viewport.section.z;
-
-        float[] priorities = new float[count];
-        
-        //计算每个请求优先级
-        for (int i = 0; i < count; i++) {
-            int posX = MemoryUtil.memGetInt(ptr + i * 8);
-            int posY = MemoryUtil.memGetInt(ptr + i * 8 + 4);
-            int lodLevel = (posX >>> 28) & 0xF;
-            
-            //解码坐标
-            int y = (posX << 4) >> 24;
-            int x = (posY << 4) >> 8;
-            int z = ((posX & ((1 << 20) - 1)) << 4);
-            z |= (posY >>> 28);
-            z = (z << 8) >> 8;
-            
-            int nodeSize = 1 << lodLevel;
-            double nodeCenterX = x * nodeSize + nodeSize * 0.5;
-            double nodeCenterY = y * nodeSize + nodeSize * 0.5;
-            double nodeCenterZ = z * nodeSize + nodeSize * 0.5;
-            
-            //计算与玩家位置
-            double dx = nodeCenterX - camSecX;
-            double dy = nodeCenterY - camSecY;
-            double dz = nodeCenterZ - camSecZ;
-            double distanceSq = dx * dx + dy * dy + dz * dz;
-            
-            float distanceWeight = (float) (1.0 / (1.0 + distanceSq * 0.00001));
-            
-            float lodWeight = 2.0f - lodLevel * 0.3f;
-            
-            double screenSpaceEstimate = (nodeSize * nodeSize) / Math.max(1.0, distanceSq);
-            float screenWeight = (float) Math.min(2.0, screenSpaceEstimate * 10000);
-            
-            priorities[i] = distanceWeight * lodWeight * screenWeight;
-        }
-        
-        for (int i = 1; i < count; i++) {
-            float currentPriority = priorities[i];
-            int currentPosX = MemoryUtil.memGetInt(ptr + i * 8);
-            int currentPosY = MemoryUtil.memGetInt(ptr + i * 8 + 4);
-            
-            int j = i - 1;
-            while (j >= 0 && priorities[j] < currentPriority) {
-                priorities[j + 1] = priorities[j];
-                int moveX = MemoryUtil.memGetInt(ptr + j * 8);
-                int moveY = MemoryUtil.memGetInt(ptr + j * 8 + 4);
-                MemoryUtil.memPutInt(ptr + (j + 1) * 8, moveX);
-                MemoryUtil.memPutInt(ptr + (j + 1) * 8 + 4, moveY);
-                j--;
-            }
-            
-            if (j + 1 != i) {
-                priorities[j + 1] = currentPriority;
-                MemoryUtil.memPutInt(ptr + (j + 1) * 8, currentPosX);
-                MemoryUtil.memPutInt(ptr + (j + 1) * 8 + 4, currentPosY);
-            }
         }
     }
 
@@ -461,13 +382,8 @@ public class HierarchicalOcclusionTraverser {
         return this.nodeBuffer;
     }
 
-
-    public void resetWarmup() {
-        this.warmupFrameCount = 0;
-    }
-
     public void free() {
-        this.traversal.free();
+        if (this.traversal != null) this.traversal.free();
         this.requestBuffer.free();
         this.nodeBuffer.free();
         this.uniformBuffer.free();
@@ -480,4 +396,11 @@ public class HierarchicalOcclusionTraverser {
     }
 
     private static final long SCRATCH = MemoryUtil.nmemAlloc(32);//32 bytes of scratch memory
+
+    public void addDebug(List<String> debug) {
+        //Conditionally add debug
+        if (this.topNodeCount>this.idx2topNodeMapping.length/2) {
+            debug.add("TLN#: " + this.topNodeCount);
+        }
+    }
 }
