@@ -7,8 +7,6 @@ Neo Voxy is maintained by **JohnSnow**. It extends [NHblock714/voxy](https://git
 > [!IMPORTANT]
 > If an update causes problems, delete the Neo Voxy configuration and the Voxy cache inside the affected world before retrying.
 
-> [!WARNING]
-> Oculus shader support on Minecraft 1.20.1 remains experimental. The native Forge port does not require Connector or Fabric API, but shader-free use is recommended until runtime stability has been verified.
 
 ## Supported editions
 
@@ -27,7 +25,7 @@ Release JARs remove unused platform natives, duplicate module descriptors, and b
 |---|:---:|:---:|:---:|:---:|
 | Terrain LODs, detail levels, persistent cache | ✅ | ✅ | ✅ | ✅ |
 | Sodium / Embeddium settings integration | ✅ | ✅ | ✅ | ✅ |
-| Iris / Oculus shader pipeline | ✅ | ✅ | ⚠️ Experimental | ✅ |
+| Iris / Oculus shader pipeline | ✅ | ✅ | ✅ | ✅ |
 | Environmental/sky fog and fluid fixes | ✅ | ✅ | ✅ | ✅ |
 | Circular LOD handoff | ✅ | ✅ | — | ✅ |
 | Crossed ground-plant models | ✅ | ✅ | ✅ | ✅ |
