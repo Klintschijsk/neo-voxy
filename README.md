@@ -7,8 +7,6 @@ Neo Voxy 由 **JohnSnow** 维护，在 [NHblock714/voxy](https://github.com/NHbl
 > [!IMPORTANT]
 > 更新 Neo Voxy 后若出现异常，请先删除 Neo Voxy 配置文件和对应存档中的 Voxy 缓存，再重新进入世界。
 
-> [!WARNING]
-> Minecraft 1.20.1 的 Oculus 光影支持仍处于实验阶段。当前原生 Forge 移植不依赖 Connector 或 Fabric API，但在完成实机稳定性验证前更推荐无光影使用。
 
 ## 支持版本
 
@@ -27,7 +25,7 @@ Neo Voxy 由 **JohnSnow** 维护，在 [NHblock714/voxy](https://github.com/NHbl
 |---|:---:|:---:|:---:|:---:|
 | 地形 LOD、多级细节与持久缓存 | ✅ | ✅ | ✅ | ✅ |
 | Sodium / Embeddium 设置界面集成 | ✅ | ✅ | ✅ | ✅ |
-| Iris / Oculus 光影管线 | ✅ | ✅ | ⚠️ 实验性 | ✅ |
+| Iris / Oculus 光影管线 | ✅ | ✅ | ✅ | ✅ |
 | 环境雾、天空雾与流体修复 | ✅ | ✅ | ✅ | ✅ |
 | 圆形 LOD 淡入 | ✅ | ✅ | — | ✅ |
 | 地面植物交叉模型 | ✅ | ✅ | ✅ | ✅ |
