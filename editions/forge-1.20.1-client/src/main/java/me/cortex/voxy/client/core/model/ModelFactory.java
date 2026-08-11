@@ -1,5 +1,6 @@
 package me.cortex.voxy.client.core.model;
 
+import me.cortex.voxy.client.config.VoxyConfig;
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
@@ -286,14 +287,18 @@ public class ModelFactory {
             layer = RenderType.cutout();
         }
         if (bake.state.is(BlockTags.LEAVES)) {
-            layer = RenderType.solid();
+            layer = VoxyConfig.CONFIG.getLeafLodMode() == VoxyConfig.LeafLodMode.FAST
+                    ? RenderType.solid()
+                    : RenderType.cutout();
         }
         if (layer == null) {
             layer = RenderType.solid();
         }
 
 
-        var bakeResult = this.processTextureBakeResult(bake.blockId, bake.state, textureData, isShaded, hasDarkenedTextures, layer);
+        boolean centeredGroundCross = (flags & SoftwareModelTextureBakery.FLAG_CENTERED_GROUND_CROSS) != 0;
+        var bakeResult = this.processTextureBakeResult(bake.blockId, bake.state, textureData,
+                isShaded, hasDarkenedTextures, layer, centeredGroundCross);
         if (bakeResult!=null) {
             this.uploadResults.add(bakeResult);
         }
@@ -324,9 +329,10 @@ public class ModelFactory {
         return (this.blockStatesInFlight.size()!=0)||(!this.bakeQueue.isEmpty())||!this.biomeQueue.isEmpty();
     }
 
-    public void processUploads() {
+    public void processUploads(long totalBudgetNanos) {
         var upload = this.uploadResults.poll();
         if (upload==null) return;
+        long deadline = System.nanoTime() + Math.max(0L, totalBudgetNanos);
 
         glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
         glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
@@ -336,7 +342,7 @@ public class ModelFactory {
             upload.upload(this.storage);
             upload.free();
             upload = this.uploadResults.poll();
-        } while (upload != null);
+        } while (upload != null && System.nanoTime() < deadline);
         UploadStream.INSTANCE.commit();
     }
 
@@ -388,7 +394,10 @@ public class ModelFactory {
         }
     }
 
-    private ModelBakeResultUpload processTextureBakeResult(int blockId, BlockState blockState, ColourDepthTextureData[] textureData, boolean isShaded, boolean darkenedTinting, RenderType layer) {
+    private ModelBakeResultUpload processTextureBakeResult(int blockId, BlockState blockState,
+                                                            ColourDepthTextureData[] textureData,
+                                                            boolean isShaded, boolean darkenedTinting,
+                                                            RenderType layer, boolean centeredGroundCross) {
         if (this.idMappings[blockId] != -1) {
             //This should be impossible to reach as it means that multiple bakes for the same blockId happened and where inflight at the same time!
             throw new IllegalStateException("Block id already added: " + blockId + " for state: " + blockState);
@@ -483,6 +492,11 @@ public class ModelFactory {
         // since that would help alot with perf of lots of vines, can be done by having one of the faces just not exist and the other be in no occlusion mode
 
         var depths = computeModelDepth(textureData, checkMode, layer!=RenderType.solid()?TextureUtils.DEPTH_MODE_MIN:TextureUtils.DEPTH_MODE_AVG);
+        if (centeredGroundCross) {
+            for (int face = 2; face < 6; face++) {
+                if (depths[face] > -0.1f) depths[face] = 0.5f;
+            }
+        }
 
         //TODO: THIS, note this can be tested for in 2 ways, re render the model with quad culling disabled and see if the result
         // is the same, (if yes then needs double sided quads)

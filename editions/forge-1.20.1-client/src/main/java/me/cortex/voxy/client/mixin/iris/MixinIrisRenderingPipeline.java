@@ -47,6 +47,15 @@ public class MixinIrisRenderingPipeline implements IGetVoxyPatchData, IGetIrisVo
         }
     }
 
+    @Inject(method = "destroy", at = @At("HEAD"), remap = false)
+    private void voxy$releaseRendererBeforeTargets(CallbackInfo ci) {
+        IrisUtil.CAPTURED_VIEWPORT_PARAMETERS = null;
+        var levelRenderer = Minecraft.getInstance().levelRenderer;
+        if (levelRenderer != null) {
+            ((IGetVoxyRenderSystem) levelRenderer).voxy$shutdownRenderer();
+        }
+    }
+
     @Override
     public IrisShaderPatch voxy$getPatchData() {
         return this.patchData;

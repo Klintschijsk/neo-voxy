@@ -30,9 +30,10 @@ Release JARs remove unused platform natives, duplicate module descriptors, and b
 | Iris / Oculus shader pipeline | ✅ | ✅ | ⚠️ Experimental | ✅ |
 | Environmental/sky fog and fluid fixes | ✅ | ✅ | ✅ | ✅ |
 | Circular LOD handoff | ✅ | ✅ | — | ✅ |
-| Leaf LOD modes | ✅ | ✅ | — | — |
+| Crossed ground-plant models | ✅ | ✅ | ✅ | ✅ |
+| Leaf LOD modes | ✅ | ✅ | ✅ | ✅ |
 | Extended chunk requests | ✅ | ✅ | — | — |
-| LOD build-pressure control | ✅ | ✅ | — | — |
+| LOD build-pressure control | ✅ | ✅ | ✅ | ✅ |
 | World curvature | ✅ | ✅ | — | — |
 | Distant beacon beams | ✅ | — | — | — |
 | Distant players, vehicles, and animation | ✅ | — | — | — |
@@ -42,7 +43,7 @@ Release JARs remove unused platform natives, duplicate module descriptors, and b
 
 ### Main options
 
-- Leaf LOD modes: Minecraft 1.21.1 offers Fast, Balanced, and Quality modes. Balanced rotates textures deterministically, culls hidden internal faces, and retains irregular cutouts; Quality preserves finer transparency.
+- Ground plants and leaves: all four editions provide centered crossed-plant LODs plus Fast, Balanced, and Quality leaf modes. Balanced culls hidden internal faces while retaining irregular cutouts; Quality preserves finer transparency.
 - Extended chunk requests: asks the game for chunks beyond vanilla distance. High values substantially increase CPU, memory, network, world-generation, and save load. The integrations edition is capped at 48 chunks and disables this option by default.
 - LOD build pressure: adjusts per-frame node processing and model-baking budgets from maximum FPS to maximum catch-up speed.
 - Circular LOD handoff: blends the vanilla/LOD boundary. Disable it when a shader pack already implements its own LOD transition, such as Photon, to avoid double transitions, noise, or shadow seams.

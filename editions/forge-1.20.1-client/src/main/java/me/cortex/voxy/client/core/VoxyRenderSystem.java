@@ -58,6 +58,10 @@ import static org.lwjgl.opengl.GL43.GL_SHADER_STORAGE_BUFFER;
 import static org.lwjgl.opengl.GL43C.GL_SHADER_STORAGE_BUFFER_BINDING;
 
 public class VoxyRenderSystem {
+    private static final long[] MODEL_BAKE_BUDGET_LOW_FPS = {75_000L, 150_000L, 250_000L, 450_000L, 900_000L};
+    private static final long[] MODEL_BAKE_BUDGET_BUSY = {150_000L, 300_000L, 500_000L, 750_000L, 1_200_000L};
+    private static final long[] MODEL_BAKE_BUDGET_IDLE = {300_000L, 550_000L, 900_000L, 1_350_000L, 2_000_000L};
+    private static final int[] TOP_LEVEL_NODE_PROCESS_RATE = {4, 8, 12, 24, 40};
     private final WorldEngine worldIn;
 
 
@@ -80,16 +84,19 @@ public class VoxyRenderSystem {
     // Fog parameters captured before modification by MixinFogRenderer, for Voxy's own fog pass
     private float capturedFogStart;
     private float capturedFogEnd;
+    private boolean capturedFogRequired;
     private final float[] capturedFogColor = new float[4];
 
-    public void setCapturedFog(float fogStart, float fogEnd, float[] fogColor) {
+    public void setCapturedFog(float fogStart, float fogEnd, float[] fogColor, boolean required) {
         this.capturedFogStart = fogStart;
         this.capturedFogEnd = fogEnd;
+        this.capturedFogRequired = required;
         System.arraycopy(fogColor, 0, this.capturedFogColor, 0, 4);
     }
 
     public float getCapturedFogStart() { return this.capturedFogStart; }
     public float getCapturedFogEnd()   { return this.capturedFogEnd; }
+    public boolean isCapturedFogRequired() { return this.capturedFogRequired; }
     public float[] getCapturedFogColor() { return this.capturedFogColor; }
 
     private static AbstractSectionRenderer.Factory<?,? extends IGeometryData> getRenderBackendFactory() {
@@ -165,7 +172,7 @@ public class VoxyRenderSystem {
                     maxSec = 7;
                 }
 
-                this.renderDistanceTracker = new RenderDistanceTracker(40,
+                this.renderDistanceTracker = new RenderDistanceTracker(this.getTopLevelNodeProcessRate(),
                         minSec,
                         maxSec,
                         this.nodeManager::addTopLevel,
@@ -223,8 +230,8 @@ public class VoxyRenderSystem {
                 height = (int) (height*factor[1]);
             }
         }
-        if (width == 0 || height == 0) {
-            Logger.error("Viewport width or height was zero, this is bad bad bad");
+        if (width <= 0 || height <= 0) {
+            // Oculus briefly exposes a zero-sized target while rebuilding it.
             return null;
         }
 
@@ -248,7 +255,6 @@ public class VoxyRenderSystem {
             return;
         }
         if (viewport.width <= 0 || viewport.height <= 0) {
-            Logger.error("Viewport width or height was zero, this is bad bad bad, exiting frame");
             return;//Only render on valid viewport
         }
 
@@ -308,10 +314,11 @@ public class VoxyRenderSystem {
             //Tick upload stream (this is ok to do here as upload ticking is just memory management)
             UploadStream.INSTANCE.tick();
 
+            this.renderDistanceTracker.setProcessRate(this.getTopLevelNodeProcessRate());
             while (this.renderDistanceTracker.setCenterAndProcess(viewport.cameraX, viewport.cameraZ) && VoxyClient.isFrexActive());//While FF is active, run until everything is processed
             TimingStatistics.H.start();
             //Done here as is allows less gl state resetup
-            do { this.modelService.tick(900_000); } while (VoxyClient.isFrexActive() && !this.modelService.areQueuesEmpty());
+            do { this.modelService.tick(this.getModelBakeBudgetNanos()); } while (VoxyClient.isFrexActive() && !this.modelService.areQueuesEmpty());
             TimingStatistics.H.stop();
         }
         GPUTiming.INSTANCE.marker();
@@ -376,6 +383,20 @@ public class VoxyRenderSystem {
         this.postProcessing.renderPost(viewport, matrices.projection(), boundFB);
         TimingStatistics.F.stop();
          */
+    }
+
+    private long getModelBakeBudgetNanos() {
+        int pressure = VoxyConfig.CONFIG.getRenderPressureLevel();
+        int fps = Minecraft.getInstance().getFps();
+        if (fps <= 0) fps = 60;
+        int renderTasks = this.renderGen.getTaskCount();
+        if (fps < 40 || renderTasks > 1_000) return MODEL_BAKE_BUDGET_LOW_FPS[pressure];
+        if (fps < 55 || renderTasks > 400) return MODEL_BAKE_BUDGET_BUSY[pressure];
+        return MODEL_BAKE_BUDGET_IDLE[pressure];
+    }
+
+    private int getTopLevelNodeProcessRate() {
+        return TOP_LEVEL_NODE_PROCESS_RATE[VoxyConfig.CONFIG.getRenderPressureLevel()];
     }
 
 

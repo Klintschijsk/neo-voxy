@@ -45,14 +45,18 @@ public class MixinSodiumWorldRendererVS {
 *///? }
     @Unique
     private void doRender(ChunkRenderMatrices matrices, RenderType renderLayer, double x, double y, double z) {
+        if (IrisUtil.irisShadowActive()) {
+            return;
+        }
         if (renderLayer == RenderType.solid()) {
             var renderer = ((IGetVoxyRenderSystem) Minecraft.getInstance().levelRenderer).voxy$getRenderSystem();
             if (renderer != null) {
-                Viewport<?> viewport = null;
+                Viewport<?> viewport;
                 if (IrisUtil.irisShaderPackEnabled()) {
                     viewport = renderer.getViewport();
                 } else {
-                    viewport = renderer.setupViewport(matrices.projection(), matrices.modelView(), x, y, z);
+                    viewport = renderer.setupViewport(
+                            matrices.projection(), matrices.modelView(), x, y, z);
                 }
                 renderer.renderOpaque(viewport);
             }

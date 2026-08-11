@@ -45,6 +45,10 @@ import org.lwjgl.opengl.GL30C;
 import org.lwjgl.opengl.GL33;
 
 public class VoxyRenderSystem {
+   private static final long[] MODEL_BAKE_BUDGET_LOW_FPS = {75000L, 150000L, 250000L, 450000L, 900000L};
+   private static final long[] MODEL_BAKE_BUDGET_BUSY = {150000L, 300000L, 500000L, 750000L, 1200000L};
+   private static final long[] MODEL_BAKE_BUDGET_IDLE = {300000L, 550000L, 900000L, 1350000L, 2000000L};
+   private static final int[] TOP_LEVEL_NODE_PROCESS_RATE = {4, 8, 12, 24, 40};
    private final WorldEngine worldIn;
    private final ModelBakerySubsystem modelService;
    private final RenderGenerationService renderGen;
@@ -107,7 +111,7 @@ public class VoxyRenderSystem {
          this.viewportSelector = new ViewportSelector<>(sectionRenderer::createViewport);
          int minSec = Minecraft.getInstance().level.getMinSectionY() >> 5;
          int maxSec = Minecraft.getInstance().level.getMaxSectionY() - 1 >> 5;
-         this.renderDistanceTracker = new RenderDistanceTracker(40, minSec, maxSec, this.nodeManager::addTopLevel, this.nodeManager::removeTopLevel);
+         this.renderDistanceTracker = new RenderDistanceTracker(this.getTopLevelNodeProcessRate(), minSec, maxSec, this.nodeManager::addTopLevel, this.nodeManager::removeTopLevel);
          this.setRenderDistance(VoxyConfig.CONFIG.sectionRenderDistance);
          this.boundOutlineRenderer = new BoundRenderer(this.pipeline);
          Logger.info(
@@ -223,13 +227,14 @@ public class VoxyRenderSystem {
             PrintfDebugUtil.tick();
             UploadStream.INSTANCE.tick();
 
+            this.renderDistanceTracker.setProcessRate(this.getTopLevelNodeProcessRate());
             while (this.renderDistanceTracker.setCenterAndProcess(viewport.cameraX, viewport.cameraZ) && VoxyClient.isFrexActive()) {
             }
 
             TimingStatistics.H.start();
 
             do {
-               this.modelService.tick(900000L);
+               this.modelService.tick(this.getModelBakeBudgetNanos());
             } while (VoxyClient.isFrexActive() && !this.modelService.areQueuesEmpty());
 
             TimingStatistics.H.stop();
@@ -326,6 +331,20 @@ public class VoxyRenderSystem {
 
    public void setRenderDistance(float renderDistance) {
       this.renderDistanceTracker.setRenderDistance((int)Math.ceil(renderDistance + 1.0F));
+   }
+
+   private long getModelBakeBudgetNanos() {
+      int pressure = VoxyConfig.CONFIG.getRenderPressureLevel();
+      int fps = Minecraft.getInstance().getFps();
+      if (fps <= 0) fps = 60;
+      int renderTasks = this.renderGen.getTaskCount();
+      if (fps < 40 || renderTasks > 1000) return MODEL_BAKE_BUDGET_LOW_FPS[pressure];
+      if (fps < 55 || renderTasks > 400) return MODEL_BAKE_BUDGET_BUSY[pressure];
+      return MODEL_BAKE_BUDGET_IDLE[pressure];
+   }
+
+   private int getTopLevelNodeProcessRate() {
+      return TOP_LEVEL_NODE_PROCESS_RATE[VoxyConfig.CONFIG.getRenderPressureLevel()];
    }
 
    public Viewport<?> getViewport() {

@@ -1,9 +1,5 @@
 package me.cortex.voxy.commonImpl;
 
-import java.nio.file.Path;
-import java.util.Collections;
-import java.util.List;
-
 import me.cortex.voxy.common.Logger;
 import me.cortex.voxy.common.config.Serialization;
 import me.cortex.voxy.common.platform.PlatformUtil;
@@ -13,30 +9,21 @@ public class VoxyCommon {
     public static final String MOD_VERSION;
     public static final boolean IS_DEDICATED_SERVER;
     public static final boolean IS_IN_MINECRAFT;
-    private static PlatformUtil PLATFORM_UTIL = new PlatformUtilImpl();
+    private static final PlatformUtil PLATFORM_UTIL = new PlatformUtilImpl();
 
     static {
-        String modVersion;
-        boolean dedicated;
-        boolean inMinecraft;
-
-        var version = PLATFORM_UTIL.getModVersion("voxy");
-        var commit = "<UNKNOWN>";
+        String version = PLATFORM_UTIL.getModVersion("voxy");
         if (version == null) {
-            inMinecraft = false;
+            IS_IN_MINECRAFT = false;
             Logger.error("Running voxy without minecraft");
-            modVersion = "<UNKNOWN>";
-            dedicated = false;
+            MOD_VERSION = "<UNKNOWN>";
+            IS_DEDICATED_SERVER = false;
         } else {
-            inMinecraft = true;
-            if (commit == null) commit = "unknown";
-            modVersion = version + "-" + (commit.length() >= 7 ? commit.substring(0, 7) : commit);
-            dedicated = PLATFORM_UTIL.isDedicatedServer();
+            IS_IN_MINECRAFT = true;
+            MOD_VERSION = version;
+            IS_DEDICATED_SERVER = PLATFORM_UTIL.isDedicatedServer();
+            Serialization.init();
         }
-
-        MOD_VERSION = modVersion;
-        IS_DEDICATED_SERVER = dedicated;
-        IS_IN_MINECRAFT = inMinecraft;
     }
 
     //This is hardcoded like this because people do not understand what they are doing
@@ -52,6 +39,10 @@ public class VoxyCommon {
         int breakpoint = 0;
     }
 
+    public static PlatformUtil getPlatformUtil() {
+        return PLATFORM_UTIL;
+    }
+
     public interface IInstanceFactory {VoxyInstance create();}
     private static VoxyInstance INSTANCE;
     private static IInstanceFactory FACTORY = null;
@@ -61,10 +52,6 @@ public class VoxyCommon {
             throw new IllegalStateException("Cannot set instance factory more than once");
         }
         FACTORY = factory;
-    }
-
-    public static PlatformUtil getPlatformUtil() {
-        return PLATFORM_UTIL;
     }
 
     public static VoxyInstance getInstance() {
@@ -87,7 +74,11 @@ public class VoxyCommon {
         if (INSTANCE != null) {
             throw new IllegalStateException("Cannot create multiple instances");
         }
-        INSTANCE = FACTORY.create();
+        try {
+            INSTANCE = FACTORY.create();
+        } catch (DontCreateInstance e) {
+            Logger.info("Not creating instance due to DontCreateInstance");
+        }
     }
 
     //Is voxy available in any capacity

@@ -19,5 +19,22 @@
   "voxy.config.general.lodBoundaryInset.tooltip": "在过渡外沿后方保留已加载的原版地形。",
   "voxy.config.general.environmental_fog": "启用环境雾",
   "voxy.config.general.render_fog": "启用渲染雾",
-  "voxy.config.general.ssao_mode": "SSAO 模式"
+  "voxy.config.general.ssao_mode": "环境光遮蔽模式",
+  "voxy.config.general.ssao_mode.tooltip": "设置屏幕空间环境光遮蔽质量；自动模式会平衡质量与性能。",
+  "voxy.config.general.ssao_mode.auto": "自动",
+  "voxy.config.general.ssao_mode.basic": "基础",
+  "voxy.config.general.ssao_mode.better": "较高",
+  "voxy.config.general.ssao_mode.best": "最高",
+  "voxy.config.general.renderPressure": "LOD 构建压力",
+  "voxy.config.general.renderPressure.tooltip": "控制每帧用于上传新烘焙 LOD 模型的渲染线程时间预算。",
+  "voxy.config.general.renderPressure.0": "最低",
+  "voxy.config.general.renderPressure.1": "低",
+  "voxy.config.general.renderPressure.2": "均衡",
+  "voxy.config.general.renderPressure.3": "高",
+  "voxy.config.general.renderPressure.4": "最高",
+  "voxy.config.general.leafLodMode": "树叶渲染模式",
+  "voxy.config.general.leafLodMode.tooltip": "快速模式使用不透明树叶；均衡和质量模式保留镂空透明。",
+  "voxy.config.general.leafLodMode.fast": "快速",
+  "voxy.config.general.leafLodMode.balanced": "均衡",
+  "voxy.config.general.leafLodMode.quality": "质量"
 }

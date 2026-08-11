@@ -2,6 +2,7 @@ package me.cortex.voxy.client.mixin.minecraft;
 
 import me.cortex.voxy.client.config.VoxyConfig;
 import me.cortex.voxy.client.core.IGetVoxyRenderSystem;
+import me.cortex.voxy.client.core.util.IrisUtil;
 
 import net.minecraft.client.Camera;
 import net.minecraft.client.renderer.FogRenderer;
@@ -30,33 +31,41 @@ public class MixinFogRenderer {
         CallbackInfo ci
     ) {
         var vrs = IGetVoxyRenderSystem.getNullable();
-        if (vrs == null) return;
+        if (vrs == null || IrisUtil.irisShaderPackEnabled()) return;
 
-        if (RenderSystem.getShaderFogEnd() < 10.0f) return;
+        float originalEnd = RenderSystem.getShaderFogEnd();
+        boolean shortRangeFog = originalEnd < 10.0f;
 
         // Adjust sky fog so it always looks smooth and doesn't change with render distance
-        if (fogMode == FogMode.FOG_SKY) {
-            RenderSystem.setShaderFogStart(0);
-            RenderSystem.setShaderFogEnd(VoxyConfig.CONFIG.skyFogDistance);
+        if (fogMode == FogMode.FOG_SKY && !shortRangeFog) {
+            RenderSystem.setShaderFogStart(0.0f);
+            RenderSystem.setShaderFogEnd(VoxyConfig.CONFIG.skyFogDistance * 16.0f);
+            return;
         }
 
-        if (fogMode == FogMode.FOG_TERRAIN) {
-            // Do NOT override unique fog, it's always displayed close and meant for restricting vision
-            boolean noFogType = camera.getFluidInCamera() == FogType.NONE;
+        if (fogMode != FogMode.FOG_TERRAIN) return;
 
-            // Capture original fog values BEFORE we modify them,
-            // so Voxy's own fog pass can use the correct values
-            float capturedFogEnd = noFogType ?
-                VoxyConfig.CONFIG.sectionRenderDistance * 32 * 16 : RenderSystem.getShaderFogEnd();
+        boolean normalTerrainFog = camera.getFluidInCamera() == FogType.NONE && !shortRangeFog && !thickFog;
+        float capturedEnd = normalTerrainFog
+                ? Math.max(RenderSystem.getShaderFogStart() + 1.01f,
+                        VoxyConfig.CONFIG.skyFogDistance * 16.0f)
+                : originalEnd;
+        float[] capturedColor = RenderSystem.getShaderFogColor();
+        if (camera.getFluidInCamera() == FogType.WATER) {
+            capturedEnd = Math.max(capturedEnd, originalEnd * 1.18f);
+            float average = (capturedColor[0] + capturedColor[1] + capturedColor[2]) / 3.0f;
+            capturedColor = new float[]{
+                    capturedColor[0] * 0.86f + average * 0.14f,
+                    capturedColor[1] * 0.86f + average * 0.14f,
+                    capturedColor[2] * 0.86f + average * 0.14f,
+                    capturedColor.length > 3 ? capturedColor[3] : 1.0f
+            };
+        }
+        vrs.setCapturedFog(RenderSystem.getShaderFogStart(), capturedEnd, capturedColor, !normalTerrainFog);
 
-            vrs.setCapturedFog(RenderSystem.getShaderFogStart(), capturedFogEnd, RenderSystem.getShaderFogColor());
-
-            // Always hide vanilla terrain fog - either replaced by voxy or disabled completely
-            // unless it's special fog, in that case it must be rendered to restrict vision in regular chunks
-            if (noFogType) {
-                RenderSystem.setShaderFogStart(999999999);
-                RenderSystem.setShaderFogEnd(999999999);
-            }
+        if (normalTerrainFog) {
+            RenderSystem.setShaderFogStart(Float.MAX_VALUE);
+            RenderSystem.setShaderFogEnd(Float.MAX_VALUE);
         }
     }
 }

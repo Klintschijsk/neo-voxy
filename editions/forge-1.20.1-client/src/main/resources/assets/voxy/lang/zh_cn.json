@@ -48,5 +48,40 @@
   "voxy.config.general.vanilla_fog.tooltip": "启用或禁用原版雾效",
 
   "voxy.config.general.render_statistics": "启用渲染统计",
-  "voxy.config.general.render_statistics.tooltip": "在F3菜单中启用渲染统计，便于调试"
+  "voxy.config.general.render_statistics.tooltip": "在F3菜单中启用渲染统计，便于调试",
+
+  "voxy.config.general.render_fog": "启用LOD雾气",
+  "voxy.config.general.render_fog.tooltip": "控制无光影时Voxy远景的可选距离雾；水下等必要环境雾不受此开关影响",
+  "voxy.config.general.skyFogDistance": "天空雾距离",
+  "voxy.config.general.skyFogDistance.tooltip": "天空与Voxy地形的雾气距离（区块）",
+  "voxy.config.general.fogIntensity": "雾气强度",
+  "voxy.config.general.fogIntensity.tooltip": "调整无光影时LOD可选距离雾的混合强度",
+  "voxy.config.general.fogDensity": "雾气曲线",
+  "voxy.config.general.fogDensity.tooltip": "将可选雾气推向远端；零表示线性曲线",
+  "voxy.config.general.adaptCloudDistance": "自适应云层距离",
+  "voxy.config.general.adaptCloudDistance.tooltip": "根据当前渲染距离自动扩展云层距离",
+  "voxy.config.general.cloudDistance": "云层距离",
+  "voxy.config.general.cloudDistance.tooltip": "云层渲染距离（区块）",
+  "voxy.config.general.adaptive": "自适应",
+  "voxy.config.general.default": "默认",
+
+  "voxy.config.general.ssao_mode": "环境光遮蔽模式",
+  "voxy.config.general.ssao_mode.tooltip": "设置屏幕空间环境光遮蔽质量；自动模式会平衡质量与性能",
+  "voxy.config.general.ssao_mode.auto": "自动",
+  "voxy.config.general.ssao_mode.basic": "基础",
+  "voxy.config.general.ssao_mode.better": "较高",
+  "voxy.config.general.ssao_mode.best": "最高",
+
+  "voxy.config.general.renderPressure": "LOD构建压力",
+  "voxy.config.general.renderPressure.tooltip": "控制每帧用于LOD构建的时间预算",
+  "voxy.config.general.renderPressure.0": "最低",
+  "voxy.config.general.renderPressure.1": "低",
+  "voxy.config.general.renderPressure.2": "均衡",
+  "voxy.config.general.renderPressure.3": "高",
+  "voxy.config.general.renderPressure.4": "最高",
+  "voxy.config.general.leafLodMode": "树叶渲染模式",
+  "voxy.config.general.leafLodMode.tooltip": "快速模式使用不透明树叶；均衡和质量模式保留镂空透明",
+  "voxy.config.general.leafLodMode.fast": "快速",
+  "voxy.config.general.leafLodMode.balanced": "均衡",
+  "voxy.config.general.leafLodMode.quality": "质量"
 }

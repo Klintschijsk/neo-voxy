@@ -2,22 +2,13 @@ package me.cortex.voxy.common.voxelization;
 
 import it.unimi.dsi.fastutil.objects.Reference2IntOpenHashMap;
 import me.cortex.voxy.common.world.other.Mapper;
-import me.cortex.voxy.common.world.other.Mipper;
-import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
-import net.minecraft.util.LinearCongruentialGenerator;
-import net.minecraft.util.Mth;
 import net.minecraft.util.SimpleBitStorage;
 import net.minecraft.util.ZeroBitStorage;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.chunk.GlobalPalette;
-import net.minecraft.world.level.chunk.HashMapPalette;
-import net.minecraft.world.level.chunk.LinearPalette;
-import net.minecraft.world.level.chunk.Palette;
-import net.minecraft.world.level.chunk.PalettedContainer;
-import net.minecraft.world.level.chunk.PalettedContainerRO;
-import net.minecraft.world.level.chunk.SingleValuePalette;
+import net.minecraft.world.level.chunk.*;
+
 import java.util.WeakHashMap;
 
 public class WorldConversionFactory {
@@ -86,6 +77,8 @@ public class WorldConversionFactory {
             }
             pc[0] = blockId;
         } else {
+            // Modded palettes still implement the vanilla Palette contract. Reading through
+            // valueFor keeps ingestion compatible without linking against a specific optimizer.
             for (int i = 0; i < vp.getSize(); i++) {
                 BlockState state = null;
                 try {
@@ -128,6 +121,7 @@ public class WorldConversionFactory {
         var biomes = cache.biomeCache;
         var data = section.section;
         var zoomCells = cache.zoomCellCache;
+
         var vp = blockContainer.data.palette;
         var pc = cache.getPaletteCache(vp.getSize());
         GlobalPalette<BlockState> bps = null;

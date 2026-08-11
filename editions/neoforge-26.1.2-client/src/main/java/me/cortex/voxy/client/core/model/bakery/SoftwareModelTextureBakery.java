@@ -7,6 +7,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import me.cortex.voxy.client.config.VoxyConfig;
 import me.cortex.voxy.common.util.UnsafeUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.block.BlockAndTintGetter;
@@ -84,7 +85,9 @@ public class SoftwareModelTextureBakery {
          for (BlockStateModelPart part : out) {
             for (Direction direction : new Direction[]{Direction.DOWN, Direction.UP, Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST, null}) {
                for (BakedQuad quad : part.getQuads(direction)) {
-                  (quad.materialInfo().layer() == ChunkSectionLayer.TRANSLUCENT ? this.translucentVC : this.opaqueVC).quad(quad, state.is(BlockTags.LEAVES));
+                  boolean forceSolidLeaf = state.is(BlockTags.LEAVES)
+                     && VoxyConfig.CONFIG.getLeafLodMode() == VoxyConfig.LeafLodMode.FAST;
+                  (quad.materialInfo().layer() == ChunkSectionLayer.TRANSLUCENT ? this.translucentVC : this.opaqueVC).quad(quad, forceSolidLeaf);
                }
             }
          }

@@ -44,7 +44,7 @@ public class ModelBakerySubsystem {
       if (this.processingThreadException != null) {
          throw new RuntimeException(this.processingThreadException);
       } else {
-         this.factory.processUploads();
+         this.factory.processUploads(totalBudget);
       }
    }
 

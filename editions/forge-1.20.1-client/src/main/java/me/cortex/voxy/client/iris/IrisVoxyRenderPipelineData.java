@@ -95,7 +95,7 @@ public class IrisVoxyRenderPipelineData {
 
 
     public static IrisVoxyRenderPipelineData buildPipeline(IrisRenderingPipeline ipipe, IrisShaderPatch patch, CustomUniforms cu, ShaderStorageBufferHolder ssboHolder) {
-        var uniforms = createUniformLayoutStructAndUpdater(createUniformSet(cu, patch));
+        var uniforms = createUniformLayoutStructAndUpdater(createUniformSet(ipipe, cu, patch));
 
 
         var imageSet = createImageSet(ipipe, patch);
@@ -300,7 +300,7 @@ public class IrisVoxyRenderPipelineData {
     private record UniformWritingHolder(String name, UniformType type, Long2ObjectFunction<LongConsumer> writingFactory) {
 
     }
-    private static List<UniformWritingHolder> createUniformSet(CustomUniforms cu, IrisShaderPatch patch) {
+    private static List<UniformWritingHolder> createUniformSet(IrisRenderingPipeline ipipe, CustomUniforms cu, IrisShaderPatch patch) {
         //This is a fking awful hack... but it works thinks
 
         List<UniformWritingHolder> uniforms = new ArrayList<>();
@@ -353,6 +353,45 @@ public class IrisVoxyRenderPipelineData {
                 return this;
             }
 
+            @Override
+            public DynamicLocationalUniformHolder uniform2f(String name, Supplier<Vector2f> value, ValueUpdateNotifier notifier) {
+                this.injectDynamicUniformType(name, UniformType.VEC2, offset -> ptr -> value.get().getToAddress(ptr + offset));
+                return this;
+            }
+
+            @Override
+            public DynamicLocationalUniformHolder uniform2i(String name, Supplier<Vector2i> value, ValueUpdateNotifier notifier) {
+                this.injectDynamicUniformType(name, UniformType.VEC2I, offset -> ptr -> value.get().getToAddress(ptr + offset));
+                return this;
+            }
+
+            @Override
+            public DynamicLocationalUniformHolder uniform4f(String name, Supplier<Vector4f> value, ValueUpdateNotifier notifier) {
+                this.injectDynamicUniformType(name, UniformType.VEC4, offset -> ptr -> value.get().getToAddress(ptr + offset));
+                return this;
+            }
+
+            @Override
+            public DynamicLocationalUniformHolder uniform4fArray(String name, Supplier<float[]> value, ValueUpdateNotifier notifier) {
+                this.injectDynamicUniformType(name, UniformType.VEC4, offset -> ptr -> {
+                    float[] values = value.get();
+                    for (int i = 0; i < 4; i++) MemoryUtil.memPutFloat(ptr + offset + i * 4L, values[i]);
+                });
+                return this;
+            }
+
+            @Override
+            public DynamicLocationalUniformHolder uniform4i(String name, Supplier<Vector4i> value, ValueUpdateNotifier notifier) {
+                this.injectDynamicUniformType(name, UniformType.VEC4I, offset -> ptr -> value.get().getToAddress(ptr + offset));
+                return this;
+            }
+
+            @Override
+            public DynamicLocationalUniformHolder uniformMatrix(String name, Supplier<Matrix4f> value, ValueUpdateNotifier notifier) {
+                this.injectDynamicUniformType(name, UniformType.MAT4, offset -> ptr -> value.get().getToAddress(ptr + offset));
+                return this;
+            }
+
             private void injectDynamicUniformType(String name, UniformType type, Long2ObjectFunction<LongConsumer> supplier) {
                 var names = patch.getUniformList();
                 for (int i = 0; i < names.length; i++) {
@@ -375,16 +414,92 @@ public class IrisVoxyRenderPipelineData {
 
             @Override
             public LocationalUniformHolder addUniform(UniformUpdateFrequency uniformUpdateFrequency, Uniform uniform) {
-                //TODO: error/log the type of uniform that was added (and its location)
+                return this;
+            }
 
-                if (uniform instanceof BooleanUniform bu) {
-                    //TODO: need to assert the loc is from a actually valid location
-                    int loc = bu.getLocation();
-                    var ul = patch.getUniformList();
-                    if (loc<ul.length) {
-                        var uniformName = ul[loc];
-                    }
-                }
+            @Override
+            public LocationalUniformHolder uniform1f(UniformUpdateFrequency frequency, String name, IntSupplier value) {
+                return this.uniform1f(frequency, name, () -> (float)value.getAsInt());
+            }
+
+            @Override
+            public LocationalUniformHolder uniform1f(UniformUpdateFrequency frequency, String name, DoubleSupplier value) {
+                return this.uniform1f(frequency, name, () -> (float)value.getAsDouble());
+            }
+
+            @Override
+            public LocationalUniformHolder uniform1b(UniformUpdateFrequency frequency, String name, BooleanSupplier value) {
+                this.injectDynamicUniformType(name, UniformType.INT, offset -> ptr -> MemoryUtil.memPutInt(ptr + offset, value.getAsBoolean() ? 1 : 0));
+                return this;
+            }
+
+            @Override
+            public LocationalUniformHolder uniform2f(UniformUpdateFrequency frequency, String name, Supplier<Vector2f> value) {
+                this.injectDynamicUniformType(name, UniformType.VEC2, offset -> ptr -> value.get().getToAddress(ptr + offset));
+                return this;
+            }
+
+            @Override
+            public LocationalUniformHolder uniform2i(UniformUpdateFrequency frequency, String name, Supplier<Vector2i> value) {
+                this.injectDynamicUniformType(name, UniformType.VEC2I, offset -> ptr -> value.get().getToAddress(ptr + offset));
+                return this;
+            }
+
+            @Override
+            public LocationalUniformHolder uniform3i(UniformUpdateFrequency frequency, String name, Supplier<Vector3i> value) {
+                this.injectDynamicUniformType(name, UniformType.VEC3I, offset -> ptr -> value.get().getToAddress(ptr + offset));
+                return this;
+            }
+
+            @Override
+            public LocationalUniformHolder uniformTruncated3f(UniformUpdateFrequency frequency, String name, Supplier<Vector4f> value) {
+                this.injectDynamicUniformType(name, UniformType.VEC3, offset -> ptr -> {
+                    Vector4f vector = value.get();
+                    MemoryUtil.memPutFloat(ptr + offset, vector.x);
+                    MemoryUtil.memPutFloat(ptr + offset + 4, vector.y);
+                    MemoryUtil.memPutFloat(ptr + offset + 8, vector.z);
+                });
+                return this;
+            }
+
+            @Override
+            public LocationalUniformHolder uniform3d(UniformUpdateFrequency frequency, String name, Supplier<Vector3d> value) {
+                this.injectDynamicUniformType(name, UniformType.VEC3, offset -> ptr -> {
+                    Vector3d vector = value.get();
+                    MemoryUtil.memPutFloat(ptr + offset, (float)vector.x);
+                    MemoryUtil.memPutFloat(ptr + offset + 4, (float)vector.y);
+                    MemoryUtil.memPutFloat(ptr + offset + 8, (float)vector.z);
+                });
+                return this;
+            }
+
+            @Override
+            public LocationalUniformHolder uniform4f(UniformUpdateFrequency frequency, String name, Supplier<Vector4f> value) {
+                this.injectDynamicUniformType(name, UniformType.VEC4, offset -> ptr -> value.get().getToAddress(ptr + offset));
+                return this;
+            }
+
+            @Override
+            public LocationalUniformHolder uniform4fArray(UniformUpdateFrequency frequency, String name, Supplier<float[]> value) {
+                this.injectDynamicUniformType(name, UniformType.VEC4, offset -> ptr -> {
+                    float[] values = value.get();
+                    for (int i = 0; i < 4; i++) MemoryUtil.memPutFloat(ptr + offset + i * 4L, values[i]);
+                });
+                return this;
+            }
+
+            @Override
+            public LocationalUniformHolder uniformMatrix(UniformUpdateFrequency frequency, String name, Supplier<Matrix4f> value) {
+                this.injectDynamicUniformType(name, UniformType.MAT4, offset -> ptr -> value.get().getToAddress(ptr + offset));
+                return this;
+            }
+
+            @Override
+            public LocationalUniformHolder uniformMatrixFromArray(UniformUpdateFrequency frequency, String name, Supplier<float[]> value) {
+                this.injectDynamicUniformType(name, UniformType.MAT4, offset -> ptr -> {
+                    float[] values = value.get();
+                    for (int i = 0; i < 16; i++) MemoryUtil.memPutFloat(ptr + offset + i * 4L, values[i]);
+                });
                 return this;
             }
 
@@ -405,17 +520,26 @@ public class IrisVoxyRenderPipelineData {
                 return null;
             }
         };
+        IrisRenderingPipelineAccessor pipeline = (IrisRenderingPipelineAccessor)ipipe;
+        CommonUniforms.addNonDynamicUniforms(uniformBuilder, pipeline.getPack().getIdMap(), pipeline.getPackDirectives(), pipeline.getUpdateNotifier());
         CommonUniforms.addDynamicUniforms(uniformBuilder, FogMode.PER_FRAGMENT);
         cu.assignTo(uniformBuilder);
         cu.mapholderToPass(uniformBuilder, patch);
 
         FunctionReturn cachedReturn = new FunctionReturn();
-        ((CustomUniformsAccessor)cu).getLocationMap().get(patch).object2IntEntrySet().forEach(entry-> {
-            if (!seenUniforms.add(entry.getKey().getName())) {
-                throw new IllegalArgumentException("Already added uniform: " + entry.getKey().getName());
-            }
-            uniforms.add(new UniformWritingHolder(entry.getKey().getName(), Type.convert(entry.getKey().getType()),offset->createWriter(offset, cachedReturn, entry.getKey())));
-        });
+        var customLocations = ((CustomUniformsAccessor)cu).getLocationMap().get(patch);
+        if (customLocations != null) {
+            customLocations.object2IntEntrySet().forEach(entry -> {
+                String name = entry.getKey().getName();
+                // Oculus may also expose a built-in uniform through the custom
+                // dependency map. Keep the direct built-in writer in that case.
+                if (!seenUniforms.add(name)) {
+                    return;
+                }
+                uniforms.add(new UniformWritingHolder(name, Type.convert(entry.getKey().getType()),
+                        offset -> createWriter(offset, cachedReturn, entry.getKey())));
+            });
+        }
 
         if (uniforms.size() != patch.getUniformList().length) {
             Set<String> uniformsUnseen = new HashSet<>(List.of(patch.getUniformList()));

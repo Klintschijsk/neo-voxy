@@ -22,6 +22,7 @@ layout(binding = HIZ_BINDING) uniform sampler2D hizDepthSampler;
 bool within(vec2 a, vec2 b, vec2 c) {
     return all(lessThan(a,b)) && all(lessThan(b, c));
 }
+
 bool within(vec3 a, vec3 b, vec3 c) {
     return all(lessThan(a,b)) && all(lessThan(b, c));
 }
@@ -194,3 +195,4 @@ bool isCulledByHiz() {
 bool shouldDecend() {
     return _screenSize > minSSS;
 }
+

@@ -1,5 +1,7 @@
 package me.cortex.voxy.client.core.model;
 
+import me.cortex.voxy.client.config.VoxyConfig;
+
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
@@ -38,6 +40,7 @@ import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.block.LiquidBlock;
+import net.minecraft.world.level.block.BushBlock;
 import net.minecraft.world.level.block.StairBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -191,15 +194,18 @@ public class ModelFactory {
          }
 
          if (bake.state.is(BlockTags.LEAVES)) {
-            layer = ChunkSectionLayer.SOLID;
+            layer = VoxyConfig.CONFIG.getLeafLodMode() == VoxyConfig.LeafLodMode.FAST
+               ? ChunkSectionLayer.SOLID
+               : ChunkSectionLayer.CUTOUT;
          }
 
          if (layer == null) {
             layer = ChunkSectionLayer.SOLID;
          }
 
+         boolean centeredGroundCross = bake.state.getBlock() instanceof BushBlock && !bake.state.is(BlockTags.LEAVES);
          ModelFactory.ModelBakeResultUpload bakeResult = this.processTextureBakeResult(
-            bake.blockId, bake.state, textureData, isShaded, hasDarkenedTextures, layer
+            bake.blockId, bake.state, textureData, isShaded, hasDarkenedTextures, layer, centeredGroundCross
          );
          if (bakeResult != null) {
             this.uploadResults.add(bakeResult);
@@ -235,9 +241,10 @@ public class ModelFactory {
       return this.blockStatesInFlight.size() != 0 || !this.bakeQueue.isEmpty() || !this.biomeQueue.isEmpty();
    }
 
-   public void processUploads() {
+   public void processUploads(long totalBudgetNanos) {
       ModelFactory.ResultUploader upload = this.uploadResults.poll();
       if (upload != null) {
+         long deadline = System.nanoTime() + Math.max(0L, totalBudgetNanos);
          GL11.glPixelStorei(3314, 0);
          GL11.glPixelStorei(3316, 0);
          GL11.glPixelStorei(3315, 0);
@@ -247,14 +254,15 @@ public class ModelFactory {
             upload.upload(this.storage);
             upload.free();
             upload = this.uploadResults.poll();
-         } while (upload != null);
+         } while (upload != null && System.nanoTime() < deadline);
 
          UploadStream.INSTANCE.commit();
       }
    }
 
    private ModelFactory.ModelBakeResultUpload processTextureBakeResult(
-      int blockId, BlockState blockState, ColourDepthTextureData[] textureData, boolean isShaded, boolean darkenedTinting, ChunkSectionLayer layer
+      int blockId, BlockState blockState, ColourDepthTextureData[] textureData, boolean isShaded, boolean darkenedTinting,
+      ChunkSectionLayer layer, boolean centeredGroundCross
    ) {
       if (this.idMappings[blockId] != -1) {
          throw new IllegalStateException("Block id already added: " + blockId + " for state: " + blockState);
@@ -317,6 +325,12 @@ public class ModelFactory {
                }
 
                float[] depths = computeModelDepth(textureData, possibleDuplicate, layer != ChunkSectionLayer.SOLID ? 3 : 1);
+               if (centeredGroundCross) {
+                  depths[Direction.NORTH.ordinal()] = 0.5F;
+                  depths[Direction.SOUTH.ordinal()] = 0.5F;
+                  depths[Direction.WEST.ordinal()] = 0.5F;
+                  depths[Direction.EAST.ordinal()] = 0.5F;
+               }
                boolean needsDoubleSidedQuads = depths[0] < -0.1 && depths[1] < -0.1
                   || depths[2] < -0.1 && depths[3] < -0.1
                   || depths[4] < -0.1 && depths[5] < -0.1;
@@ -337,6 +351,11 @@ public class ModelFactory {
                }
 
                if (allTrue) {
+                  cullsSame = true;
+               }
+
+               if (blockState.is(BlockTags.LEAVES)
+                  && VoxyConfig.CONFIG.getLeafLodMode() == VoxyConfig.LeafLodMode.BALANCED) {
                   cullsSame = true;
                }
 

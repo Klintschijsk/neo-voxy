@@ -26,6 +26,11 @@ public abstract class VoxyConfigScreenPages {
             Component.translatable("voxy.config.general.ssao_mode.better"),
             Component.translatable("voxy.config.general.ssao_mode.best")
     };
+    private static final Component[] LEAF_MODE_LABELS = {
+            Component.translatable("voxy.config.general.leafLodMode.fast"),
+            Component.translatable("voxy.config.general.leafLodMode.balanced"),
+            Component.translatable("voxy.config.general.leafLodMode.quality")
+    };
     private static int MAX_RENDER_DISTANCE = 64 * 16;
 
     private VoxyConfigScreenPages(){}
@@ -151,12 +156,28 @@ public abstract class VoxyConfigScreenPages {
                         .setImpact(OptionImpact.LOW)
                         .setFlags(OptionFlag.REQUIRES_RENDERER_RELOAD)
                         .build()
+                ).add(OptionImpl.createBuilder(int.class, storage)
+                        .setName(Component.translatable("voxy.config.general.renderPressure"))
+                        .setTooltip(Component.translatable("voxy.config.general.renderPressure.tooltip"))
+                        .setControl(opt -> new SliderControl(opt, 0, 4, 1,
+                                v -> Component.translatable("voxy.config.general.renderPressure." + v)))
+                        .setBinding((s, v) -> s.renderPressure = v, VoxyConfig::getRenderPressureLevel)
+                        .setImpact(OptionImpact.HIGH)
+                        .build()
+                ).add(OptionImpl.createBuilder(VoxyConfig.LeafLodMode.class, storage)
+                        .setName(Component.translatable("voxy.config.general.leafLodMode"))
+                        .setTooltip(Component.translatable("voxy.config.general.leafLodMode.tooltip"))
+                        .setControl(opt -> new CyclingControl<>(opt, VoxyConfig.LeafLodMode.class, LEAF_MODE_LABELS))
+                        .setBinding(VoxyConfig::setLeafLodMode, VoxyConfig::getLeafLodMode)
+                        .setImpact(OptionImpact.MEDIUM)
+                        .setFlags(OptionFlag.REQUIRES_RENDERER_RELOAD)
+                        .build()
                 ).build()
         );
 
         OptionImpl<VoxyConfig, Boolean> adaptCloudDistanceOption = OptionImpl.createBuilder(boolean.class, storage)
-                .setName(Component.literal("Adapt cloud distance"))
-                .setTooltip(Component.literal("Extends the cloud distance according to the current render distance. It's automatically capped at 256"))
+                .setName(Component.translatable("voxy.config.general.adaptCloudDistance"))
+                .setTooltip(Component.translatable("voxy.config.general.adaptCloudDistance.tooltip"))
                 .setControl(TickBoxControl::new)
                 .setBinding((s, v) -> s.adaptCloudDistance = v, s -> s.adaptCloudDistance)
                 .setImpact(OptionImpact.LOW)
@@ -172,31 +193,31 @@ public abstract class VoxyConfigScreenPages {
                         .setFlags(OptionFlag.REQUIRES_RENDERER_RELOAD)
                         .build()
                 ).add(OptionImpl.createBuilder(int.class, storage)
-                        .setName(Component.literal("Sky fog distance"))
-                        .setTooltip(Component.literal("Higher distance, sharper sky fog"))
+                        .setName(Component.translatable("voxy.config.general.skyFogDistance"))
+                        .setTooltip(Component.translatable("voxy.config.general.skyFogDistance.tooltip"))
                         .setControl(opt -> new SliderControl(opt, 16, 512, 16, v -> Component.literal(Integer.toString(v))))
                         .setBinding((s, v) -> s.skyFogDistance = v, s -> s.skyFogDistance)
                         .build()
                 ).add(OptionImpl.createBuilder(int.class, storage)
-                        .setName(Component.literal("Fog intensity"))
-                        .setTooltip(Component.literal("Multiplier for terrain fog opacity. 0.0 = off, 1.0 = vanilla, 3.0 = triple"))
-                        .setControl(opt -> new SliderControl(opt, 0, 300, 10, v -> Component.literal(String.format("%.1f", v / 100.0f))))
+                        .setName(Component.translatable("voxy.config.general.fogIntensity"))
+                        .setTooltip(Component.translatable("voxy.config.general.fogIntensity.tooltip"))
+                        .setControl(opt -> new SliderControl(opt, 0, 100, 5, v -> Component.literal(String.format("%.2f", v / 100.0f))))
                         .setBinding((s, v) -> s.fogIntensity = v / 100.0f, s -> (int)(s.fogIntensity * 100))
                         .build()
                 ).add(OptionImpl.createBuilder(int.class, storage)
-                        .setName(Component.literal("Fog curve"))
-                        .setTooltip(Component.literal("Shape of the fog curve. 0.0 = linear, higher values push fog towards the far end"))
-                        .setControl(opt -> new SliderControl(opt, 0, 50, 1, v -> Component.literal(String.format("%.1f", v / 10.0f))))
-                        .setBinding((s, v) -> s.fogDensity = v / 10.0f, s -> (int)(s.fogDensity * 10))
+                        .setName(Component.translatable("voxy.config.general.fogDensity"))
+                        .setTooltip(Component.translatable("voxy.config.general.fogDensity.tooltip"))
+                        .setControl(opt -> new SliderControl(opt, 0, 100, 5, v -> Component.literal(String.format("%.2f", v / 100.0f))))
+                        .setBinding((s, v) -> s.fogDensity = v / 100.0f, s -> (int)(s.fogDensity * 100))
                         .build()
                 ).add(adaptCloudDistanceOption).add(OptionImpl.createBuilder(int.class, storage)
-                        .setName(Component.literal("Cloud distance"))
-                        .setTooltip(Component.literal("Cloud render distance in chunks"))
+                        .setName(Component.translatable("voxy.config.general.cloudDistance"))
+                        .setTooltip(Component.translatable("voxy.config.general.cloudDistance.tooltip"))
                         .setEnabled(!adaptCloudDistanceOption.getValue())
                         .setControl(opt -> new SliderControl(opt, 0, 2048, 2, v -> {
                             if (adaptCloudDistanceOption.getValue())
-                                return Component.literal("Adaptive");
-                            return Component.literal(v < 1 ? "Default" : Integer.toString(v));
+                                return Component.translatable("voxy.config.general.adaptive");
+                            return v < 1 ? Component.translatable("voxy.config.general.default") : Component.literal(Integer.toString(v));
                         }))
                         .setBinding((s, v) -> s.cloudDistance = v, s -> s.cloudDistance)
                         .setImpact(OptionImpact.VARIES)

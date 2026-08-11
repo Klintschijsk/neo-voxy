@@ -41,5 +41,21 @@
   "voxy.config.general.render_fog.tooltip": "Enables or disables render fog effect",
 
   "voxy.config.general.ssao_mode": "SSAO Mode",
-  "voxy.config.general.ssao_mode.tooltip": "The mode used for screenspace ambient occlusion (Auto attempts to pick the best option while reducing performance impact)"
+  "voxy.config.general.ssao_mode.tooltip": "The mode used for screenspace ambient occlusion (Auto attempts to pick the best option while reducing performance impact)",
+  "voxy.config.general.ssao_mode.auto": "Auto",
+  "voxy.config.general.ssao_mode.basic": "Basic",
+  "voxy.config.general.ssao_mode.better": "Better",
+  "voxy.config.general.ssao_mode.best": "Best",
+  "voxy.config.general.renderPressure": "LOD build pressure",
+  "voxy.config.general.renderPressure.tooltip": "Controls the render-thread budget used to upload newly baked LOD models each frame.",
+  "voxy.config.general.renderPressure.0": "Minimum",
+  "voxy.config.general.renderPressure.1": "Low",
+  "voxy.config.general.renderPressure.2": "Balanced",
+  "voxy.config.general.renderPressure.3": "High",
+  "voxy.config.general.renderPressure.4": "Maximum",
+  "voxy.config.general.leafLodMode": "Leaf LOD mode",
+  "voxy.config.general.leafLodMode.tooltip": "Fast uses opaque leaves. Balanced and Quality preserve leaf cutouts.",
+  "voxy.config.general.leafLodMode.fast": "Fast",
+  "voxy.config.general.leafLodMode.balanced": "Balanced",
+  "voxy.config.general.leafLodMode.quality": "Quality"
 }

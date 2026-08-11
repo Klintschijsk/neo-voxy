@@ -16,6 +16,11 @@ import me.cortex.voxy.commonImpl.VoxyCommon;
 import net.neoforged.fml.loading.FMLPaths;
 
 public class VoxyConfig {
+   public enum LeafLodMode {
+      FAST,
+      BALANCED,
+      QUALITY
+   }
    private static final Gson GSON = new GsonBuilder()
       .setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES)
       .setPrettyPrinting()
@@ -30,6 +35,8 @@ public class VoxyConfig {
    public float subDivisionSize = 64.0F;
    public boolean useEnvironmentalFog = true;
    public boolean dontUseSodiumBuilderThreads = false;
+   public int renderPressure = 2;
+   public String leafLodMode = "balanced";
    public boolean enableLodBoundaryFade = true;
    public int lodBoundaryFadeLength = 16;
    public int lodBoundaryInset = 8;
@@ -45,6 +52,22 @@ public class VoxyConfig {
             return SSAO.SSAOMode.AUTO;
          }
       }
+   }
+
+   public int getRenderPressureLevel() {
+      return Math.max(0, Math.min(4, this.renderPressure));
+   }
+
+   public LeafLodMode getLeafLodMode() {
+      try {
+         return LeafLodMode.valueOf(this.leafLodMode.toUpperCase(Locale.ROOT));
+      } catch (Exception ignored) {
+         return LeafLodMode.BALANCED;
+      }
+   }
+
+   public void setLeafLodMode(LeafLodMode mode) {
+      this.leafLodMode = mode.name().toLowerCase(Locale.ROOT);
    }
 
    public void setSSAOMode(SSAO.SSAOMode mode) {

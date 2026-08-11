@@ -131,7 +131,28 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                               vrs.setRenderDistance(CFG.sectionRenderDistance);
                            }
                         }, "voxy:rendering", RENDER_RELOAD)
-                         .setImpact(OptionImpact.MEDIUM)
+                        .setImpact(OptionImpact.MEDIUM)
+                   ),
+                  new SodiumConfigBuilder.Group(
+                     new SodiumConfigBuilder.IntOption(
+                           "voxy:render_pressure",
+                           Component.translatable("voxy.config.general.renderPressure"),
+                           CFG::getRenderPressureLevel,
+                           v -> CFG.renderPressure = v,
+                           new Range(0, 4, 1)
+                        )
+                        .setFormatter(v -> Component.translatable("voxy.config.general.renderPressure." + v))
+                        .setImpact(OptionImpact.HIGH),
+                     new SodiumConfigBuilder.EnumOption<>(
+                           "voxy:leaf_lod_mode",
+                           VoxyConfig.LeafLodMode.class,
+                           Component.translatable("voxy.config.general.leafLodMode"),
+                           CFG::getLeafLodMode,
+                           CFG::setLeafLodMode
+                        )
+                        .setNameProvider(v -> Component.translatable("voxy.config.general.leafLodMode." + v.name().toLowerCase()))
+                        .setImpact(OptionImpact.MEDIUM)
+                        .setPostChangeFlags(RENDER_RELOAD)
                    ),
                   new SodiumConfigBuilder.Group(
                      new SodiumConfigBuilder.BoolOption(
@@ -178,6 +199,7 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                               () -> CFG.getSSAOMode(),
                               v -> CFG.setSSAOMode(v)
                            )
+                           .setNameProvider(v -> Component.translatable("voxy.config.general.ssao_mode." + v.name().toLowerCase()))
                            .setImpact(OptionImpact.MEDIUM)
                            .setPostChangeFlags(RENDER_RELOAD)
                      )

@@ -13,6 +13,7 @@
 
     "iris.CustomUniformsAccessor",
     "iris.IrisRenderingPipelineAccessor",
+    "iris.MixinCustomUniforms",
     "iris.MixinIris",
     "iris.MixinIrisRenderingPipeline",
     "iris.MixinIrisSamplers",

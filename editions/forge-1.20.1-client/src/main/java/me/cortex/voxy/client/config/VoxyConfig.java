@@ -21,6 +21,7 @@ public class VoxyConfig
 //? if 1.20.1
     implements OptionStorage<VoxyConfig>
 {
+    public enum LeafLodMode { FAST, BALANCED, QUALITY }
     private static final Gson GSON = new GsonBuilder()
             .setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES)
             .setPrettyPrinting()
@@ -41,10 +42,30 @@ public class VoxyConfig
     public boolean adaptCloudDistance = true;
     public int cloudDistance = 0;
     public boolean dontUseSodiumBuilderThreads = false;
+    public int renderPressure = 2;
+    public String leafLodMode = "balanced";
 
     public String ssaoMode;
 
     public boolean useEnvironmentalFog = true;
+
+    public int getRenderPressureLevel() {
+        if (this.renderPressure < 0 || this.renderPressure > 4) this.renderPressure = 2;
+        return this.renderPressure;
+    }
+
+    public LeafLodMode getLeafLodMode() {
+        if (this.leafLodMode == null) return LeafLodMode.BALANCED;
+        try {
+            return LeafLodMode.valueOf(this.leafLodMode.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ignored) {
+            return LeafLodMode.BALANCED;
+        }
+    }
+
+    public void setLeafLodMode(LeafLodMode mode) {
+        this.leafLodMode = mode.name().toLowerCase(Locale.ROOT);
+    }
 
     public SSAO.SSAOMode getSSAOMode() {
         if (this.ssaoMode == null) return SSAO.SSAOMode.AUTO;

@@ -7,8 +7,9 @@ import net.irisshaders.iris.pipeline.IrisRenderingPipeline;
 
 public class VoxySamplers {
     public static void addSamplers(IrisRenderingPipeline pipeline, SamplerHolder samplers) {
-        var patchData = ((IGetVoxyPatchData)pipeline).voxy$getPatchData();
-        if (patchData != null) {
+        // Oculus 1.20.1 compiles composite programs while IrisRenderingPipeline is
+        // still inside its constructor. Register the names unconditionally here;
+        // their suppliers stay inert until Voxy's pipeline exists.
             String[] opaqueNames = new String[]{"vxDepthTexOpaque"};
             String[] translucentNames = new String[]{"vxDepthTexTrans"};
             /*
@@ -50,6 +51,5 @@ public class VoxySamplers {
                 }
                 return dt.id;
             }, new GlSampler(false, true, false, false), translucentNames);
-        }
     }
 }
