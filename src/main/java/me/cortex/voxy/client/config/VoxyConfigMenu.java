@@ -235,6 +235,25 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                         )
                         .setEnablerInherit(s->!IrisUtil.irisShaderPackEnabled(), ConfigState.UPDATE_ON_REBUILD),
                         new Group(
+                                new IntOption(
+                                        "voxy:biome_blend_radius",
+                                        Component.translatable("voxy.config.general.biomeBlendRadius"),
+                                        ()->CFG.biomeBlendRadius, v->CFG.biomeBlendRadius=v,
+                                        new Range(0, 7, 1))
+                                        .setFormatter(v->v == 0
+                                                ? Component.translatable("voxy.config.general.biomeBlendRadius.off")
+                                                : Component.literal(Integer.toString(v)))
+                                        .setPostChangeFlags(RENDER_RELOAD)
+                                        .setImpact(OptionImpact.MEDIUM),
+                                new BoolOption(
+                                        "voxy:biome_blend_grass",
+                                        Component.translatable("voxy.config.general.biomeBlendGrass"),
+                                        ()->"water_grass".equals(CFG.biomeBlendScope),
+                                        v->CFG.biomeBlendScope=v ? "water_grass" : "water")
+                                        .setPostChangeFlags(RENDER_RELOAD)
+                                        .setImpact(OptionImpact.MEDIUM)
+                        ),
+                        new Group(
                                 new BoolOption(
                                         "voxy:lod_lite_shading",
                                         Component.translatable("voxy.config.general.lodLiteShading"),

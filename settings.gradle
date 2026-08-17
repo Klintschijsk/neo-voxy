@@ -1,6 +1,11 @@
 pluginManagement {
     repositories {
         maven {
+            name = 'LocalPluginBootstrap'
+            url = uri('.gradle/bootstrap-maven')
+        }
+        mavenCentral()
+        maven {
             name = 'NeoForged'
             url = 'https://maven.neoforged.net/releases'
         }

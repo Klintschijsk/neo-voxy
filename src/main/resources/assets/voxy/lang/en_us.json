@@ -114,7 +114,12 @@
   "voxy.config.general.leafLodMode.balanced": "Balanced",
   "voxy.config.general.leafLodMode.quality": "Quality",
   "voxy.config.general.lodLiteShading": "Experimental Lite LOD shading",
-  "voxy.config.general.lodLiteShading.tooltip": "Uses shader-pack-declared, cut-down LOD programs to reduce distant per-pixel lighting and material cost. Off by default and checked only on shader reload, with no per-frame or per-tick polling. An incomplete pair, incompatible contract, or unsafe transition falls back atomically to the standard programs.",
+  "voxy.config.general.biomeBlendRadius": "LOD biome water blend radius",
+  "voxy.config.general.biomeBlendRadius.tooltip": "Smooths LOD water colours across biome borders. Range 0–7; changing it rebuilds the renderer.",
+  "voxy.config.general.biomeBlendRadius.off": "Off",
+  "voxy.config.general.biomeBlendGrass": "Also blend grass and foliage",
+  "voxy.config.general.biomeBlendGrass.tooltip": "Also applies biome colour blending to grass and foliage; this increases mesh rebuild work for affected sections.",
+  "voxy.config.general.lodLiteShading.tooltip": "Uses shader-pack-declared, cut-down LOD programs to reduce distant per-pixel lighting and material cost. Off by default. An incomplete pair, incompatible contract, or unsafe transition falls back atomically to the standard programs.",
   "voxy.config.general.lodLiteShading.status.disabled": "Status: disabled.",
   "voxy.config.general.lodLiteShading.status.requested": "Status: requested; waiting for shader reload.",
   "voxy.config.general.lodLiteShading.status.active": "Status: active (%s; tested versions: %s).",
@@ -124,5 +129,6 @@
   "voxy.config.general.lodLiteShading.status.contractMismatch": "Status: the two Lite program contracts differ; standard programs are in use.",
   "voxy.config.general.lodLiteShading.status.apiMismatch": "Status: unsupported Lite contract version %s; standard programs are in use.",
   "voxy.config.general.lodLiteShading.status.transitionRequired": "Status: this Lite program requires circular LOD fade; standard programs are in use.",
-  "voxy.config.general.lodLiteShading.status.error": "Status: Lite load failed (%s); standard programs are in use."
+  "voxy.config.general.lodLiteShading.status.error": "Status: Lite load failed (%s); standard programs are in use.",
+  "voxy.lodLiteShading.chatFailure": "[Neo-Voxy] Experimental Lite LOD shading could not be enabled: %s"
 }

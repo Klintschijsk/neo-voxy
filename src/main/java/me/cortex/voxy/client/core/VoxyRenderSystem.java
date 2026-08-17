@@ -454,6 +454,7 @@ public class VoxyRenderSystem {
 
 
         GPUTiming.INSTANCE.marker();
+        this.modelService.drainBlendPalette();
         // Run the LOD pipeline.
         this.pipeline.runPipeline(viewport, boundFB, this.viewportDimensions[2], this.viewportDimensions[3]);
         GPUTiming.INSTANCE.marker();

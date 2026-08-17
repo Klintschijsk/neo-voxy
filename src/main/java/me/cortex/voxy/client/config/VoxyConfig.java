@@ -62,6 +62,10 @@ public class VoxyConfig {
     public int distantKineticGpuBudgetMiB = 32;
     // Experimental, shader-pack supplied LOD-only programs. Resolved only during shader reload.
     public boolean lodLiteShading = false;
+    // Vanilla-style box blend for biome-coloured LOD water. Zero preserves hard biome edges.
+    public int biomeBlendRadius = 2;
+    // "water" blends pure fluids; "water_grass" also blends grass and foliage.
+    public String biomeBlendScope = "water";
     public int simulatedContraptionRenderDistancePercent = 100;
     public int serviceThreads = (int) Math.max(CpuLayout.getCoreCount()/1.5, 1);
     public float subDivisionSize = 123;
@@ -179,6 +183,7 @@ public class VoxyConfig {
     }
 
     public void sanitize() {
+        this.sectionRenderDistance = Math.clamp(this.sectionRenderDistance, 2.0f, 64.0f);
         this.subDivisionSize = Math.clamp(this.subDivisionSize, MIN_SUBDIVISION_SIZE, MAX_SUBDIVISION_SIZE);
         this.requestDistance = Math.clamp(this.requestDistance, MIN_REQUEST_DISTANCE, MAX_REQUEST_DISTANCE);
         // Older builds measured this percentage against one sixteenth of the LOD radius.
@@ -195,6 +200,10 @@ public class VoxyConfig {
         this.lodBoundaryInset = Math.clamp(this.lodBoundaryInset, 8, 32);
         this.setLeafLodMode(this.getLeafLodMode());
         this.farPlayerAnimationDistance = Math.clamp(this.farPlayerAnimationDistance, 0, 32768);
+        this.biomeBlendRadius = Math.clamp(this.biomeBlendRadius, 0, 7);
+        if (!"water".equals(this.biomeBlendScope) && !"water_grass".equals(this.biomeBlendScope)) {
+            this.biomeBlendScope = "water";
+        }
     }
 
     public void save() {

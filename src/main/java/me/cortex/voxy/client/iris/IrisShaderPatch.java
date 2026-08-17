@@ -346,7 +346,7 @@ public class IrisShaderPatch {
         String voxyPatchData = sourceProvider.apply(directory.resolve("voxy.json"));
         if (voxyPatchData == null) {//No voxy patch data in shaderpack
             if (liteRequested) {
-                LiteShaderStatus.set(LiteShaderStatus.Code.NO_VOXY_PATCH);
+                LiteShaderStatus.fail(LiteShaderStatus.Code.NO_VOXY_PATCH);
             }
             return null;
         }
@@ -354,7 +354,7 @@ public class IrisShaderPatch {
         //A more graceful exit on blank string
         if (voxyPatchData.isBlank()) {
             if (liteRequested) {
-                LiteShaderStatus.set(LiteShaderStatus.Code.NO_VOXY_PATCH);
+                LiteShaderStatus.fail(LiteShaderStatus.Code.NO_VOXY_PATCH);
             }
             return null;
         }
@@ -396,21 +396,21 @@ public class IrisShaderPatch {
                     String liteOpaque = sourceProvider.apply(directory.resolve("voxy_opaque_lite.glsl"));
                     String liteTranslucent = sourceProvider.apply(directory.resolve("voxy_translucent_lite.glsl"));
                     if (liteOpaque == null || liteTranslucent == null) {
-                        LiteShaderStatus.set(LiteShaderStatus.Code.MISSING_PROGRAMS);
+                        LiteShaderStatus.fail(LiteShaderStatus.Code.MISSING_PROGRAMS);
                     } else {
                         LiteContract opaqueContract = readLiteContract(liteOpaque);
                         LiteContract translucentContract = readLiteContract(liteTranslucent);
                         if (opaqueContract == null || translucentContract == null) {
-                            LiteShaderStatus.set(LiteShaderStatus.Code.MISSING_CONTRACT);
+                            LiteShaderStatus.fail(LiteShaderStatus.Code.MISSING_CONTRACT);
                         } else if (!opaqueContract.equals(translucentContract)) {
-                            LiteShaderStatus.set(LiteShaderStatus.Code.CONTRACT_MISMATCH);
+                            LiteShaderStatus.fail(LiteShaderStatus.Code.CONTRACT_MISMATCH);
                         } else if (opaqueContract.api != LITE_CONTRACT_VERSION) {
-                            LiteShaderStatus.set(LiteShaderStatus.Code.API_MISMATCH,
+                            LiteShaderStatus.fail(LiteShaderStatus.Code.API_MISMATCH,
                                     Integer.toString(opaqueContract.api));
                         } else if (opaqueContract.pack.isBlank() || opaqueContract.versions.isBlank()) {
-                            LiteShaderStatus.set(LiteShaderStatus.Code.MISSING_CONTRACT);
+                            LiteShaderStatus.fail(LiteShaderStatus.Code.MISSING_CONTRACT);
                         } else if (!validTransition(opaqueContract)) {
-                            LiteShaderStatus.set(LiteShaderStatus.Code.TRANSITION_REQUIRED,
+                            LiteShaderStatus.fail(LiteShaderStatus.Code.TRANSITION_REQUIRED,
                                     opaqueContract.transition);
                         } else {
                             opaque = liteOpaque;
@@ -455,7 +455,7 @@ public class IrisShaderPatch {
         } catch (Exception e) {
             patchData = null;
             if (liteRequested) {
-                LiteShaderStatus.set(LiteShaderStatus.Code.ERROR, e.getClass().getSimpleName());
+                LiteShaderStatus.fail(LiteShaderStatus.Code.ERROR, e.getClass().getSimpleName());
             }
             Logger.error("Failed to parse patch data gson, dumping json",e);
             try {
@@ -470,7 +470,7 @@ public class IrisShaderPatch {
         }
         if (patchData.version != VERSION) {
             if (liteRequested) {
-                LiteShaderStatus.set(LiteShaderStatus.Code.ERROR, "voxy.json version mismatch");
+                LiteShaderStatus.fail(LiteShaderStatus.Code.ERROR, "voxy.json version mismatch");
             }
             Logger.error("Shader has voxy patch data, but patch version is incorrect. expected " + VERSION + " got "+patchData.version);
             throw new IllegalStateException("Shader version mismatch expected " + VERSION + " got "+patchData.version);

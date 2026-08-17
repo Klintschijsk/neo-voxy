@@ -28,6 +28,14 @@ uint extractLightId(uint64_t quad) {
     return Eu32(quad, 8, 55);
 }
 
+uint quadUsesBlendPalette(uint64_t quad) {
+    return Eu32(quad, 1, 63);
+}
+
+uint extractBlendIdx(uint64_t quad) {
+    return Eu32(quad, 9, 46) | (Eu32(quad, 4, 42) << 9);
+}
+
 bool isQuadEmpty(uint64_t quad) {
     return quad == uint64_t(0);
 }
@@ -71,6 +79,14 @@ uint extractBiomeId(ivec2 quad) {
 
 uint extractLightId(ivec2 quad) {
     return Eu32v(quad, 8, 55);
+}
+
+uint quadUsesBlendPalette(ivec2 quad) {
+    return Eu32v(quad, 1, 63);
+}
+
+uint extractBlendIdx(ivec2 quad) {
+    return Eu32v(quad, 9, 46) | (Eu32v(quad, 4, 42) << 9);
 }
 
 bool isQuadEmpty(ivec2 quad) {

@@ -109,7 +109,17 @@ public class SoftwareModelTextureBakery {
             glPixelStorei(GL_PACK_SKIP_ROWS, 0);
             glPixelStorei(GL_PACK_SKIP_PIXELS, 0);
             glPixelStorei(GL_PACK_ALIGNMENT, 4);
-            glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+            long byteSize = Math.multiplyExact((long) width, (long) height) * 4L;
+            long address = MemoryUtil.nmemAlloc(byteSize);
+            if (address == 0) {
+                throw new OutOfMemoryError("atlas readback buffer: " + byteSize + " bytes");
+            }
+            try {
+                nglGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, address);
+                MemoryUtil.memIntBuffer(address, width * height).get(pixels);
+            } finally {
+                MemoryUtil.nmemFree(address);
+            }
         } finally {
             glPixelStorei(GL_PACK_ROW_LENGTH, previousRowLength);
             glPixelStorei(GL_PACK_IMAGE_HEIGHT, previousImageHeight);

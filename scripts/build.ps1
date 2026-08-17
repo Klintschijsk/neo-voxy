@@ -10,7 +10,7 @@ $targets = @{
     'integrations-1.21.1' = @{
         Path = $repo
         Java = 21
-        Jar = 'neo-voxy-0.4.0-beta-1-mc1.21.1-neoforge-integrations.jar'
+        Jar = 'neo-voxy-0.4.0-beta-2-mc1.21.1-neoforge-integrations.jar'
     }
     'client-1.21.1' = @{
         Path = Join-Path $repo 'editions/neoforge-1.21.1-client'

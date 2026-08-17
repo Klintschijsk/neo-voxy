@@ -24,21 +24,33 @@ public class ModelBakerySubsystem {
     private volatile Throwable processingThreadException;
     public ModelBakerySubsystem(Mapper mapper) {
         this.mapper = mapper;
-        this.factory = new ModelFactory(mapper, this.storage);
-        this.processingThread = new Thread(()->{//TODO replace this with something good/integrate it into the async processor so that we just have less threads overall
-            while (this.isRunning) {
-                while (this.factory.processAllThings());
-                LockSupport.park();
-            }
-        }, "Model factory processor");
-        this.processingThread.setUncaughtExceptionHandler((t,e)->{
-            this.isRunning = false;
-            if (e == null) {
-                e = new RuntimeException("unhandled excpetion not added");
-            }
-            this.processingThreadException = e;
-        });
-        this.processingThread.start();
+        try {
+            this.factory = new ModelFactory(mapper, this.storage);
+            this.processingThread = new Thread(()->{//TODO replace this with something good/integrate it into the async processor so that we just have less threads overall
+                while (this.isRunning) {
+                    while (this.factory.processAllThings());
+                    if (Thread.interrupted()) {
+                        break;
+                    }
+                    LockSupport.park();
+                }
+            }, "Model factory processor");
+            this.processingThread.setUncaughtExceptionHandler((t,e)->{
+                this.isRunning = false;
+                if (e == null) {
+                    e = new RuntimeException("unhandled excpetion not added");
+                }
+                this.processingThreadException = e;
+            });
+            this.processingThread.start();
+        } catch (RuntimeException | Error e) {
+            this.storage.free();
+            throw e;
+        }
+    }
+
+    public void drainBlendPalette() {
+        this.factory.drainBlendPalette();
     }
 
     public void tick(long totalBudget) {
@@ -51,6 +63,7 @@ public class ModelBakerySubsystem {
 
     public void shutdown() {
         this.isRunning = false;
+        this.processingThread.interrupt();
         LockSupport.unpark(this.processingThread);
         try {
             this.processingThread.join();
@@ -78,8 +91,19 @@ public class ModelBakerySubsystem {
         }
         this.seenIdsLock.unlock();
         this.enqueueLock.lock();
-        this.factory.addEntry(blockId);
-        this.enqueueLock.unlock();
+        try {
+            this.factory.addEntry(blockId);
+        } catch (Throwable t) {
+            this.seenIdsLock.lock();
+            try {
+                this.seenIds.remove(blockId);
+            } finally {
+                this.seenIdsLock.unlock();
+            }
+            throw t;
+        } finally {
+            this.enqueueLock.unlock();
+        }
         LockSupport.unpark(this.processingThread);
     }
 

@@ -35,6 +35,17 @@ sourceSets {
 }
 
 repositories {
+    maven {
+        name = 'LocalBuildBootstrap'
+        url = uri('.gradle/bootstrap-maven')
+        metadataSources {
+            gradleMetadata()
+            mavenPom()
+            artifact()
+        }
+    }
+    mavenCentral()
+
     exclusiveContent {
         forRepository {
             maven {
@@ -151,6 +162,62 @@ if (!isInGHA) {
             modRuntimeOnly(arg)
         }
     }
+}
+
+tasks.register('checkLangKeys') {
+    def langDir = file('src/main/resources/assets/voxy/lang')
+    def javaDir = file('src/main/java')
+    inputs.dir langDir
+    inputs.dir javaDir
+    outputs.upToDateWhen { false }
+
+    doLast {
+        def slurper = new groovy.json.JsonSlurper()
+        def files = langDir.listFiles()?.findAll { it.name.endsWith('.json') } ?: []
+        if (files.isEmpty()) {
+            throw new GradleException("No language files under ${langDir}")
+        }
+
+        def keysByFile = [:]
+        files.each { f ->
+            try {
+                keysByFile[f.name] = (slurper.parse(f, 'UTF-8').keySet() as Set)
+            } catch (Exception e) {
+                throw new GradleException("${f.name} is not valid JSON: ${e.message}")
+            }
+        }
+
+        def requested = [] as Set
+        javaDir.eachFileRecurse { f ->
+            if (!f.name.endsWith('.java')) return
+            f.getText('UTF-8').findAll(/translatable\(\s*"(voxy\.[^"]+)"/) { match, key ->
+                if (!key.endsWith('.')) requested << key
+            }
+        }
+
+        def problems = []
+        keysByFile.each { name, keys ->
+            def missing = (requested - keys).sort()
+            if (missing) {
+                problems << "${name} is missing ${missing.size()} requested key(s): ${missing.take(10).join(', ')}"
+            }
+        }
+        def union = keysByFile.values().flatten() as Set
+        keysByFile.each { name, keys ->
+            def absent = (union - keys).sort()
+            if (absent) {
+                problems << "${name} lacks ${absent.size()} key(s) present elsewhere: ${absent.take(10).join(', ')}"
+            }
+        }
+        if (problems) {
+            throw new GradleException("Translation key check failed:\n  " + problems.join("\n  "))
+        }
+        println "Language files agree: ${requested.size()} requested keys across ${files.size()} files"
+    }
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('checkLangKeys')
 }
 
 configurations {

@@ -126,6 +126,11 @@ public class ModelFactory {
 
     private final Mapper mapper;
     private final ModelStore storage;
+    private final BiomeBlendPalette blendPalette = new BiomeBlendPalette();
+
+    public BiomeBlendPalette blendPalette() {
+        return this.blendPalette;
+    }
 
     //The field name is load-bearing: VSS 0.2.8's ModelFactoryFluidBakeOrderMixin reflects for
     //`bakeQueue` to re-order fluid bakes. Fluid dependencies are handled natively here (see addEntry's
@@ -406,8 +411,15 @@ public class ModelFactory {
             biomeEntry = this.biomeQueue.poll();
         }
 
-        while (this.processModelResult());
-        return (this.blockStatesInFlight.size()!=0)||(!this.blockBakeQueue.isEmpty())||!this.biomeQueue.isEmpty();
+        while (!Thread.currentThread().isInterrupted() && this.processModelResult());
+        return !Thread.currentThread().isInterrupted()
+                && ((this.blockStatesInFlight.size()!=0)||(!this.blockBakeQueue.isEmpty())||!this.biomeQueue.isEmpty());
+    }
+
+    public void drainBlendPalette() {
+        if (this.blendPalette.drainUploads(this.storage.modelColourBuffer)) {
+            UploadStream.INSTANCE.commit();
+        }
     }
 
     public void processUploads(long totalBudgetNanos) {
@@ -784,6 +796,11 @@ public class ModelFactory {
         } else {
             //Populate the list of biomes for the model state
             int biomeIndex = this.modelsRequiringBiomeColours.size() * this.biomes.size();
+            if (biomeIndex + this.biomes.size() > BiomeBlendPalette.PALETTE_BASE) {
+                this.blendPalette.disable();
+                Logger.error("Biome colour rows reached the blend palette boundary ("
+                        + BiomeBlendPalette.PALETTE_BASE + "); LOD biome blending disabled");
+            }
             MemoryUtil.memPutInt(uploadPtr, biomeIndex);
             this.modelsRequiringBiomeColours.add(new Pair<>(modelId, colourState));
             if (!this.biomes.isEmpty()) {
@@ -792,6 +809,8 @@ public class ModelFactory {
                 for (var biome : this.biomes) {
                     MemoryUtil.memPutInt(clrUploadPtr, captureColourConstant(colourProvider, colourState, biome) | 0xFF000000); clrUploadPtr += 4;
                 }
+                this.blendPalette.mirrorRow(modelId, biomeIndex,
+                        uploadResult.biomeUpload.address, this.biomes.size());
             }
         }
         uploadPtr += 4;
@@ -940,6 +959,16 @@ public class ModelFactory {
                 MemoryUtil.memPutInt(clrUploadPtr, captureColourConstant(colourProvider, entry.right(), biomeE)|0xFF000000); clrUploadPtr += 4;
             }
         }
+
+        if (this.modelsRequiringBiomeColours.size() * this.biomes.size()
+                > BiomeBlendPalette.PALETTE_BASE) {
+            this.blendPalette.disable();
+            Logger.error("Biome colour rows reached the blend palette boundary ("
+                    + BiomeBlendPalette.PALETTE_BASE + "); LOD biome blending disabled");
+        }
+        this.blendPalette.mirrorRebuild(result.modelBiomeIndexPairs.address,
+                this.modelsRequiringBiomeColours.size(), result.biomeColourBuffer.address,
+                (int) (result.biomeColourBuffer.size / 4), this.biomes.size());
 
         return result;
     }

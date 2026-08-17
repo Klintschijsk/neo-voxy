@@ -7,7 +7,7 @@ repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 case "$edition" in
   integrations-1.21.1)
     project="$repo"; java_version=21
-    jar='neo-voxy-0.4.0-beta-1-mc1.21.1-neoforge-integrations.jar' ;;
+    jar='neo-voxy-0.4.0-beta-2-mc1.21.1-neoforge-integrations.jar' ;;
   client-1.21.1)
     project="$repo/editions/neoforge-1.21.1-client"; java_version=21
     jar='neo-voxy-0.2.18-beta-mc1.21.1-neoforge-client.jar' ;;
