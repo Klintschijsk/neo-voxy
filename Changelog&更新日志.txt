@@ -1,5 +1,21 @@
 Neo Voxy 更新日志 / Changelog
 
+## 0.4.0-beta-1 (1.21.1 NeoForge 联动版) — 2026-08-17
+
+### 简体中文
+
+- 加入实验性 LOD 专用轻量光影管线；光影包可提供成对的 Lite 不透明/透明程序，在远景减少逐材质光照开销。
+- Lite 默认关闭，只在 Iris 构建或重载光影管线时检查，不增加每 Tick、每帧遍历或兼容轮询。
+- 加入三层保护：设置页显示实际启用/回退状态；Lite 程序必须声明一致的光影包、测试版本与契约版本；未满足距离过渡条件时整套回退标准程序。
+- 提供经声明验证的 Complementary Unbound r5.8.1 + Euphoria Patches 1.9.3 实验补丁模板；水体保留完整材质和反射路径。
+
+### English
+
+- Added an experimental shader-pack-supplied Lite LOD pipeline that can replace the opaque and translucent LOD programs as an atomic pair.
+- Lite shading is off by default and is resolved only while Iris builds or reloads a pipeline, with no tick, frame, or compatibility polling.
+- Added three safeguards: visible active/fallback status, matching pack/version/API declarations, and an enforced safe distance-transition contract with full-pair fallback.
+- Added a declared test implementation for Complementary Unbound r5.8.1 + Euphoria Patches 1.9.3; water retains its full material and reflection path.
+
 ## 0.3.3-1.20.1-alpha.1 — 2026-08-11
 
 ### 简体中文

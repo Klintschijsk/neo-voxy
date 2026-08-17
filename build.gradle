@@ -435,8 +435,21 @@ tasks.register('slimJar') {
     }
 }
 
+def liteShaderPackArchiveName =
+        "neo-voxy-${project.mod_version}-complementary-r5.8.1-euphoria-1.9.3-lite-overlay.zip"
+
+tasks.register('liteShaderPackOverlay', Zip) {
+    group = 'build'
+    description = 'Packages the compatible Lite LOD shader sources as a shader-pack overlay'
+
+    from(layout.projectDirectory.dir('src/liteShaderPack/resources'))
+    archiveFileName.set(liteShaderPackArchiveName)
+    destinationDirectory.set(layout.buildDirectory.dir('distributions'))
+}
+
 tasks.named('build') {
     dependsOn tasks.named('slimJar')
+    dependsOn tasks.named('liteShaderPackOverlay')
 }
 
 def pythonExecutable = System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('windows') ? 'python' : 'python3'

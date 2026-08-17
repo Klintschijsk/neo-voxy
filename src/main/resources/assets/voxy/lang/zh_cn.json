@@ -112,5 +112,17 @@
   "voxy.config.general.leafLodMode.tooltip": "调节远景树叶的画质与性能。性能模式使用不透明树叶；平衡模式按叶块稳定旋转纹理、剔除不可见内部面并保留不规则 Mip 镂空，性能影响为中；质量模式保留细小透明孔洞，但 GPU 开销更高。",
   "voxy.config.general.leafLodMode.fast": "性能",
   "voxy.config.general.leafLodMode.balanced": "平衡",
-  "voxy.config.general.leafLodMode.quality": "质量"
+  "voxy.config.general.leafLodMode.quality": "质量",
+  "voxy.config.general.lodLiteShading": "实验性 LOD 轻量光照",
+  "voxy.config.general.lodLiteShading.tooltip": "使用光影包声明兼容的 LOD 专用精简程序，降低远景逐像素光照与材质开销。默认关闭；仅在光影重载时检查，不增加每帧或每 Tick 检测。Lite 不完整、契约不匹配或过渡条件不满足时会整套回退到标准程序。",
+  "voxy.config.general.lodLiteShading.status.disabled": "状态：未启用。",
+  "voxy.config.general.lodLiteShading.status.requested": "状态：已请求，等待光影重载完成。",
+  "voxy.config.general.lodLiteShading.status.active": "状态：已启用（%s；已测试版本：%s）。",
+  "voxy.config.general.lodLiteShading.status.noPatch": "状态：当前光影包没有 Voxy 管线，已使用兼容回退。",
+  "voxy.config.general.lodLiteShading.status.missingPrograms": "状态：Lite 不透明/透明程序未成对提供，已回退标准程序。",
+  "voxy.config.general.lodLiteShading.status.missingContract": "状态：Lite 程序未声明兼容契约，已回退标准程序。",
+  "voxy.config.general.lodLiteShading.status.contractMismatch": "状态：两份 Lite 程序的兼容声明不一致，已回退标准程序。",
+  "voxy.config.general.lodLiteShading.status.apiMismatch": "状态：不支持 Lite 契约版本 %s，已回退标准程序。",
+  "voxy.config.general.lodLiteShading.status.transitionRequired": "状态：该 Lite 程序要求启用 LOD 圆形淡入；当前已回退标准程序。",
+  "voxy.config.general.lodLiteShading.status.error": "状态：Lite 加载失败（%s），已回退标准程序。"
 }

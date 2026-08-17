@@ -12,7 +12,7 @@ Neo Voxy 由 **JohnSnow** 维护，在 [NHblock714/voxy](https://github.com/NHbl
 
 | 版本 | 安装位置 | 渲染依赖 | Java | 发布文件 |
 |---|---|---|---:|---|
-| 1.21.1 NeoForge 联动版 | 客户端与服务端 | Sodium 0.8 / Iris | 21 | `neo-voxy-0.3.3-mc1.21.1-neoforge-integrations.jar` |
+| 1.21.1 NeoForge 联动版 | 客户端与服务端 | Sodium 0.8 / Iris | 21 | `neo-voxy-0.4.0-beta-1-mc1.21.1-neoforge-integrations.jar` |
 | 1.21.1 NeoForge 纯客户端版 | 仅客户端 | Sodium 0.8 / Iris | 21 | `neo-voxy-0.2.18-beta-mc1.21.1-neoforge-client.jar` |
 | 1.20.1 Forge 纯客户端版 | 仅客户端 | Embeddium / Oculus | 17 | `neo-voxy-0.3.3-1.20.1-alpha.1-forge-client.jar` |
 | 26.1.2 NeoForge 纯客户端版 | 仅客户端 | Sodium 0.9 / Iris | 25 | `neo-voxy-0.2.18-beta-mc26.1.2-neoforge-client.jar` |
@@ -46,6 +46,7 @@ Neo Voxy 由 **JohnSnow** 维护，在 [NHblock714/voxy](https://github.com/NHbl
 - LOD 构建压力：可在“最高帧数”到“最高追赶”之间调节每帧节点处理与模型烘焙预算。
 - 圆形 LOD 淡入：在原版区块与 LOD 之间进行圆形交接。若光影自身已有 LOD 过渡（例如 Photon），应关闭此功能，避免双重过渡、噪点或阴影边界。
 - 雾气与云：支持环境雾、天空雾距离、雾强度/密度及自适应云距离；具体选项因版本而异。
+- 实验性 LOD 轻量光照：1.21.1 联动版可在兼容光影包明确声明支持时使用成对的 Lite 程序；默认关闭，加载失败或过渡条件不安全时自动整套回退标准程序。
 - 细分尺寸：控制屏幕空间触发更细 LOD 的阈值；数值越小画质越高，构建和渲染开销也越高。
 
 ## 模组兼容性

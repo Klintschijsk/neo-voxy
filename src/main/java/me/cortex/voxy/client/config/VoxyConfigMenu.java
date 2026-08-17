@@ -5,6 +5,7 @@ import me.cortex.voxy.client.config.SodiumConfigBuilder.*;
 import me.cortex.voxy.client.core.IGetVoxyRenderSystem;
 import me.cortex.voxy.client.core.SSAO;
 import me.cortex.voxy.client.core.util.IrisUtil;
+import me.cortex.voxy.client.iris.LiteShaderStatus;
 import me.cortex.voxy.common.util.cpu.CpuLayout;
 import me.cortex.voxy.commonImpl.VoxyCommon;
 import me.cortex.voxy.compat.far.FarEntityClient;
@@ -232,7 +233,17 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                                         .setFormatter(v->Component.literal(v+"%"))
                                         .setImpact(OptionImpact.LOW)
                         )
-                        .setEnablerInherit(s->!IrisUtil.irisShaderPackEnabled(), ConfigState.UPDATE_ON_REBUILD)
+                        .setEnablerInherit(s->!IrisUtil.irisShaderPackEnabled(), ConfigState.UPDATE_ON_REBUILD),
+                        new Group(
+                                new BoolOption(
+                                        "voxy:lod_lite_shading",
+                                        Component.translatable("voxy.config.general.lodLiteShading"),
+                                        ()->CFG.lodLiteShading, v->CFG.lodLiteShading=v)
+                                        .setTooltipSupplier(v->liteShaderTooltip())
+                                        .setImpact(OptionImpact.HIGH)
+                                        .setEnablerInherit(s->IrisUtil.irisShaderPackEnabled(), ConfigState.UPDATE_ON_REBUILD)
+                                        .setPostChangeFlags(RENDER_RELOAD, "voxy:iris_reload")
+                        )
                 ).setEnablerAND("voxy:enabled", "voxy:rendering"),
                 new Page(Component.translatable("voxy.config.fakesight"),
                         new Group(
@@ -387,6 +398,27 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
         return chunks == 0
                 ? Component.translatable("voxy.config.compat.distanceFollowLod")
                 : Component.translatable("voxy.config.compat.distanceChunks", chunks);
+    }
+
+    private static Component liteShaderTooltip() {
+        var state = LiteShaderStatus.get();
+        Component status = switch (state.code()) {
+            case ACTIVE -> Component.translatable("voxy.config.general.lodLiteShading.status.active",
+                    state.packName(), state.testedVersions());
+            case REQUESTED -> Component.translatable("voxy.config.general.lodLiteShading.status.requested");
+            case NO_VOXY_PATCH -> Component.translatable("voxy.config.general.lodLiteShading.status.noPatch");
+            case MISSING_PROGRAMS -> Component.translatable("voxy.config.general.lodLiteShading.status.missingPrograms");
+            case MISSING_CONTRACT -> Component.translatable("voxy.config.general.lodLiteShading.status.missingContract");
+            case CONTRACT_MISMATCH -> Component.translatable("voxy.config.general.lodLiteShading.status.contractMismatch");
+            case API_MISMATCH -> Component.translatable("voxy.config.general.lodLiteShading.status.apiMismatch",
+                    state.detail());
+            case TRANSITION_REQUIRED -> Component.translatable("voxy.config.general.lodLiteShading.status.transitionRequired");
+            case ERROR -> Component.translatable("voxy.config.general.lodLiteShading.status.error", state.detail());
+            case DISABLED -> Component.translatable("voxy.config.general.lodLiteShading.status.disabled");
+        };
+        return Component.translatable("voxy.config.general.lodLiteShading.tooltip")
+                .append("\n")
+                .append(status);
     }
 
     private static final int SUBDIV_IN_MAX = 100;

@@ -60,6 +60,8 @@ public class VoxyConfig {
     public int distantKineticMaxChunks = 0;
     public int distantContraptionGpuBudgetMiB = 48;
     public int distantKineticGpuBudgetMiB = 32;
+    // Experimental, shader-pack supplied LOD-only programs. Resolved only during shader reload.
+    public boolean lodLiteShading = false;
     public int simulatedContraptionRenderDistancePercent = 100;
     public int serviceThreads = (int) Math.max(CpuLayout.getCoreCount()/1.5, 1);
     public float subDivisionSize = 123;

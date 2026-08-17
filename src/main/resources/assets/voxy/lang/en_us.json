@@ -112,5 +112,17 @@
   "voxy.config.general.leafLodMode.tooltip": "Controls distant leaf rendering. Fast uses opaque foliage. Balanced uses stable per-block texture rotations, culls hidden internal faces, and keeps irregular mip-aware cutouts at medium impact. Quality preserves fine cutout detail at higher GPU cost.",
   "voxy.config.general.leafLodMode.fast": "Fast",
   "voxy.config.general.leafLodMode.balanced": "Balanced",
-  "voxy.config.general.leafLodMode.quality": "Quality"
+  "voxy.config.general.leafLodMode.quality": "Quality",
+  "voxy.config.general.lodLiteShading": "Experimental Lite LOD shading",
+  "voxy.config.general.lodLiteShading.tooltip": "Uses shader-pack-declared, cut-down LOD programs to reduce distant per-pixel lighting and material cost. Off by default and checked only on shader reload, with no per-frame or per-tick polling. An incomplete pair, incompatible contract, or unsafe transition falls back atomically to the standard programs.",
+  "voxy.config.general.lodLiteShading.status.disabled": "Status: disabled.",
+  "voxy.config.general.lodLiteShading.status.requested": "Status: requested; waiting for shader reload.",
+  "voxy.config.general.lodLiteShading.status.active": "Status: active (%s; tested versions: %s).",
+  "voxy.config.general.lodLiteShading.status.noPatch": "Status: the active pack has no Voxy pipeline; compatibility fallback is in use.",
+  "voxy.config.general.lodLiteShading.status.missingPrograms": "Status: opaque/translucent Lite programs were not supplied as a pair; standard programs are in use.",
+  "voxy.config.general.lodLiteShading.status.missingContract": "Status: the Lite programs do not declare a compatibility contract; standard programs are in use.",
+  "voxy.config.general.lodLiteShading.status.contractMismatch": "Status: the two Lite program contracts differ; standard programs are in use.",
+  "voxy.config.general.lodLiteShading.status.apiMismatch": "Status: unsupported Lite contract version %s; standard programs are in use.",
+  "voxy.config.general.lodLiteShading.status.transitionRequired": "Status: this Lite program requires circular LOD fade; standard programs are in use.",
+  "voxy.config.general.lodLiteShading.status.error": "Status: Lite load failed (%s); standard programs are in use."
 }

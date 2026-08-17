@@ -15,6 +15,10 @@ public class MixinShaderPackSourceNames {
         builder.add("voxy.json");
         builder.add("voxy_opaque.glsl");
         builder.add("voxy_translucent.glsl");
+        // Iris only exposes files that participate in its include graph. Registering candidates is
+        // enough to make pack-provided Lite programs discoverable; absent files cost no frame work.
+        builder.add("voxy_opaque_lite.glsl");
+        builder.add("voxy_translucent_lite.glsl");
         return builder;
     }
 }
