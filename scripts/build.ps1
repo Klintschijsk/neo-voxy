@@ -10,22 +10,18 @@ $targets = @{
     'integrations-1.21.1' = @{
         Path = $repo
         Java = 21
-        Jar = 'neo-voxy-0.4.0-beta-2-mc1.21.1-neoforge-integrations.jar'
     }
     'client-1.21.1' = @{
         Path = Join-Path $repo 'editions/neoforge-1.21.1-client'
         Java = 21
-        Jar = 'neo-voxy-0.2.18-beta-mc1.21.1-neoforge-client.jar'
     }
     'client-1.20.1' = @{
         Path = Join-Path $repo 'editions/forge-1.20.1-client'
         Java = 17
-        Jar = 'neo-voxy-0.3.3-1.20.1-alpha.1-forge-client.jar'
     }
     'client-26.1.2' = @{
         Path = Join-Path $repo 'editions/neoforge-26.1.2-client'
         Java = 25
-        Jar = 'neo-voxy-0.2.18-beta-mc26.1.2-neoforge-client.jar'
     }
 }
 
@@ -85,14 +81,20 @@ try {
         Pop-Location
     }
 
-    $source = Join-Path $target.Path "build/libs/$($target.Jar)"
-    if (-not (Test-Path -LiteralPath $source)) {
-        throw "Expected release JAR was not generated: $source"
+    $releaseJars = @(Get-ChildItem -LiteralPath (Join-Path $target.Path 'build/libs') `
+        -Filter 'neo-voxy-*.jar' -File | Where-Object {
+            $_.Name -notmatch '-(?:sources|dev|unoptimized)\.jar$'
+        })
+    if ($releaseJars.Count -ne 1) {
+        $found = ($releaseJars | ForEach-Object FullName) -join [Environment]::NewLine
+        throw "Expected one release JAR for $Edition, found $($releaseJars.Count):`n$found"
     }
+    $source = $releaseJars[0].FullName
+    $jar = $releaseJars[0].Name
     $dist = Join-Path $repo 'dist'
     New-Item -ItemType Directory -Force -Path $dist | Out-Null
-    Copy-Item -LiteralPath $source -Destination (Join-Path $dist $target.Jar) -Force
-    Get-Item -LiteralPath (Join-Path $dist $target.Jar) |
+    Copy-Item -LiteralPath $source -Destination (Join-Path $dist $jar) -Force
+    Get-Item -LiteralPath (Join-Path $dist $jar) |
         Select-Object FullName, Length, LastWriteTime
 } finally {
     $env:JAVA_HOME = $oldJavaHome

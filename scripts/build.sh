@@ -6,17 +6,13 @@ repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 case "$edition" in
   integrations-1.21.1)
-    project="$repo"; java_version=21
-    jar='neo-voxy-0.4.0-beta-2-mc1.21.1-neoforge-integrations.jar' ;;
+    project="$repo"; java_version=21 ;;
   client-1.21.1)
-    project="$repo/editions/neoforge-1.21.1-client"; java_version=21
-    jar='neo-voxy-0.2.18-beta-mc1.21.1-neoforge-client.jar' ;;
+    project="$repo/editions/neoforge-1.21.1-client"; java_version=21 ;;
   client-1.20.1)
-    project="$repo/editions/forge-1.20.1-client"; java_version=17
-    jar='neo-voxy-0.3.3-1.20.1-alpha.1-forge-client.jar' ;;
+    project="$repo/editions/forge-1.20.1-client"; java_version=17 ;;
   client-26.1.2)
-    project="$repo/editions/neoforge-26.1.2-client"; java_version=25
-    jar='neo-voxy-0.2.18-beta-mc26.1.2-neoforge-client.jar' ;;
+    project="$repo/editions/neoforge-26.1.2-client"; java_version=25 ;;
   *)
     echo 'Usage: scripts/build.sh {integrations-1.21.1|client-1.21.1|client-1.20.1|client-26.1.2}' >&2
     exit 2 ;;
@@ -55,8 +51,21 @@ if [[ "${CI:-false}" == "true" ]]; then
 fi
 (cd "$project" && "$gradle_launcher" "${init_scripts[@]}" clean build --no-daemon --no-configuration-cache)
 
-source_jar="$project/build/libs/$jar"
-test -f "$source_jar" || { echo "Missing release JAR: $source_jar" >&2; exit 1; }
+mapfile -t release_jars < <(
+  find "$project/build/libs" -maxdepth 1 -type f \
+    -name 'neo-voxy-*.jar' \
+    ! -name '*-sources.jar' \
+    ! -name '*-dev.jar' \
+    ! -name '*-unoptimized.jar' \
+    -print | sort
+)
+if (( ${#release_jars[@]} != 1 )); then
+  printf 'Expected one release JAR for %s, found %d:\n' "$edition" "${#release_jars[@]}" >&2
+  find "$project/build/libs" -maxdepth 1 -type f -name '*.jar' -print >&2
+  exit 1
+fi
+source_jar="${release_jars[0]}"
+jar="$(basename "$source_jar")"
 mkdir -p "$repo/dist"
 cp "$source_jar" "$repo/dist/$jar"
 ls -lh "$repo/dist/$jar"
