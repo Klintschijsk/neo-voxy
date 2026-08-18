@@ -70,9 +70,9 @@ final class BuiltinLiteShaderPatches {
 
                     vec3 indirectNormal = normal / dot(abs(normal), vec3(1.0));
                     float skyDirection = clamp(indirectNormal.y * 0.7 + 0.3, 0.0, 1.0);
-                    ambientLight = (averageSkyCol_CloudsSSBO / 900.0)
-                            * mix(0.08, 1.0, skyDirection)
-                            * mix(0.12, 1.0, lightmap.y);
+                    vec3 ambientLightColor = (averageSkyCol_CloudsSSBO / 900.0)
+                            * mix(0.08, 1.0, skyDirection);
+                    ambientLight = doIndirectLighting(ambientLightColor, vec3(1.0), lightmap.y);
                     """;
             skyReflection = "vec3 skyReflection = averageSkyCol_CloudsSSBO / 1200.0;";
         } else if (source.contains("vec3 lightPos = LightSourcePosition(")) {

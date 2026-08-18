@@ -34,8 +34,12 @@ if (gl_FragCoord.x * texelSize.x < 1.0 && gl_FragCoord.y * texelSize.y < 1.0) {
 
     /* VOXY_LITE_DIMENSION_LIGHT */
 
-    vec3 blockLight = vec3(1.0, 0.5, 0.25)
-            * (lightmap.x * lightmap.x) * 0.065;
+    vec3 blockLight = doBlockLightLighting(
+            vec3(1.0, 0.5, 0.25),
+            lightmap.x * 0.8,
+            vec3(0.0),
+            vec3(0.0)
+    );
     float outdoors = clamp((lightmap.y - 0.5) / 0.4, 0.0, 1.0);
     vec3 finalColor = (ambientLight + directLight * outdoors + blockLight) * Albedo;
 

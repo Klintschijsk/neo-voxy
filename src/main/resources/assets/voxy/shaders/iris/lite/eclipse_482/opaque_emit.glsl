@@ -20,6 +20,18 @@ void voxy_emitFragment(VoxyFragmentParameters parameters) {
     vec2 lightmap = clamp(parameters.lightMap / (30.0 / 32.0) - (1.0 / 32.0), 0.0, 1.0);
     vec2 encodedNormal = encodeNormal(normal);
 
+    float sssAmount = 0.0;
+    if (blockID == 56 || blockID == 79 || blockID == 80 || blockID == 87) {
+        sssAmount = 1.0;
+    } else if (blockID == 11 || (blockID >= 12 && blockID <= 15)
+            || blockID == 21 || blockID == 54 || blockID == 55
+            || blockID == 81 || blockID == 82 || blockID == 84
+            || blockID == 85 || blockID == 89
+            || (blockID >= 101 && blockID <= 103) || blockID == 195
+            || blockID == 282 || blockID == 401 || blockID == 409) {
+        sssAmount = 0.5;
+    }
+
     float emission = 0.0;
     if (blockID >= 100 && blockID < 282) emission = 0.5;
     if (blockID == 195) emission = 0.95;
@@ -39,7 +51,7 @@ void voxy_emitFragment(VoxyFragmentParameters parameters) {
     gbuffer_data_1 = vec4(
         encodeVec2(0.0, flatNormal.x),
         encodeVec2(0.0, flatNormal.y),
-        encodeVec2(0.0, flatNormal.z),
+        encodeVec2(sssAmount, flatNormal.z),
         encodeVec2(clamp(emission, 0.0, 0.99), 0.0)
     );
 }
