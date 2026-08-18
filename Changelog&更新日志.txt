@@ -5,6 +5,8 @@ Neo Voxy 更新日志 / Changelog
 ### 简体中文
 
 - 实验性 LOD 轻量光照启用失败时在聊天框提示具体回退原因。
+- 增加 NeoVoxy 内置的 Eclipse Shader 482 Lite 补丁，无需修改光影包；保留其 GBuffer 契约并简化远景透明反射与材质输入。
+- Lite 着色器在驱动编译失败时同步更新状态、在聊天框提示并回退。
 - 合并 LOD 群系水体颜色混合，提供 0–7 混合半径和可选草木混色；默认仅处理水体。
 - 方块图集读取改用原生缓冲区，规避大型图集同步读取期间固定 Java 数组导致的 JVM 崩溃风险。
 - 模型烘焙线程补充中断退出、初始化资源回收与请求锁异常恢复。
@@ -13,6 +15,8 @@ Neo Voxy 更新日志 / Changelog
 ### English
 
 - Lite LOD shading now reports its fallback reason in chat when it cannot be enabled.
+- Added a built-in NeoVoxy Lite patch for Eclipse Shader 482, requiring no shader-pack changes while preserving its GBuffer contract and simplifying distant translucent reflections and material inputs.
+- Lite driver-compilation failures now update the visible status, notify chat, and fall back.
 - Added LOD biome water colour blending with a 0–7 radius and optional grass/foliage scope; water-only by default.
 - Block-atlas readback now uses native memory to avoid pinning a large Java array across a synchronous GPU read.
 - Hardened model-bakery shutdown, constructor cleanup, and request-lock recovery.

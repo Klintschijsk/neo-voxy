@@ -46,6 +46,7 @@ Release JARs remove unused platform natives, duplicate module descriptors, and b
 - LOD build pressure: adjusts per-frame node processing and model-baking budgets from maximum FPS to maximum catch-up speed.
 - Circular LOD handoff: blends the vanilla/LOD boundary. Disable it when a shader pack already implements its own LOD transition, such as Photon, to avoid double transitions, noise, or shadow seams.
 - Fog and clouds: environmental fog, sky-fog distance, fog intensity/density, and adaptive cloud distance are available depending on edition.
+- Experimental Lite LOD shading: the 1.21.1 integrations build uses paired Lite programs and atomically falls back if loading or compilation fails, the version is unsupported, or the transition is unsafe. Eclipse Shader 482 is supported by a built-in NeoVoxy patch and does not require shader-pack changes; Complementary Unbound r5.8.1 + Euphoria Patches 1.9.3 uses a separate overlay.
 - Subdivision size: controls the screen-space threshold for finer LODs. Lower values improve detail at higher build and rendering cost.
 
 ## Mod compatibility
