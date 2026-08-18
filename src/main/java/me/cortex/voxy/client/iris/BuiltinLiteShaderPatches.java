@@ -10,6 +10,19 @@ final class BuiltinLiteShaderPatches {
 
     private static final String EMIT_SIGNATURE =
             "void voxy_emitFragment(VoxyFragmentParameters parameters)";
+    private static final String FULL_TRANSLUCENT_SIGNATURE =
+            "void voxy_emitFragmentEclipseFull(VoxyFragmentParameters parameters)";
+    private static final String LITE_TRANSLUCENT_SIGNATURE =
+            "void voxy_emitFragmentEclipseLite(VoxyFragmentParameters parameters)";
+    private static final String TRANSLUCENT_DISPATCH = """
+            void voxy_emitFragment(VoxyFragmentParameters parameters) {
+                if (parameters.customId == 8u) {
+                    voxy_emitFragmentEclipseFull(parameters);
+                } else {
+                    voxy_emitFragmentEclipseLite(parameters);
+                }
+            }
+            """;
     private static final String ECLIPSE_OPAQUE = readResource(
             "/assets/voxy/shaders/iris/lite/eclipse_482/opaque_emit.glsl");
     private static final String ECLIPSE_TRANSLUCENT = readResource(
@@ -33,7 +46,7 @@ final class BuiltinLiteShaderPatches {
         }
 
         String liteOpaque = replaceEmitFunction(opaque, ECLIPSE_OPAQUE);
-        String liteTranslucent = replaceEmitFunction(translucent, translucentReplacement);
+        String liteTranslucent = createHybridTranslucent(translucent, translucentReplacement);
         if (liteOpaque == null || liteTranslucent == null) {
             throw new IllegalStateException("Eclipse 482 Voxy program layout did not match the built-in Lite patch");
         }
@@ -89,15 +102,46 @@ final class BuiltinLiteShaderPatches {
                 .replace("/* VOXY_LITE_SKY_REFLECTION */", skyReflection);
     }
 
+    private static String createHybridTranslucent(String source, String liteReplacement) {
+        int functionStart = uniqueEmitStart(source);
+        int functionEnd = findFunctionEnd(source, functionStart);
+        int liteStart = liteReplacement.indexOf(EMIT_SIGNATURE);
+        if (functionStart < 0 || functionEnd < 0
+                || liteStart < 0 || liteStart != liteReplacement.lastIndexOf(EMIT_SIGNATURE)) {
+            return null;
+        }
+
+        String fullFunction = FULL_TRANSLUCENT_SIGNATURE
+                + source.substring(functionStart + EMIT_SIGNATURE.length(), functionEnd + 1);
+        String liteFunction = liteReplacement.replace(EMIT_SIGNATURE, LITE_TRANSLUCENT_SIGNATURE);
+        String replacement = fullFunction + "\n\n"
+                + liteFunction.strip() + "\n\n"
+                + TRANSLUCENT_DISPATCH.strip();
+        return source.substring(0, functionStart)
+                + replacement
+                + source.substring(functionEnd + 1);
+    }
+
     static String replaceEmitFunction(String source, String replacement) {
+        int functionStart = uniqueEmitStart(source);
+        int functionEnd = findFunctionEnd(source, functionStart);
+        if (functionStart < 0 || functionEnd < 0) return null;
+        return source.substring(0, functionStart)
+                + replacement.strip()
+                + source.substring(functionEnd + 1);
+    }
+
+    private static int uniqueEmitStart(String source) {
         int functionStart = source.indexOf(EMIT_SIGNATURE);
-        if (functionStart < 0 || functionStart != source.lastIndexOf(EMIT_SIGNATURE)) {
-            return null;
-        }
+        return functionStart >= 0 && functionStart == source.lastIndexOf(EMIT_SIGNATURE)
+                ? functionStart
+                : -1;
+    }
+
+    private static int findFunctionEnd(String source, int functionStart) {
+        if (functionStart < 0) return -1;
         int braceStart = source.indexOf('{', functionStart + EMIT_SIGNATURE.length());
-        if (braceStart < 0) {
-            return null;
-        }
+        if (braceStart < 0) return -1;
 
         int depth = 0;
         boolean lineComment = false;
@@ -131,12 +175,10 @@ final class BuiltinLiteShaderPatches {
             if (current == '{') {
                 depth++;
             } else if (current == '}' && --depth == 0) {
-                return source.substring(0, functionStart)
-                        + replacement.strip()
-                        + source.substring(i + 1);
+                return i;
             }
         }
-        return null;
+        return -1;
     }
 
     private static String readResource(String path) {
