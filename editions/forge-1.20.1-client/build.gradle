@@ -173,19 +173,14 @@ tasks.register('slimJar') {
             output.closeEntry()
         }
 
-        def rocksKeep = ['librocksdbjni-win64.dll', 'librocksdbjni-linux64.so'] as Set
-        def rewriteRocks = { byte[] inputBytes ->
+        def rewriteNested = { byte[] inputBytes, Closure<Boolean> shouldDrop ->
             def bytesOut = new ByteArrayOutputStream(inputBytes.length)
             new java.util.zip.ZipInputStream(new ByteArrayInputStream(inputBytes)).withCloseable { input ->
                 new java.util.zip.ZipOutputStream(bytesOut).withCloseable { output ->
                     java.util.zip.ZipEntry entry
                     while ((entry = input.nextEntry) != null) {
                         byte[] data = entry.directory ? new byte[0] : input.readAllBytes()
-                        String baseName = entry.name.substring(entry.name.lastIndexOf('/') + 1)
-                        boolean nativeFile = baseName.startsWith('librocksdbjni-') &&
-                                (baseName.endsWith('.so') || baseName.endsWith('.dll') ||
-                                 baseName.endsWith('.jnilib') || baseName.endsWith('.dylib'))
-                        if (!nativeFile || rocksKeep.contains(baseName)) {
+                        if (!shouldDrop.call(entry.name)) {
                             putEntry(output, entry.name, data, entry.method, entry.time)
                         }
                         input.closeEntry()
@@ -195,7 +190,15 @@ tasks.register('slimJar') {
             bytesOut.toByteArray()
         }
 
+        def rocksKeep = ['librocksdbjni-win64.dll', 'librocksdbjni-linux64.so'] as Set
+        def sqliteKeep = ['org/sqlite/native/windows/x86_64/',
+                          'org/sqlite/native/linux/x86_64/']
         boolean foundRocks = false
+        boolean foundSqlite = false
+        boolean foundSqliteWindows = false
+        boolean foundSqliteLinux = false
+        int removedRocksNatives = 0
+        int removedSqliteNatives = 0
         if (target.exists() && !target.delete()) {
             throw new GradleException("Could not replace ${target}")
         }
@@ -208,7 +211,27 @@ tasks.register('slimJar') {
                     byte[] data = entry.directory ? new byte[0] : input.getInputStream(entry).withCloseable { it.readAllBytes() }
                     if (entry.name.startsWith('META-INF/jars/rocksdbjni-') && entry.name.endsWith('.jar')) {
                         foundRocks = true
-                        data = rewriteRocks(data)
+                        data = rewriteNested(data, { String nestedName ->
+                            String baseName = nestedName.substring(nestedName.lastIndexOf('/') + 1)
+                            boolean nativeFile = baseName.startsWith('librocksdbjni-') &&
+                                    (baseName.endsWith('.so') || baseName.endsWith('.dll') ||
+                                     baseName.endsWith('.jnilib') || baseName.endsWith('.dylib'))
+                            boolean drop = nativeFile && !rocksKeep.contains(baseName)
+                            if (drop) removedRocksNatives++
+                            drop
+                        })
+                    } else if (entry.name.startsWith('META-INF/jars/sqlite-jdbc-') && entry.name.endsWith('.jar')) {
+                        foundSqlite = true
+                        data = rewriteNested(data, { String nestedName ->
+                            String normalized = nestedName.replace('\\', '/').toLowerCase(Locale.ROOT)
+                            boolean nativeFile = normalized.startsWith('org/sqlite/native/') &&
+                                    !normalized.endsWith('/')
+                            if (normalized.startsWith(sqliteKeep[0])) foundSqliteWindows = true
+                            if (normalized.startsWith(sqliteKeep[1])) foundSqliteLinux = true
+                            boolean drop = nativeFile && !sqliteKeep.any { normalized.startsWith(it) }
+                            if (drop) removedSqliteNatives++
+                            drop
+                        })
                     }
                     int method = entry.name.startsWith('META-INF/jars/') && entry.name.endsWith('.jar')
                             ? java.util.zip.ZipEntry.STORED : entry.method
@@ -217,12 +240,16 @@ tasks.register('slimJar') {
             }
         }
 
-        if (!foundRocks) {
+        if (!foundRocks || !foundSqlite || !foundSqliteWindows || !foundSqliteLinux) {
             target.delete()
-            throw new GradleException('RocksDB nested dependency was not found')
+            throw new GradleException("Expected nested dependencies were not found " +
+                    "(rocksdb=${foundRocks}, sqlite=${foundSqlite}, " +
+                    "sqliteWindows=${foundSqliteWindows}, sqliteLinux=${foundSqliteLinux})")
         }
-        logger.lifecycle(String.format(Locale.ROOT, 'Slim JAR: %.1f MiB -> %.1f MiB',
-                source.length() / 1048576.0d, target.length() / 1048576.0d))
+        logger.lifecycle(String.format(Locale.ROOT,
+                'Slim JAR: %.1f MiB -> %.1f MiB (%d RocksDB and %d SQLite natives removed)',
+                source.length() / 1048576.0d, target.length() / 1048576.0d,
+                removedRocksNatives, removedSqliteNatives))
     }
 }
 
