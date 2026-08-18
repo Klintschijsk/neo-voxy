@@ -27,7 +27,7 @@ Neo Voxy 由 **JohnSnow** 维护，在 [NHblock714/voxy](https://github.com/NHbl
 | Sodium / Embeddium 设置界面集成 | ✅ | ✅ | ✅ | ✅ |
 | Iris / Oculus 光影管线 | ✅ | ✅ | ✅ | ✅ |
 | 环境雾、天空雾与流体修复 | ✅ | ✅ | ✅ | ✅ |
-| 圆形 LOD 淡入 | ✅ | ✅ | — | ✅ |
+| 圆形 LOD 淡入 | ✅ | ✅ | ✅ | ✅ |
 | 地面植物交叉模型 | ✅ | ✅ | ✅ | ✅ |
 | 树叶 LOD 模式 | ✅ | ✅ | ✅ | ✅ |
 | 扩展区块请求 | ✅ | ✅ | — | — |

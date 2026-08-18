@@ -27,7 +27,7 @@ Release JARs remove unused platform natives, duplicate module descriptors, and b
 | Sodium / Embeddium settings integration | ✅ | ✅ | ✅ | ✅ |
 | Iris / Oculus shader pipeline | ✅ | ✅ | ✅ | ✅ |
 | Environmental/sky fog and fluid fixes | ✅ | ✅ | ✅ | ✅ |
-| Circular LOD handoff | ✅ | ✅ | — | ✅ |
+| Circular LOD handoff | ✅ | ✅ | ✅ | ✅ |
 | Crossed ground-plant models | ✅ | ✅ | ✅ | ✅ |
 | Leaf LOD modes | ✅ | ✅ | ✅ | ✅ |
 | Extended chunk requests | ✅ | ✅ | — | — |
