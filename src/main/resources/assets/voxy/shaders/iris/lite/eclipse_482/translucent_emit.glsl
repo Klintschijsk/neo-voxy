@@ -7,6 +7,20 @@ if (gl_FragCoord.x * texelSize.x < 1.0 && gl_FragCoord.y * texelSize.y < 1.0) {
 
     vec4 sampled = parameters.sampledColour * parameters.tinting;
     vec3 Albedo = toLinear(sampled.rgb);
+    float unchangedAlpha = sampled.a;
+    float outputAlpha = unchangedAlpha;
+
+    #ifndef WhiteWorld
+        #ifdef VANILLA_LIKE_WATER
+            if (isWater) Albedo *= luma(Albedo);
+        #else
+            if (isWater) {
+                Albedo = vec3(0.0);
+                outputAlpha = 1.0 / 255.0;
+            }
+        #endif
+    #endif
+
     vec3 normal = vec3(
         uint((parameters.face >> 1u) == 2u),
         uint((parameters.face >> 1u) == 0u),
@@ -25,20 +39,26 @@ if (gl_FragCoord.x * texelSize.x < 1.0 && gl_FragCoord.y * texelSize.y < 1.0) {
     float outdoors = clamp((lightmap.y - 0.5) / 0.4, 0.0, 1.0);
     vec3 finalColor = (ambientLight + directLight * outdoors + blockLight) * Albedo;
 
-    float outputAlpha = clamp(sampled.a, 0.0, 1.0);
     if (isWater) {
         vec3 viewNormal = normalize(worldToView(normal));
         float fresnel = pow(clamp(1.0 + dot(viewNormal, normalize(viewPos)), 0.0, 1.0), 5.0);
+        fresnel = mix(0.02, 1.0, fresnel);
         /* VOXY_LITE_SKY_REFLECTION */
-        finalColor = mix(finalColor, skyReflection, clamp(0.08 + fresnel * 0.72, 0.0, 0.80));
+        finalColor = mix(finalColor, skyReflection, fresnel);
         outputAlpha += (1.0 - outputAlpha) * fresnel;
     }
 
-    gbuffer_data_0 = vec4(clamp(finalColor * 0.1, 0.0, 65000.0), outputAlpha);
+    outputAlpha = clamp(outputAlpha, 0.0, 1.0);
+    gbuffer_data_0 = vec4(
+        clamp((finalColor / max(outputAlpha, 1.0 / 255.0)) * 0.1, 0.0, 65000.0),
+        outputAlpha
+    );
     gbuffer_data_1 = vec4(Albedo, isWater ? 1.0 : 0.7);
 
-    vec4 tintData = vec4(Albedo, sampled.a);
-    if (isWater) tintData.rgb = toLinear(parameters.tinting.rgb);
+    vec4 tintData = vec4(Albedo, unchangedAlpha);
+    #ifdef BIOME_TINT_WATER
+        if (isWater) tintData.rgb = toLinear(parameters.tinting.rgb);
+    #endif
     gbuffer_data_2 = vec4(0.0, encodeVec2(tintData.rg), encodeVec2(tintData.ba), 0.5);
     gbuffer_data_3 = vec4(1.0, 1.0, encodeVec2(lightmap), 1.0);
 }
