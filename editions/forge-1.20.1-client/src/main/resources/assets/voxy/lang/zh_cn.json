@@ -1,10 +1,13 @@
 {
   "voxy.config.title": "Voxy",
-  "voxy.config.group.page": "Voxy · %s",
   "voxy.config.group.general": "基础",
-  "voxy.config.group.threadsData": "线程与数据",
-  "voxy.config.rendering": "渲染",
-  "voxy.config.group.environmentEffects": "环境与效果",
+  "voxy.config.group.threads": "线程",
+  "voxy.config.group.data": "数据",
+  "voxy.config.group.activation": "启用状态",
+  "voxy.config.group.quality": "距离与质量",
+  "voxy.config.group.vanillaEffects": "无光影渲染效果",
+  "voxy.config.group.clouds": "云",
+  "voxy.config.group.fog": "雾",
 
   "voxy.config.general.enabled": "启用Voxy",
   "voxy.config.general.enabled.tooltip": "完全启用或禁用Voxy",

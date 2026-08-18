@@ -66,9 +66,6 @@ public abstract class VoxyConfigScreenPages {
                         .build()
                 ).build()
         );
-        pages.add(page("voxy.config.group.general", groups));
-        groups.clear();
-
         groups.add(OptionGroup.createBuilder()
                 .add(OptionImpl.createBuilder(int.class, storage)
                         .setName(Component.translatable("voxy.config.general.serviceThreads"))
@@ -100,7 +97,10 @@ public abstract class VoxyConfigScreenPages {
                             }
                         }, s->!s.dontUseSodiumBuilderThreads)
                         .build()
-                ).add(OptionImpl.createBuilder(boolean.class, storage)
+                ).build()
+        );
+        groups.add(OptionGroup.createBuilder()
+                .add(OptionImpl.createBuilder(boolean.class, storage)
                         .setName(Component.translatable("voxy.config.general.ingest"))
                         .setTooltip(Component.translatable("voxy.config.general.ingest.tooltip"))
                         .setControl(TickBoxControl::new)
@@ -109,7 +109,7 @@ public abstract class VoxyConfigScreenPages {
                         .build()
                 ).build()
         );
-        pages.add(page("voxy.config.group.threadsData", groups));
+        pages.add(page("voxy.config.group.general", groups));
         groups.clear();
 
         groups.add(OptionGroup.createBuilder()
@@ -132,7 +132,10 @@ public abstract class VoxyConfigScreenPages {
                         .setImpact(OptionImpact.HIGH)
                         .setFlags(OptionFlag.REQUIRES_RENDERER_RELOAD)
                         .build()
-                ).add(OptionImpl.createBuilder(int.class, storage)
+                ).build()
+        );
+        groups.add(OptionGroup.createBuilder()
+                .add(OptionImpl.createBuilder(int.class, storage)
                         .setName(Component.translatable("voxy.config.general.subDivisionSize"))
                         .setTooltip(Component.translatable("voxy.config.general.subDivisionSize.tooltip"))
                         .setControl(opt -> new SliderControl(opt, 0, SUBDIV_IN_MAX, 1, v -> Component.literal(Integer.toString(Math.round(ln2subDiv(v))))))
@@ -177,9 +180,6 @@ public abstract class VoxyConfigScreenPages {
                         .build()
                 ).build()
         );
-        pages.add(page("voxy.config.rendering", groups));
-        groups.clear();
-
         OptionImpl<VoxyConfig, Boolean> adaptCloudDistanceOption = OptionImpl.createBuilder(boolean.class, storage)
                 .setName(Component.translatable("voxy.config.general.adaptCloudDistance"))
                 .setTooltip(Component.translatable("voxy.config.general.adaptCloudDistance.tooltip"))
@@ -197,7 +197,37 @@ public abstract class VoxyConfigScreenPages {
                         .setImpact(OptionImpact.LOW)
                         .setFlags(OptionFlag.REQUIRES_RENDERER_RELOAD)
                         .build()
-                ).add(OptionImpl.createBuilder(int.class, storage)
+                ).add(OptionImpl.createBuilder(SSAO.SSAOMode.class, storage)
+                        .setName(Component.translatable("voxy.config.general.ssao_mode"))
+                        .setTooltip(Component.translatable("voxy.config.general.ssao_mode.tooltip"))
+                        .setControl(opt -> new CyclingControl<>(opt, SSAO.SSAOMode.class, SSAO_MODE_LABELS))
+                        .setBinding((s, v) -> {
+                            s.setSSAOMode(v);
+                            reloadActiveRenderer();
+                        }, VoxyConfig::getSSAOMode)
+                        .setImpact(OptionImpact.HIGH)
+                        .setFlags(OptionFlag.REQUIRES_RENDERER_RELOAD)
+                        .build()
+                ).build()
+        );
+        groups.add(OptionGroup.createBuilder()
+                .add(adaptCloudDistanceOption)
+                .add(OptionImpl.createBuilder(int.class, storage)
+                        .setName(Component.translatable("voxy.config.general.cloudDistance"))
+                        .setTooltip(Component.translatable("voxy.config.general.cloudDistance.tooltip"))
+                        .setEnabled(!adaptCloudDistanceOption.getValue())
+                        .setControl(opt -> new SliderControl(opt, 0, 2048, 2, v -> {
+                            if (adaptCloudDistanceOption.getValue())
+                                return Component.translatable("voxy.config.general.adaptive");
+                            return v < 1 ? Component.translatable("voxy.config.general.default") : Component.literal(Integer.toString(v));
+                        }))
+                        .setBinding((s, v) -> s.cloudDistance = v, s -> s.cloudDistance)
+                        .setImpact(OptionImpact.VARIES)
+                        .build()
+                ).build()
+        );
+        groups.add(OptionGroup.createBuilder()
+                .add(OptionImpl.createBuilder(int.class, storage)
                         .setName(Component.translatable("voxy.config.general.skyFogDistance"))
                         .setTooltip(Component.translatable("voxy.config.general.skyFogDistance.tooltip"))
                         .setControl(opt -> new SliderControl(opt, 16, 512, 16, v -> Component.literal(Integer.toString(v))))
@@ -215,38 +245,15 @@ public abstract class VoxyConfigScreenPages {
                         .setControl(opt -> new SliderControl(opt, 0, 100, 5, v -> Component.literal(String.format("%.2f", v / 100.0f))))
                         .setBinding((s, v) -> s.fogDensity = v / 100.0f, s -> (int)(s.fogDensity * 100))
                         .build()
-                ).add(adaptCloudDistanceOption).add(OptionImpl.createBuilder(int.class, storage)
-                        .setName(Component.translatable("voxy.config.general.cloudDistance"))
-                        .setTooltip(Component.translatable("voxy.config.general.cloudDistance.tooltip"))
-                        .setEnabled(!adaptCloudDistanceOption.getValue())
-                        .setControl(opt -> new SliderControl(opt, 0, 2048, 2, v -> {
-                            if (adaptCloudDistanceOption.getValue())
-                                return Component.translatable("voxy.config.general.adaptive");
-                            return v < 1 ? Component.translatable("voxy.config.general.default") : Component.literal(Integer.toString(v));
-                        }))
-                        .setBinding((s, v) -> s.cloudDistance = v, s -> s.cloudDistance)
-                        .setImpact(OptionImpact.VARIES)
-                        .build()
-                ).add(OptionImpl.createBuilder(SSAO.SSAOMode.class, storage)
-                        .setName(Component.translatable("voxy.config.general.ssao_mode"))
-                        .setTooltip(Component.translatable("voxy.config.general.ssao_mode.tooltip"))
-                        .setControl(opt -> new CyclingControl<>(opt, SSAO.SSAOMode.class, SSAO_MODE_LABELS))
-                        .setBinding((s, v) -> {
-                            s.setSSAOMode(v);
-                            reloadActiveRenderer();
-                        }, VoxyConfig::getSSAOMode)
-                        .setImpact(OptionImpact.HIGH)
-                        .setFlags(OptionFlag.REQUIRES_RENDERER_RELOAD)
-                        .build()
                 ).build()
         );
-        pages.add(page("voxy.config.group.environmentEffects", groups));
+        pages.add(page("voxy.config.rendering", groups));
         return List.copyOf(pages);
     }
 
     private static OptionPage page(String groupKey, List<OptionGroup> groups) {
         return new OptionPage(
-                Component.translatable("voxy.config.group.page", Component.translatable(groupKey)),
+                Component.translatable(groupKey),
                 ImmutableList.copyOf(groups));
     }
 

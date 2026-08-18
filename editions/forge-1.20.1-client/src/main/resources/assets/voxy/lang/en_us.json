@@ -1,9 +1,13 @@
 {
   "voxy.config.title": "Voxy",
-  "voxy.config.group.page": "Voxy · %s",
   "voxy.config.group.general": "Basics",
-  "voxy.config.group.threadsData": "Threads and data",
-  "voxy.config.group.environmentEffects": "Environment and effects",
+  "voxy.config.group.threads": "Threads",
+  "voxy.config.group.data": "Data",
+  "voxy.config.group.activation": "Activation",
+  "voxy.config.group.quality": "Distance and quality",
+  "voxy.config.group.vanillaEffects": "No-shader effects",
+  "voxy.config.group.clouds": "Clouds",
+  "voxy.config.group.fog": "Fog",
 
   "voxy.config.general": "General",
   "voxy.config.rendering": "Rendering",

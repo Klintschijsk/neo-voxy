@@ -133,7 +133,7 @@
   "voxy.config.general.biomeBlendRadius.off": "关闭",
   "voxy.config.general.biomeBlendGrass": "同时混合草木颜色",
   "voxy.config.general.biomeBlendGrass.tooltip": "同时对草方块和树叶使用群系颜色混合；会增加相关区段的网格重建开销。",
-  "voxy.config.general.lodLiteShading.tooltip": "使用 NeoVoxy 内置补丁或兼容光影包提供的 LOD 专用精简程序，降低远景逐像素光照与材质开销。默认关闭。Lite 不完整、契约不匹配或过渡条件不满足时会整套回退到标准程序。",
+  "voxy.config.general.lodLiteShading.tooltip": "实验性功能，兼容性较差。使用 LOD 专用精简程序降低远景逐像素光照与材质开销，在 GPU 受限场景下可能大幅提高帧数。默认关闭；Lite 不完整、契约不匹配或过渡条件不满足时会整套回退到标准程序。",
   "voxy.config.general.lodLiteShading.status.disabled": "状态：未启用。",
   "voxy.config.general.lodLiteShading.status.requested": "状态：已请求，等待光影重载完成。",
   "voxy.config.general.lodLiteShading.status.active": "状态：已启用（%s；已测试版本：%s）。",

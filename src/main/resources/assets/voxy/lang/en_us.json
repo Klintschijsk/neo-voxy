@@ -133,7 +133,7 @@
   "voxy.config.general.biomeBlendRadius.off": "Off",
   "voxy.config.general.biomeBlendGrass": "Also blend grass and foliage",
   "voxy.config.general.biomeBlendGrass.tooltip": "Also applies biome colour blending to grass and foliage; this increases mesh rebuild work for affected sections.",
-  "voxy.config.general.lodLiteShading.tooltip": "Uses cut-down LOD programs supplied by NeoVoxy's built-in patches or a compatible shader pack. Off by default. An incomplete pair, incompatible contract, or unsafe transition falls back atomically to the standard programs.",
+  "voxy.config.general.lodLiteShading.tooltip": "Experimental and poorly compatible. Uses cut-down LOD programs to reduce distant per-pixel lighting and material cost, which can significantly improve FPS when GPU-bound. Off by default; an incomplete pair, incompatible contract, or unsafe transition falls back atomically to the standard programs.",
   "voxy.config.general.lodLiteShading.status.disabled": "Status: disabled.",
   "voxy.config.general.lodLiteShading.status.requested": "Status: requested; waiting for shader reload.",
   "voxy.config.general.lodLiteShading.status.active": "Status: active (%s; tested versions: %s).",

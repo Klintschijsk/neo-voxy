@@ -242,6 +242,7 @@ public class IrisShaderPatch {
     public String getTAAShift() {
         return this.patchData.taaOffset;// == null?"{return vec2(0.0);}":this.patchData.taaOffset;
     }
+
     public String[] getUniformList() {
         return this.patchData.uniforms;
     }

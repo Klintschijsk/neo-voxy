@@ -546,7 +546,17 @@ public class IrisVoxyRenderPipelineData {
             for (var uniform : uniforms) {
                 uniformsUnseen.remove(uniform.name);
             }
-            Logger.error("The following uniforms could not be found: [" + uniformsUnseen.stream().sorted(String::compareToIgnoreCase).collect(Collectors.joining(","))+"]");
+            if (uniformsUnseen.remove("taaOffsetVX")) {
+                uniforms.add(new UniformWritingHolder("taaOffsetVX", UniformType.VEC2,
+                        offset -> ptr -> {
+                            MemoryUtil.memPutFloat(ptr + offset, 0.0f);
+                            MemoryUtil.memPutFloat(ptr + offset + 4, 0.0f);
+                        }));
+                Logger.warn("Custom TAA offset is unavailable; Voxy will provide a zero-valued compatibility uniform");
+            }
+            if (!uniformsUnseen.isEmpty()) {
+                Logger.error("The following uniforms could not be found: [" + uniformsUnseen.stream().sorted(String::compareToIgnoreCase).collect(Collectors.joining(","))+"]");
+            }
         }
         //In _theory_ this should work?
         return uniforms;
