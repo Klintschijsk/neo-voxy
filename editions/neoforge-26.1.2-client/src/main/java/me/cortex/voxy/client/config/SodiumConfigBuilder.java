@@ -234,14 +234,23 @@ public class SodiumConfigBuilder {
    }
 
    public static class Group extends SodiumConfigBuilder.Enableable<SodiumConfigBuilder.Group> {
+      protected @Nullable Component name;
       protected SodiumConfigBuilder.Option[] options;
 
       public Group(SodiumConfigBuilder.Option... options) {
          this.options = options;
       }
 
+      public Group(Component name, SodiumConfigBuilder.Option... options) {
+         this.name = name;
+         this.options = options;
+      }
+
       protected OptionGroupBuilder create(ConfigBuilder builder, SodiumConfigBuilder.BuildCtx ctx) {
          OptionGroupBuilder group = builder.createOptionGroup();
+         if (this.name != null) {
+            group.setName(this.name);
+         }
 
          for (SodiumConfigBuilder.Option option : this.options) {
             group.addOption(option.create(builder, ctx));

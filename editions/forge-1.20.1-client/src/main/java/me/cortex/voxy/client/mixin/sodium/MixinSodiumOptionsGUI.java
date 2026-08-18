@@ -23,7 +23,7 @@ public class MixinSodiumOptionsGUI {
     @Inject(method = "<init>", at = @At("TAIL"))
     private void voxy$addConfigPage(Screen prevScreen, CallbackInfo ci) {
         if (VoxyCommon.isAvailable()) {
-            this.pages.add(VoxyConfigScreenPages.voxyOptionPage = VoxyConfigScreenPages.page());
+            this.pages.addAll(VoxyConfigScreenPages.pages());
         }
     }
 }

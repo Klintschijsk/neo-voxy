@@ -15,7 +15,6 @@ import net.caffeinemc.mods.sodium.api.config.option.OptionImpact;
 import net.caffeinemc.mods.sodium.api.config.option.Range;
 import net.caffeinemc.mods.sodium.api.config.structure.ConfigBuilder;
 import net.caffeinemc.mods.sodium.api.config.structure.ModOptionsBuilder;
-import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 
@@ -42,7 +41,7 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
             }, "voxy:enabled").register("voxy:iris_reload", () -> IrisUtil.reload()),
             new SodiumConfigBuilder.Page(
                   Component.translatable("voxy.config.general"),
-                  new SodiumConfigBuilder.Group(
+                  new SodiumConfigBuilder.Group(Component.translatable("voxy.config.group.general"),
                      (SodiumConfigBuilder.Option)new SodiumConfigBuilder.BoolOption(
                            "voxy:enabled", Component.translatable("voxy.config.general.enabled"), () -> CFG.enabled, v -> {
                               CFG.enabled = v;
@@ -64,7 +63,7 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                         .setPostChangeFlags(RENDER_RELOAD, "voxy:iris_reload")
                         .setEnabler(null)
                   ),
-                   new SodiumConfigBuilder.Group(
+                   new SodiumConfigBuilder.Group(Component.translatable("voxy.config.group.threads"),
                       new SodiumConfigBuilder.IntOption(
                            "voxy:thread_count",
                            Component.translatable("voxy.config.general.serviceThreads"),
@@ -81,7 +80,7 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                         )
                         .setPostChangeFlags("voxy:update_threads", RENDER_RELOAD)
                   ),
-                  new SodiumConfigBuilder.Group(
+                  new SodiumConfigBuilder.Group(Component.translatable("voxy.config.group.data"),
                      new SodiumConfigBuilder.BoolOption(
                         "voxy:ingest_enabled", Component.translatable("voxy.config.general.ingest"), () -> CFG.ingestEnabled, v -> CFG.ingestEnabled = v
                      )
@@ -90,7 +89,7 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                .setEnabler("voxy:enabled"),
             new SodiumConfigBuilder.Page(
                   Component.translatable("voxy.config.rendering"),
-                  new SodiumConfigBuilder.Group(
+                  new SodiumConfigBuilder.Group(Component.translatable("voxy.config.group.activation"),
                      (SodiumConfigBuilder.Option)new SodiumConfigBuilder.BoolOption(
                            "voxy:rendering", Component.translatable("voxy.config.general.rendering"), () -> CFG.enableRendering, v -> CFG.enableRendering = v
                         )
@@ -107,7 +106,7 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                         .setPostChangeFlags("voxy:iris_reload")
                         .setEnabler("voxy:enabled")
                   ),
-                  new SodiumConfigBuilder.Group(
+                  new SodiumConfigBuilder.Group(Component.translatable("voxy.config.group.quality"),
                      new SodiumConfigBuilder.IntOption(
                            "voxy:subdivsize",
                            Component.translatable("voxy.config.general.subDivisionSize"),
@@ -131,9 +130,7 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                               vrs.setRenderDistance(CFG.sectionRenderDistance);
                            }
                         }, "voxy:rendering", RENDER_RELOAD)
-                        .setImpact(OptionImpact.MEDIUM)
-                   ),
-                  new SodiumConfigBuilder.Group(
+                         .setImpact(OptionImpact.MEDIUM),
                      new SodiumConfigBuilder.IntOption(
                            "voxy:render_pressure",
                            Component.translatable("voxy.config.general.renderPressure"),
@@ -154,11 +151,10 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                         .setImpact(OptionImpact.MEDIUM)
                         .setPostChangeFlags(RENDER_RELOAD)
                    ),
-                  new SodiumConfigBuilder.Group(
+                  new SodiumConfigBuilder.Group(Component.translatable("voxy.config.group.experimental"),
                      new SodiumConfigBuilder.BoolOption(
                            "voxy:lod_boundary_fade",
-                           Component.translatable("voxy.config.general.lodBoundaryFade.warning")
-                              .withStyle(ChatFormatting.RED, ChatFormatting.BOLD),
+                            Component.translatable("voxy.config.general.lodBoundaryFade"),
                            () -> CFG.enableLodBoundaryFade,
                            v -> CFG.enableLodBoundaryFade = v
                         )
@@ -170,7 +166,7 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                            v -> CFG.lodBoundaryFadeLength = v,
                            new Range(8, 64, 1)
                         )
-                        .setFormatter(v -> Component.literal(v + " blocks"))
+                         .setFormatter(v -> Component.translatable("voxy.config.unit.blocks", v))
                         .setEnabler("voxy:lod_boundary_fade")
                         .setImpact(OptionImpact.LOW),
                      new SodiumConfigBuilder.IntOption(
@@ -180,11 +176,11 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                            v -> CFG.lodBoundaryInset = v,
                            new Range(8, 32, 1)
                         )
-                        .setFormatter(v -> Component.literal(v + " blocks"))
+                         .setFormatter(v -> Component.translatable("voxy.config.unit.blocks", v))
                         .setEnabler("voxy:lod_boundary_fade")
                         .setImpact(OptionImpact.LOW)
                   ),
-                  new SodiumConfigBuilder.Group(
+                  new SodiumConfigBuilder.Group(Component.translatable("voxy.config.group.vanillaEffects"),
                         new SodiumConfigBuilder.BoolOption(
                               "voxy:eviromental_fog",
                               Component.translatable("voxy.config.general.environmental_fog"),

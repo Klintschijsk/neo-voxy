@@ -3,6 +3,14 @@
 
   "voxy.config.general": "General",
   "voxy.config.rendering": "Rendering",
+  "voxy.config.group.general": "Basics",
+  "voxy.config.group.threads": "Threads",
+  "voxy.config.group.data": "Data",
+  "voxy.config.group.activation": "Activation",
+  "voxy.config.group.quality": "Distance and quality",
+  "voxy.config.group.vanillaEffects": "Non-shader effects",
+  "voxy.config.group.experimental": "Experimental",
+  "voxy.config.unit.blocks": "%s blocks",
 
   "voxy.config.general.enabled": "Enable Voxy",
   "voxy.config.general.enabled.tooltip": "Fully enables or disables voxy",

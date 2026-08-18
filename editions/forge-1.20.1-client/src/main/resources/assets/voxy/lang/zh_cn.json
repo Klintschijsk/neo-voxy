@@ -1,5 +1,10 @@
 {
   "voxy.config.title": "Voxy",
+  "voxy.config.group.page": "Voxy · %s",
+  "voxy.config.group.general": "基础",
+  "voxy.config.group.threadsData": "线程与数据",
+  "voxy.config.rendering": "渲染",
+  "voxy.config.group.environmentEffects": "环境与效果",
 
   "voxy.config.general.enabled": "启用Voxy",
   "voxy.config.general.enabled.tooltip": "完全启用或禁用Voxy",

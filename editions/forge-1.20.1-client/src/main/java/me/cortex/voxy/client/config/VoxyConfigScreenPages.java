@@ -35,9 +35,8 @@ public abstract class VoxyConfigScreenPages {
 
     private VoxyConfigScreenPages(){}
 
-    public static OptionPage voxyOptionPage = null;
-
-    public static OptionPage page() {
+    public static List<OptionPage> pages() {
+        List<OptionPage> pages = new ArrayList<>();
         List<OptionGroup> groups = new ArrayList<>();
         VoxyConfig storage = VoxyConfig.CONFIG;
 
@@ -67,6 +66,8 @@ public abstract class VoxyConfigScreenPages {
                         .build()
                 ).build()
         );
+        pages.add(page("voxy.config.group.general", groups));
+        groups.clear();
 
         groups.add(OptionGroup.createBuilder()
                 .add(OptionImpl.createBuilder(int.class, storage)
@@ -108,6 +109,8 @@ public abstract class VoxyConfigScreenPages {
                         .build()
                 ).build()
         );
+        pages.add(page("voxy.config.group.threadsData", groups));
+        groups.clear();
 
         groups.add(OptionGroup.createBuilder()
                 .add(OptionImpl.createBuilder(boolean.class, storage)
@@ -174,6 +177,8 @@ public abstract class VoxyConfigScreenPages {
                         .build()
                 ).build()
         );
+        pages.add(page("voxy.config.rendering", groups));
+        groups.clear();
 
         OptionImpl<VoxyConfig, Boolean> adaptCloudDistanceOption = OptionImpl.createBuilder(boolean.class, storage)
                 .setName(Component.translatable("voxy.config.general.adaptCloudDistance"))
@@ -235,7 +240,14 @@ public abstract class VoxyConfigScreenPages {
                         .build()
                 ).build()
         );
-        return new OptionPage(Component.translatable("voxy.config.title"), ImmutableList.copyOf(groups));
+        pages.add(page("voxy.config.group.environmentEffects", groups));
+        return List.copyOf(pages);
+    }
+
+    private static OptionPage page(String groupKey, List<OptionGroup> groups) {
+        return new OptionPage(
+                Component.translatable("voxy.config.group.page", Component.translatable(groupKey)),
+                ImmutableList.copyOf(groups));
     }
 
     private static void reloadActiveRenderer() {

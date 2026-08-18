@@ -14,7 +14,6 @@ import net.caffeinemc.mods.sodium.api.config.option.OptionFlag;
 import net.caffeinemc.mods.sodium.api.config.option.OptionImpact;
 import net.caffeinemc.mods.sodium.api.config.option.Range;
 import net.caffeinemc.mods.sodium.api.config.structure.ConfigBuilder;
-import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -48,7 +47,7 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                             });
                 },
                 new Page(Component.translatable("voxy.config.general"),
-                        new Group(
+                        new Group(Component.translatable("voxy.config.group.general"),
                                 new BoolOption(
                                         "voxy:enabled",
                                         Component.translatable("voxy.config.general.enabled"),
@@ -68,7 +67,7 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                                                 VoxyCommon.shutdownInstance();
                                             }
                                         }).setPostChangeFlags(RENDER_RELOAD, "voxy:iris_reload").setEnabler(null)
-                        ), new Group(
+                        ), new Group(Component.translatable("voxy.config.group.threads"),
                                 new IntOption(
                                         "voxy:thread_count",
                                         Component.translatable("voxy.config.general.serviceThreads"),
@@ -80,7 +79,7 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                                         Component.translatable("voxy.config.general.useSodiumBuilder"),
                                         ()->!CFG.dontUseSodiumBuilderThreads, v->CFG.dontUseSodiumBuilderThreads=!v)
                                         .setPostChangeFlags("voxy:update_threads", RENDER_RELOAD)
-                        ), new Group(
+                        ), new Group(Component.translatable("voxy.config.group.data"),
                                 new BoolOption(
                                         "voxy:ingest_enabled",
                                         Component.translatable("voxy.config.general.ingest"),
@@ -88,7 +87,7 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                         )
                 ).setEnabler("voxy:enabled"),
                 new Page(Component.translatable("voxy.config.rendering"),
-                        new Group(
+                        new Group(Component.translatable("voxy.config.group.activation"),
                                 new BoolOption(
                                         "voxy:rendering",
                                         Component.translatable("voxy.config.general.rendering"),
@@ -105,7 +104,7 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                                         },"voxy:enabled", RENDER_RELOAD)
                                         .setPostChangeFlags("voxy:iris_reload")
                                         .setEnabler("voxy:enabled")
-                        ), new Group(
+                        ), new Group(Component.translatable("voxy.config.group.quality"),
                                 new IntOption(
                                         "voxy:subdivsize",
                                         Component.translatable("voxy.config.general.subDivisionSize"),
@@ -139,28 +138,6 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                                         new Range(0, 4, 1))
                                         .setFormatter(v->Component.translatable("voxy.config.general.renderPressure." + v))
                                         .setImpact(OptionImpact.HIGH),
-                                new BoolOption(
-                                        "voxy:lod_boundary_fade",
-                                        Component.translatable("voxy.config.general.lodBoundaryFade.warning")
-                                                .withStyle(ChatFormatting.RED, ChatFormatting.BOLD),
-                                        ()->CFG.enableLodBoundaryFade, v->CFG.enableLodBoundaryFade=v)
-                                        .setImpact(OptionImpact.LOW),
-                                new IntOption(
-                                        "voxy:lod_boundary_fade_length",
-                                        Component.translatable("voxy.config.general.lodBoundaryFadeLength"),
-                                        ()->CFG.lodBoundaryFadeLength, v->CFG.lodBoundaryFadeLength=v,
-                                        new Range(8, 64, 1))
-                                        .setFormatter(v->Component.literal(v + " blocks"))
-                                        .setEnabler("voxy:lod_boundary_fade")
-                                        .setImpact(OptionImpact.LOW),
-                                new IntOption(
-                                        "voxy:lod_boundary_inset",
-                                        Component.translatable("voxy.config.general.lodBoundaryInset"),
-                                        ()->CFG.lodBoundaryInset, v->CFG.lodBoundaryInset=v,
-                                        new Range(8, 32, 1))
-                                        .setFormatter(v->Component.literal(v + " blocks"))
-                                        .setEnabler("voxy:lod_boundary_fade")
-                                        .setImpact(OptionImpact.LOW),
                                 new EnumOption<>(
                                         "voxy:leaf_lod_mode",
                                         VoxyConfig.LeafLodMode.class,
@@ -171,7 +148,7 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                                                 "voxy.config.general.leafLodMode." + mode.name().toLowerCase(java.util.Locale.ROOT)))
                                         .setPostChangeFlags(RENDER_RELOAD)
                                         .setImpact(OptionImpact.MEDIUM)
-                        ), new Group(
+                        ), new Group(Component.translatable("voxy.config.group.vanillaEffects"),
                                 new BoolOption(
                                     "voxy:environmental_fog",
                                     Component.translatable("voxy.config.general.environmental_fog"),
@@ -184,7 +161,8 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                                         .setImpact(OptionImpact.MEDIUM)
                                         .setPostChangeFlags(RENDER_RELOAD)
                         )
-                        .setEnablerInherit(s->!IrisUtil.irisShaderPackEnabled(), ConfigState.UPDATE_ON_REBUILD), new Group(
+                        .setEnablerInherit(s->!IrisUtil.irisShaderPackEnabled(), ConfigState.UPDATE_ON_REBUILD),
+                        new Group(Component.translatable("voxy.config.group.clouds"),
                                 new BoolOption(
                                         "voxy:adapt_cloud_distance",
                                         Component.translatable("voxy.config.general.adaptCloudDistance"),
@@ -196,7 +174,8 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                                         new Range(0, VoxyConfig.MAX_CLOUD_DISTANCE, 1))
                                         .setImpact(OptionImpact.LOW)
                         )
-                        .setEnablerInherit(s->!IrisUtil.irisShaderPackEnabled(), ConfigState.UPDATE_ON_REBUILD), new Group(
+                        .setEnablerInherit(s->!IrisUtil.irisShaderPackEnabled(), ConfigState.UPDATE_ON_REBUILD),
+                        new Group(Component.translatable("voxy.config.group.fog"),
                                 new IntOption(
                                         "voxy:fog_intensity",
                                         Component.translatable("voxy.config.general.fogIntensity"),
@@ -216,10 +195,33 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                                         new Range(0, 1024, 1))
                                         .setImpact(OptionImpact.LOW)
                         )
-                        .setEnablerInherit(s->!IrisUtil.irisShaderPackEnabled(), ConfigState.UPDATE_ON_REBUILD)
+                        .setEnablerInherit(s->!IrisUtil.irisShaderPackEnabled(), ConfigState.UPDATE_ON_REBUILD),
+                        new Group(Component.translatable("voxy.config.group.experimental"),
+                                new BoolOption(
+                                        "voxy:lod_boundary_fade",
+                                        Component.translatable("voxy.config.general.lodBoundaryFade"),
+                                        ()->CFG.enableLodBoundaryFade, v->CFG.enableLodBoundaryFade=v)
+                                        .setImpact(OptionImpact.LOW),
+                                new IntOption(
+                                        "voxy:lod_boundary_fade_length",
+                                        Component.translatable("voxy.config.general.lodBoundaryFadeLength"),
+                                        ()->CFG.lodBoundaryFadeLength, v->CFG.lodBoundaryFadeLength=v,
+                                        new Range(8, 64, 1))
+                                        .setFormatter(v->Component.translatable("voxy.config.unit.blocks", v))
+                                        .setEnabler("voxy:lod_boundary_fade")
+                                        .setImpact(OptionImpact.LOW),
+                                new IntOption(
+                                        "voxy:lod_boundary_inset",
+                                        Component.translatable("voxy.config.general.lodBoundaryInset"),
+                                        ()->CFG.lodBoundaryInset, v->CFG.lodBoundaryInset=v,
+                                        new Range(8, 32, 1))
+                                        .setFormatter(v->Component.translatable("voxy.config.unit.blocks", v))
+                                        .setEnabler("voxy:lod_boundary_fade")
+                                        .setImpact(OptionImpact.LOW)
+                        )
                 ).setEnablerAND("voxy:enabled", "voxy:rendering"),
                 new Page(Component.translatable("voxy.config.fakesight"),
-                        new Group(
+                        new Group(Component.translatable("voxy.config.group.chunkRequests"),
                                 new BoolOption(
                                         "voxy:fakesight_enabled",
                                         Component.translatable("voxy.config.fakesight.enabled"),

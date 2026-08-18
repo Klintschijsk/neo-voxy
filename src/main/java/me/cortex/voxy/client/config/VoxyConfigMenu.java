@@ -230,6 +230,38 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                                         .setPostChangeFlags(RENDER_RELOAD)
                                         .setImpact(OptionImpact.MEDIUM)
                         ),
+                        new Group(Component.translatable("voxy.config.farEntities"),
+                                new BoolOption(
+                                        "voxy:far_players",
+                                        Component.translatable("voxy.config.farEntities.players"),
+                                        ()->CFG.enableFarPlayerRendering, v->CFG.enableFarPlayerRendering=v)
+                                        .setPostChangeFlags("voxy:refresh_far_entities"),
+                                new BoolOption(
+                                        "voxy:far_vehicles",
+                                        Component.translatable("voxy.config.farEntities.vehicles"),
+                                        ()->CFG.enableFarVehicleRendering, v->CFG.enableFarVehicleRendering=v)
+                                        .setPostChangeFlags("voxy:refresh_far_entities"),
+                                new BoolOption(
+                                        "voxy:far_player_names",
+                                        Component.translatable("voxy.config.farEntities.names"),
+                                        ()->CFG.renderFarPlayerNames, v->CFG.renderFarPlayerNames=v)
+                                        .setEnabler("voxy:far_players"),
+                                new IntOption(
+                                        "voxy:far_player_animation_distance",
+                                        Component.translatable("voxy.config.farEntities.animationDistance"),
+                                        ()->CFG.farPlayerAnimationDistance, v->CFG.farPlayerAnimationDistance=v,
+                                        new Range(0, 32768, 64))
+                                        .setFormatter(v->v == 0
+                                                ? Component.translatable("voxy.config.compat.distanceFollowLod")
+                                                : Component.translatable("voxy.config.unit.blocks", v))
+                                        .setEnabler("voxy:far_players")
+                                        .setImpact(OptionImpact.LOW),
+                                new BoolOption(
+                                        "voxy:share_far_player_position",
+                                        Component.translatable("voxy.config.farEntities.sharePosition"),
+                                        ()->CFG.shareFarPlayerPosition, v->CFG.shareFarPlayerPosition=v)
+                                        .setPostChangeFlags("voxy:refresh_far_entities")
+                        ),
                         new Group(Component.translatable("voxy.config.group.experimental"),
                                 new BoolOption(
                                         "voxy:lod_boundary_fade",
@@ -263,7 +295,7 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                         )
                 ).setEnablerAND("voxy:enabled", "voxy:rendering"),
                 new Page(Component.translatable("voxy.config.fakesight"),
-                        new Group(
+                        new Group(Component.translatable("voxy.config.group.chunkRequests"),
                                 new BoolOption(
                                         "voxy:fakesight_enabled",
                                         Component.translatable("voxy.config.fakesight.enabled"),
@@ -283,42 +315,8 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                                         .setImpact(OptionImpact.HIGH)
                         )
                 ).setEnablerAND("voxy:enabled", "voxy:rendering"),
-                new Page(Component.translatable("voxy.config.farEntities"),
-                        new Group(
-                                new BoolOption(
-                                        "voxy:far_players",
-                                        Component.translatable("voxy.config.farEntities.players"),
-                                        ()->CFG.enableFarPlayerRendering, v->CFG.enableFarPlayerRendering=v)
-                                        .setPostChangeFlags("voxy:refresh_far_entities"),
-                                new BoolOption(
-                                        "voxy:far_vehicles",
-                                        Component.translatable("voxy.config.farEntities.vehicles"),
-                                        ()->CFG.enableFarVehicleRendering, v->CFG.enableFarVehicleRendering=v)
-                                        .setPostChangeFlags("voxy:refresh_far_entities"),
-                                new BoolOption(
-                                        "voxy:far_player_names",
-                                        Component.translatable("voxy.config.farEntities.names"),
-                                        ()->CFG.renderFarPlayerNames, v->CFG.renderFarPlayerNames=v)
-                                        .setEnabler("voxy:far_players"),
-                                new IntOption(
-                                        "voxy:far_player_animation_distance",
-                                        Component.translatable("voxy.config.farEntities.animationDistance"),
-                                        ()->CFG.farPlayerAnimationDistance, v->CFG.farPlayerAnimationDistance=v,
-                                        new Range(0, 32768, 64))
-                                        .setFormatter(v->v == 0
-                                                ? Component.translatable("voxy.config.compat.distanceFollowLod")
-                                                : Component.literal(v + " blocks"))
-                                        .setEnabler("voxy:far_players")
-                                        .setImpact(OptionImpact.LOW),
-                                new BoolOption(
-                                        "voxy:share_far_player_position",
-                                        Component.translatable("voxy.config.farEntities.sharePosition"),
-                                        ()->CFG.shareFarPlayerPosition, v->CFG.shareFarPlayerPosition=v)
-                                        .setPostChangeFlags("voxy:refresh_far_entities")
-                        )
-                ).setEnablerAND("voxy:enabled", "voxy:rendering"),
                 new Page(Component.translatable("voxy.config.compat"),
-                        new Group(
+                        new Group(Component.translatable("voxy.config.group.aeronautics"),
                                 new BoolOption(
                                         "voxy:sable_lod",
                                         Component.translatable("voxy.config.compat.sableLod"),
@@ -331,7 +329,8 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                                         new Range(0, 100, 5))
                                         .setFormatter(v->Component.literal(v+"%"))
                                         .setImpact(OptionImpact.MEDIUM)
-                        ).setEnablerInherit(s->sableInstalled), new Group(
+                        ).setEnablerInherit(s->sableInstalled),
+                        new Group(Component.translatable("voxy.config.group.create"),
                                 new BoolOption(
                                         "voxy:distant_trains",
                                         Component.translatable("voxy.config.compat.distantTrains"),
@@ -378,7 +377,8 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                                         Component.translatable("voxy.config.compat.kineticEnclosedCulling"),
                                         ()->CFG.kineticEnclosedCulling, v->CFG.kineticEnclosedCulling=v)
                                         .setImpact(OptionImpact.LOW)
-                        ).setEnablerInherit(s->createInstalled), new Group(
+                        ).setEnablerInherit(s->createInstalled),
+                        new Group(Component.translatable("voxy.config.group.vanillaExtensions"),
                                 new BoolOption(
                                         "voxy:distant_beacons",
                                         Component.translatable("voxy.config.compat.distantBeacons"),
@@ -391,7 +391,8 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                                         new Range(0, 512, 16))
                                         .setFormatter(VoxyConfigMenu::formatCreateDistance)
                                         .setImpact(OptionImpact.LOW)
-                        ), new Group(
+                        ),
+                        new Group(Component.translatable("voxy.config.group.seasons"),
                                 new BoolOption(
                                         "voxy:es_snow_lod",
                                         Component.translatable("voxy.config.compat.esSnowLod"),

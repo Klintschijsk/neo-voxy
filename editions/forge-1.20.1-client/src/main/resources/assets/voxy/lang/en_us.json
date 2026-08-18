@@ -1,5 +1,9 @@
 {
   "voxy.config.title": "Voxy",
+  "voxy.config.group.page": "Voxy · %s",
+  "voxy.config.group.general": "Basics",
+  "voxy.config.group.threadsData": "Threads and data",
+  "voxy.config.group.environmentEffects": "Environment and effects",
 
   "voxy.config.general": "General",
   "voxy.config.rendering": "Rendering",

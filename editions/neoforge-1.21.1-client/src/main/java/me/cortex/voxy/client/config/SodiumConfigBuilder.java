@@ -1,6 +1,5 @@
 package me.cortex.voxy.client.config;
 
-import com.mojang.datafixers.types.Func;
 import me.cortex.voxy.common.util.Pair;
 import net.caffeinemc.mods.sodium.api.config.ConfigState;
 import net.caffeinemc.mods.sodium.api.config.StorageEventHandler;
@@ -174,13 +173,21 @@ public class SodiumConfigBuilder {
     }
 
     public static class Group extends Enableable<Group> {
+        protected @Nullable Component name;
         protected Option[] options;
         public Group(Option... options) {
+            this.options = options;
+        }
+        public Group(Component name, Option... options) {
+            this.name = name;
             this.options = options;
         }
 
         protected OptionGroupBuilder create(ConfigBuilder builder, BuildCtx ctx) {
             var group = builder.createOptionGroup();
+            if (this.name != null) {
+                group.setName(this.name);
+            }
             for (var option : this.options) {
                 group.addOption(option.create(builder, ctx));
             }
