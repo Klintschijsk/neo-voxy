@@ -154,7 +154,14 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                                         .setNameProvider(mode -> Component.translatable(
                                                 "voxy.config.general.leafLodMode." + mode.name().toLowerCase(java.util.Locale.ROOT)))
                                         .setPostChangeFlags(RENDER_RELOAD)
-                                        .setImpact(OptionImpact.MEDIUM)
+                                        .setImpact(OptionImpact.MEDIUM),
+                                new IntOption(
+                                        "voxy:earth_curve_ratio",
+                                        Component.translatable("voxy.config.general.earthCurveRatio"),
+                                        ()->CFG.earthCurveRatio, v->CFG.earthCurveRatio=(v > 0 && v < 50) ? 50 : v,
+                                        new Range(0, 10000, 50))
+                                        .setPostChangeFlags(RENDER_RELOAD)
+                                        .setImpact(OptionImpact.LOW)
                         ), new Group(Component.translatable("voxy.config.group.vanillaEffects"),
                                 new BoolOption(
                                     "voxy:environmental_fog",

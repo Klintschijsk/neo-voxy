@@ -1,5 +1,25 @@
 Neo Voxy 更新日志 / Changelog
 
+## 0.4.1beta（1.21.1 NeoForge 联动版）/ 0.3.0（客户端版）— 2026-08-18
+
+### 简体中文
+
+- 将 GPU 世界曲率统一移植至 1.21.1、1.20.1 与 26.1.2；曲率从原版渲染边界外开始，避免边界台阶和按区段跳动。
+- 客户端版统一版本号为 0.3.0，联动版更新为 0.4.1beta，并修复 26.1.2 包内版本元数据。
+- 统一三档树叶 LOD 模式及配置入口；保留隐藏内部面剔除，避免额外的逐帧方块扫描。
+- 向旧版降级移植水体优先的 LOD 降采样、占用率就近取整和光照选择，减少流体破碎与 LOD 系统性抬升。
+- 进服消息改为每次进入世界显示，默认开启，并可在 Sodium/Embeddium 的 Neo Voxy 设置中关闭；消息会直接提示关闭位置。
+- 扩展区块请求保持 1.21.1 专用、默认关闭并限制为 48 区块；远景信标的完整缓存渲染继续由联动版提供，避免在缺少数据索引的客户端版引入假兼容。
+
+### English
+
+- Ported GPU world curvature across 1.21.1, 1.20.1, and 26.1.2. Curvature starts outside the vanilla boundary to avoid a seam and section-relative snapping.
+- Unified client-edition versions at 0.3.0, updated the integrations edition to 0.4.1beta, and fixed embedded 26.1.2 version metadata.
+- Unified the three leaf LOD modes and their settings while retaining hidden internal-face culling and avoiding per-frame block scans.
+- Down-ported water-aware LOD sampling, nearest occupancy rounding, and light selection to reduce broken fluids and systematic LOD uplift.
+- Join messages now appear on every world entry, are enabled by default, and can be disabled in the Neo Voxy Sodium/Embeddium settings; the message states where to disable it.
+- Extended chunk requests remain a guarded, disabled-by-default 1.21.1 feature capped at 48 chunks. Full cache-backed distant beacons remain in the integrations edition instead of exposing a non-functional client-only toggle.
+
 ## 0.4.0-beta-2 (1.21.1 NeoForge 联动版) — 2026-08-17
 
 ### 简体中文

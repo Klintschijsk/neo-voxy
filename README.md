@@ -12,10 +12,10 @@ Neo Voxy 由 **JohnSnow** 维护，在 [NHblock714/voxy](https://github.com/NHbl
 
 | 版本 | 安装位置 | 渲染依赖 | Java | 发布文件 |
 |---|---|---|---:|---|
-| 1.21.1 NeoForge 联动版 | 客户端与服务端 | Sodium 0.8 / Iris | 21 | `neo-voxy-0.4.0-beta-2-mc1.21.1-neoforge-integrations.jar` |
-| 1.21.1 NeoForge 纯客户端版 | 仅客户端 | Sodium 0.8 / Iris | 21 | `neo-voxy-0.2.18-beta-mc1.21.1-neoforge-client.jar` |
-| 1.20.1 Forge 纯客户端版 | 仅客户端 | Embeddium / Oculus | 17 | `neo-voxy-0.3.3-1.20.1-alpha.1-forge-client.jar` |
-| 26.1.2 NeoForge 纯客户端版 | 仅客户端 | Sodium 0.9 / Iris | 25 | `neo-voxy-0.2.18-beta-mc26.1.2-neoforge-client.jar` |
+| 1.21.1 NeoForge 联动版 | 客户端与服务端 | Sodium 0.8 / Iris | 21 | `neo-voxy-0.4.1beta-mc1.21.1-neoforge-integrations.jar` |
+| 1.21.1 NeoForge 纯客户端版 | 仅客户端 | Sodium 0.8 / Iris | 21 | `neo-voxy-0.3.0-mc1.21.1-neoforge-client.jar` |
+| 1.20.1 Forge 纯客户端版 | 仅客户端 | Embeddium / Oculus | 17 | `neo-voxy-0.3.0-forge-client.jar` |
+| 26.1.2 NeoForge 纯客户端版 | 仅客户端 | Sodium 0.9 / Iris | 25 | `neo-voxy-0.3.0-mc26.1.2-neoforge-client.jar` |
 
 最终发布 JAR 会剔除不需要的平台原生库、重复模块描述符和构建中间文件；运行所需的着色器、语言、模型与存储依赖不会删除。
 
@@ -32,7 +32,7 @@ Neo Voxy 由 **JohnSnow** 维护，在 [NHblock714/voxy](https://github.com/NHbl
 | 树叶 LOD 模式 | ✅ | ✅ | ✅ | ✅ |
 | 扩展区块请求 | ✅ | ✅ | — | — |
 | LOD 构建压力控制 | ✅ | ✅ | ✅ | ✅ |
-| 世界曲率 | ✅ | ✅ | — | — |
+| 世界曲率 | ✅ | ✅ | ✅ | ✅ |
 | 远距离信标光束 | ✅ | — | — | — |
 | 远距离玩家、乘骑物与动画 | ✅ | — | — | — |
 | Create、Sable、节气与 Domum 联动 | ✅ | — | — | — |
@@ -42,12 +42,14 @@ Neo Voxy 由 **JohnSnow** 维护，在 [NHblock714/voxy](https://github.com/NHbl
 ### 主要可调功能
 
 - 地面植物与树叶：四个版本都提供居中的交叉植物 LOD，以及性能、平衡、质量三种树叶模式。平衡模式剔除隐藏内部面并保留不规则镂空；质量模式保留更多透明细节。
-- 扩展区块请求：让 Voxy 主动请求原版距离外的区块。高距离会显著增加 CPU、内存、网络、世界生成与存档负载，联动版上限为 48 区块且默认关闭。
+- 扩展区块请求：基于 [FakeSight](https://github.com/MoePus/fakesight) 的思路，让 Voxy 主动请求原版距离外的区块。高距离会显著增加 CPU、内存、网络、世界生成与存档负载；目前用于 1.21.1，上限为 48 区块且默认关闭。
 - LOD 构建压力：可在“最高帧数”到“最高追赶”之间调节每帧节点处理与模型烘焙预算。
 - 圆形 LOD 淡入：在原版区块与 LOD 之间进行圆形交接。若光影自身已有 LOD 过渡（例如 Photon），应关闭此功能，避免双重过渡、噪点或阴影边界。
 - 雾气与云：支持环境雾、天空雾距离、雾强度/密度及自适应云距离；具体选项因版本而异。
 - 实验性 LOD 轻量光照：1.21.1 联动版可使用成对的 Lite 程序；默认关闭，加载或编译失败、版本不匹配及过渡条件不安全时自动整套回退。Eclipse Shader 482 由 NeoVoxy 内置补丁支持，无需修改光影包；Complementary Unbound r5.8.1 + Euphoria Patches 1.9.3 使用独立 overlay。
 - 细分尺寸：控制屏幕空间触发更细 LOD 的阈值；数值越小画质越高，构建和渲染开销也越高。
+- 世界曲率：四个版本均可在 GPU 顶点阶段弯曲原版距离外的 LOD；0 为关闭，不增加区块遍历或每 tick 扫描。
+- 进服消息：每次进入服务器或单人世界显示版本提示，默认开启，可在 Sodium/Embeddium 的 Neo Voxy 配置中关闭。
 
 ## 模组兼容性
 

@@ -164,6 +164,12 @@ public class MDICSectionRenderer extends AbstractSectionRenderer<MDICViewport, B
         }
         MemoryUtil.memPutInt(ptr, viewport.frameId&0x7fffffff); ptr += 4;
         viewport.innerTranslation.getToAddress(ptr); ptr += 4*3;
+        ptr += 4;
+        int curveRatio = me.cortex.voxy.client.config.VoxyConfig.CONFIG.earthCurveRatio;
+        MemoryUtil.memPutFloat(ptr, curveRatio >= 50 ? 6371000.0f / curveRatio : 0.0f); ptr += 4;
+        MemoryUtil.memPutFloat(ptr, Math.max(net.minecraft.client.Minecraft.getInstance().options.getEffectiveRenderDistance() * 16.0f - 16.0f, 16.0f)); ptr += 4;
+        MemoryUtil.memPutFloat(ptr, 0.0f); ptr += 4;
+        MemoryUtil.memPutFloat(ptr, 0.0f); ptr += 4;
 
         UploadStream.INSTANCE.commit();
     }

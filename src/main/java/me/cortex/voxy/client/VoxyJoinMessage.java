@@ -11,9 +11,6 @@ import net.neoforged.fml.ModList;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 
-//Prints the build, its maintainer, the group and the fork's repository to chat on world join. Held back
-//a short while: sent straight from LoggingIn the lines land before the chat is up and get swallowed by
-//the join sequence. The persisted joinMessageShown flag makes it a one-time notice per installation.
 public final class VoxyJoinMessage {
     public static final VoxyJoinMessage INSTANCE = new VoxyJoinMessage();
 
@@ -29,8 +26,7 @@ public final class VoxyJoinMessage {
 
     @SubscribeEvent
     public void onLoggingIn(ClientPlayerNetworkEvent.LoggingIn event) {
-        boolean showCredits = VoxyConfig.CONFIG.showJoinMessage
-                && !VoxyConfig.CONFIG.joinMessageShown;
+        boolean showCredits = VoxyConfig.CONFIG.showJoinMessage;
         boolean showUpgradeNotice = !VoxyConfig.CONFIG.upgradeCleanupNoticeShown;
         this.pending = showCredits || showUpgradeNotice ? DELAY_TICKS : -1;
     }
@@ -47,11 +43,12 @@ public final class VoxyJoinMessage {
         }
         var player = Minecraft.getInstance().player;
         if (player != null) {
-            if (VoxyConfig.CONFIG.showJoinMessage && !VoxyConfig.CONFIG.joinMessageShown) {
+            if (VoxyConfig.CONFIG.showJoinMessage) {
                 player.displayClientMessage(header(), false);
                 player.displayClientMessage(credits(), false);
                 player.displayClientMessage(repo(), false);
-                VoxyConfig.CONFIG.joinMessageShown = true;
+                player.displayClientMessage(Component.translatable("voxy.join.disableHint")
+                        .withStyle(ChatFormatting.DARK_GRAY), false);
             }
             if (!VoxyConfig.CONFIG.upgradeCleanupNoticeShown) {
                 player.displayClientMessage(upgradeNotice(), false);

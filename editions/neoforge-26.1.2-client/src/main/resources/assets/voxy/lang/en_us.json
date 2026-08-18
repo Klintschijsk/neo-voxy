@@ -65,5 +65,10 @@
   "voxy.config.general.leafLodMode.tooltip": "Fast uses opaque leaves. Balanced and Quality preserve leaf cutouts.",
   "voxy.config.general.leafLodMode.fast": "Fast",
   "voxy.config.general.leafLodMode.balanced": "Balanced",
-  "voxy.config.general.leafLodMode.quality": "Quality"
+  "voxy.config.general.leafLodMode.quality": "Quality",
+  "voxy.config.general.earthCurveRatio": "World curvature",
+  "voxy.config.general.earthCurveRatio.tooltip": "0 disables curvature; larger values produce a stronger curve beyond the vanilla chunk boundary.",
+  "voxy.config.general.showJoinMessage": "Join message",
+  "voxy.config.general.showJoinMessage.tooltip": "Show a version message whenever joining a server or world; disable it here.",
+  "voxy.join.disableHint": "This join message can be disabled from Neo Voxy in Sodium Video Settings."
 }

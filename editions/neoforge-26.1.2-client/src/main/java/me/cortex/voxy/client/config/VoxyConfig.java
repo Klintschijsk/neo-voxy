@@ -37,6 +37,8 @@ public class VoxyConfig {
    public boolean dontUseSodiumBuilderThreads = false;
    public int renderPressure = 2;
    public String leafLodMode = "balanced";
+   public int earthCurveRatio = 0;
+   public boolean showJoinMessage = true;
    public boolean enableLodBoundaryFade = true;
    public int lodBoundaryFadeLength = 16;
    public int lodBoundaryInset = 8;

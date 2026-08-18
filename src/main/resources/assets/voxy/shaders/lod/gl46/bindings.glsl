@@ -8,6 +8,7 @@ layout(binding = 0, std140) uniform SceneUniform {
     float lodBoundaryFadeStart;
     float lodBoundaryFadeEnd;
     float _scenePadding;
+    vec4 worldCurveData;
 };
 
 //TODO: see if making the stride 2*4*4 bytes or something cause you get that 16 byte write

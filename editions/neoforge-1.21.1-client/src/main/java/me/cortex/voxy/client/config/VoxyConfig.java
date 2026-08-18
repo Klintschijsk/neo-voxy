@@ -59,7 +59,8 @@ public class VoxyConfig {
     public int lodBoundaryFadeLength = 16;
     public int lodBoundaryInset = 8;
     public int earthCurveRatio = 0;
-    public boolean enableExtendedRequestDistance = true;
+    public boolean enableExtendedRequestDistance = false;
+    public boolean showJoinMessage = true;
     public int requestDistance = 48;
     public String ssaoMode;
     public boolean useEnvironmentalFog = true;

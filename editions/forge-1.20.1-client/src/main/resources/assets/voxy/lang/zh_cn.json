@@ -91,5 +91,10 @@
   "voxy.config.general.leafLodMode.tooltip": "快速模式使用不透明树叶；均衡和质量模式保留镂空透明",
   "voxy.config.general.leafLodMode.fast": "快速",
   "voxy.config.general.leafLodMode.balanced": "均衡",
-  "voxy.config.general.leafLodMode.quality": "质量"
+  "voxy.config.general.leafLodMode.quality": "质量",
+  "voxy.config.general.earthCurveRatio": "世界曲率",
+  "voxy.config.general.earthCurveRatio.tooltip": "0 为关闭；数值越大曲率越明显。曲率从原版区块边缘外开始。",
+  "voxy.config.general.showJoinMessage": "进服消息",
+  "voxy.config.general.showJoinMessage.tooltip": "每次进入服务器或世界时显示版本消息；可在此关闭。",
+  "voxy.join.disableHint": "可在 Embeddium 视频设置的 Neo Voxy 页面关闭此进服消息。"
 }

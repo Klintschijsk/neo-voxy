@@ -180,10 +180,23 @@ void setupQuad(out QuadData quad, const in Quad rawQuad, uvec2 sPos, bool genera
     quad.uvCorner = faceSize.xz;
 }
 
+vec3 applyWorldCurvature(vec3 point) {
+    float radius = worldCurveData.x;
+    vec2 delta = point.xz - cameraSubPos.xz;
+    float distanceFromCamera = length(delta);
+    float curvedDistance = distanceFromCamera - worldCurveData.y;
+    if (radius <= 0.0 || curvedDistance <= 0.0) return point;
+    float localRadius = max(radius + point.y, 1.0);
+    float angle = curvedDistance / localRadius;
+    point.y += (cos(angle) - 1.0) * localRadius;
+    point.xz = cameraSubPos.xz + delta * ((worldCurveData.y + sin(angle) * localRadius) / distanceFromCamera);
+    return point;
+}
+
 vec4 getQuadCornerPos(in QuadData quad, uint cornerId) {
     vec2 cornerMask = vec2((cornerId>>1)&1u, cornerId&1u)*quad.lodScale;
     vec3 point = quad.basePoint + swizzelDataAxis(quad.axis,vec3(quad.quadSizeAddin*cornerMask,0));
-    vec4 pos = MVP * vec4(point, 1.0f);
+    vec4 pos = MVP * vec4(applyWorldCurvature(point), 1.0f);
     pos.xy += taaOffset*pos.w;
     return pos;
 }

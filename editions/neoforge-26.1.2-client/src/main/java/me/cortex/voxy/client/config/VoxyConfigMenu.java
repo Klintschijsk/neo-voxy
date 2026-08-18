@@ -83,6 +83,9 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                   new SodiumConfigBuilder.Group(Component.translatable("voxy.config.group.data"),
                      new SodiumConfigBuilder.BoolOption(
                         "voxy:ingest_enabled", Component.translatable("voxy.config.general.ingest"), () -> CFG.ingestEnabled, v -> CFG.ingestEnabled = v
+                     ),
+                     new SodiumConfigBuilder.BoolOption(
+                        "voxy:show_join_message", Component.translatable("voxy.config.general.showJoinMessage"), () -> CFG.showJoinMessage, v -> CFG.showJoinMessage = v
                      )
                   )
                )
@@ -149,7 +152,16 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                         )
                         .setNameProvider(v -> Component.translatable("voxy.config.general.leafLodMode." + v.name().toLowerCase()))
                         .setImpact(OptionImpact.MEDIUM)
+                        .setPostChangeFlags(RENDER_RELOAD),
+                     new SodiumConfigBuilder.IntOption(
+                           "voxy:earth_curve_ratio",
+                           Component.translatable("voxy.config.general.earthCurveRatio"),
+                           () -> CFG.earthCurveRatio,
+                           v -> CFG.earthCurveRatio = v > 0 && v < 50 ? 50 : v,
+                           new Range(0, 10000, 50)
+                        )
                         .setPostChangeFlags(RENDER_RELOAD)
+                        .setImpact(OptionImpact.LOW)
                    ),
                   new SodiumConfigBuilder.Group(Component.translatable("voxy.config.group.experimental"),
                      new SodiumConfigBuilder.BoolOption(

@@ -12,10 +12,10 @@ Neo Voxy is maintained by **JohnSnow**. It extends [NHblock714/voxy](https://git
 
 | Edition | Install side | Renderer | Java | Release file |
 |---|---|---|---:|---|
-| 1.21.1 NeoForge integrations | Client and server | Sodium 0.8 / Iris | 21 | `neo-voxy-0.4.0-beta-2-mc1.21.1-neoforge-integrations.jar` |
-| 1.21.1 NeoForge client | Client only | Sodium 0.8 / Iris | 21 | `neo-voxy-0.2.18-beta-mc1.21.1-neoforge-client.jar` |
-| 1.20.1 Forge client | Client only | Embeddium / Oculus | 17 | `neo-voxy-0.3.3-1.20.1-alpha.1-forge-client.jar` |
-| 26.1.2 NeoForge client | Client only | Sodium 0.9 / Iris | 25 | `neo-voxy-0.2.18-beta-mc26.1.2-neoforge-client.jar` |
+| 1.21.1 NeoForge integrations | Client and server | Sodium 0.8 / Iris | 21 | `neo-voxy-0.4.1beta-mc1.21.1-neoforge-integrations.jar` |
+| 1.21.1 NeoForge client | Client only | Sodium 0.8 / Iris | 21 | `neo-voxy-0.3.0-mc1.21.1-neoforge-client.jar` |
+| 1.20.1 Forge client | Client only | Embeddium / Oculus | 17 | `neo-voxy-0.3.0-forge-client.jar` |
+| 26.1.2 NeoForge client | Client only | Sodium 0.9 / Iris | 25 | `neo-voxy-0.3.0-mc26.1.2-neoforge-client.jar` |
 
 Release JARs remove unused platform natives, duplicate module descriptors, and build intermediates. Runtime shaders, languages, models, and storage libraries are retained.
 
@@ -32,7 +32,7 @@ Release JARs remove unused platform natives, duplicate module descriptors, and b
 | Leaf LOD modes | ✅ | ✅ | ✅ | ✅ |
 | Extended chunk requests | ✅ | ✅ | — | — |
 | LOD build-pressure control | ✅ | ✅ | ✅ | ✅ |
-| World curvature | ✅ | ✅ | — | — |
+| World curvature | ✅ | ✅ | ✅ | ✅ |
 | Distant beacon beams | ✅ | — | — | — |
 | Distant players, vehicles, and animation | ✅ | — | — | — |
 | Create, Sable, seasons, and Domum integrations | ✅ | — | — | — |
@@ -42,12 +42,14 @@ Release JARs remove unused platform natives, duplicate module descriptors, and b
 ### Main options
 
 - Ground plants and leaves: all four editions provide centered crossed-plant LODs plus Fast, Balanced, and Quality leaf modes. Balanced culls hidden internal faces while retaining irregular cutouts; Quality preserves finer transparency.
-- Extended chunk requests: asks the game for chunks beyond vanilla distance. High values substantially increase CPU, memory, network, world-generation, and save load. The integrations edition is capped at 48 chunks and disables this option by default.
+- Extended chunk requests: based on the approach used by [FakeSight](https://github.com/MoePus/fakesight), asks the game for chunks beyond vanilla distance. High values substantially increase CPU, memory, network, world-generation, and save load. It is currently available on 1.21.1, capped at 48 chunks, and disabled by default.
 - LOD build pressure: adjusts per-frame node processing and model-baking budgets from maximum FPS to maximum catch-up speed.
 - Circular LOD handoff: blends the vanilla/LOD boundary. Disable it when a shader pack already implements its own LOD transition, such as Photon, to avoid double transitions, noise, or shadow seams.
 - Fog and clouds: environmental fog, sky-fog distance, fog intensity/density, and adaptive cloud distance are available depending on edition.
 - Experimental Lite LOD shading: the 1.21.1 integrations build uses paired Lite programs and atomically falls back if loading or compilation fails, the version is unsupported, or the transition is unsafe. Eclipse Shader 482 is supported by a built-in NeoVoxy patch and does not require shader-pack changes; Complementary Unbound r5.8.1 + Euphoria Patches 1.9.3 uses a separate overlay.
 - Subdivision size: controls the screen-space threshold for finer LODs. Lower values improve detail at higher build and rendering cost.
+- World curvature: all four editions curve only the LOD beyond vanilla distance in the GPU vertex stage; 0 disables it, with no chunk scan or per-tick traversal.
+- Join message: shown whenever a server or single-player world is entered, enabled by default and removable from the Neo Voxy Sodium/Embeddium settings.
 
 ## Mod compatibility
 
