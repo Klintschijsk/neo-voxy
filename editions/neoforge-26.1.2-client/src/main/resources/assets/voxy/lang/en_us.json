@@ -70,5 +70,13 @@
   "voxy.config.general.earthCurveRatio.tooltip": "0 disables curvature; larger values produce a stronger curve beyond the vanilla chunk boundary.",
   "voxy.config.general.showJoinMessage": "Join message",
   "voxy.config.general.showJoinMessage.tooltip": "Show a version message whenever joining a server or world; disable it here.",
-  "voxy.join.disableHint": "This join message can be disabled from Neo Voxy in Sodium Video Settings."
+  "voxy.config.general.biomeBlendRadius": "LOD biome water blend radius",
+  "voxy.config.general.biomeBlendRadius.tooltip": "Smooths LOD water colours across biome borders.",
+  "voxy.config.fakesight": "Extended Chunk Request",
+  "voxy.config.fakesight.enabled": "Enable extended chunk request",
+  "voxy.config.fakesight.enabled.tooltip": "Requests extra singleplayer chunks and expands gradually while stationary.",
+  "voxy.config.fakesight.distance": "Request distance",
+  "voxy.config.fakesight.distance.tooltip": "Singleplayer request radius, capped at 48 chunks.",
+  "voxy.join.disableHint": "This join message can be disabled from Neo Voxy in Sodium Video Settings.",
+  "voxy.join.upgradeCleanup": "If an update causes problems, delete the Neo Voxy config and the world's Voxy cache before retrying."
 }

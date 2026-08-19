@@ -26,9 +26,7 @@ public class VoxyConfig {
     }
 
     public static final int MIN_REQUEST_DISTANCE = 8;
-    // ClientInformation carries view distance in one signed byte. Keeping the
-    // singleplayer extension at 127 avoids wraparound while removing the old 48 cap.
-    public static final int MAX_REQUEST_DISTANCE = 127;
+    public static final int MAX_REQUEST_DISTANCE = 48;
     public static final int MAX_CLOUD_DISTANCE = 128;
     public static final float MIN_SUBDIVISION_SIZE = 28.0f;
     public static final float MAX_SUBDIVISION_SIZE = 256.0f;
@@ -50,6 +48,7 @@ public class VoxyConfig {
     public int skyFogDistance = 96;
     public float fogIntensity = 1.0f;
     public float fogDensity = 0.0f;
+    public int fogDistancePercent = 100;
     public boolean adaptCloudDistance = true;
     public int cloudDistance = 0;
     public boolean dontUseSodiumBuilderThreads = false;
@@ -61,13 +60,20 @@ public class VoxyConfig {
     public int earthCurveRatio = 0;
     public boolean enableExtendedRequestDistance = false;
     public boolean showJoinMessage = true;
+    public boolean upgradeCleanupNoticeShown = false;
     public int requestDistance = 48;
+    public int biomeBlendRadius = 2;
+    public String biomeBlendScope = "water";
     public String ssaoMode;
     public boolean useEnvironmentalFog = true;
     public String leafLodMode = "balanced";
 
     public int getRequestDistance() {
         return Math.clamp(this.requestDistance, MIN_REQUEST_DISTANCE, MAX_REQUEST_DISTANCE);
+    }
+
+    public int getLodRenderDistanceBlocks() {
+        return Math.clamp(Math.round(this.sectionRenderDistance * 32.0f * 16.0f), 64, 32768);
     }
 
     public int getRenderPressureLevel() {
@@ -142,10 +148,15 @@ public class VoxyConfig {
     public void sanitize() {
         this.subDivisionSize = Math.clamp(this.subDivisionSize, MIN_SUBDIVISION_SIZE, MAX_SUBDIVISION_SIZE);
         this.requestDistance = Math.clamp(this.requestDistance, MIN_REQUEST_DISTANCE, MAX_REQUEST_DISTANCE);
+        this.biomeBlendRadius = Math.clamp(this.biomeBlendRadius, 0, 7);
+        if (!"water".equals(this.biomeBlendScope) && !"water_grass".equals(this.biomeBlendScope)) {
+            this.biomeBlendScope = "water";
+        }
         this.skyFogDistance = Math.clamp(this.skyFogDistance, 0, 1024);
         this.cloudDistance = Math.clamp(this.cloudDistance, 0, MAX_CLOUD_DISTANCE);
         this.fogIntensity = Math.clamp(this.fogIntensity, 0.0f, 1.0f);
         this.fogDensity = Math.clamp(this.fogDensity, 0.0f, 1.0f);
+        this.fogDistancePercent = Math.clamp(this.fogDistancePercent, 5, 200);
         this.lodBoundaryBuffer = Math.clamp(this.lodBoundaryBuffer, 0, 4);
         this.lodBoundaryFadeLength = Math.clamp(this.lodBoundaryFadeLength, 8, 64);
         this.lodBoundaryInset = Math.clamp(this.lodBoundaryInset, 8, 32);

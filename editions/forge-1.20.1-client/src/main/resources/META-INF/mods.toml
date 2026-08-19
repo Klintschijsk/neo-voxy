@@ -44,3 +44,6 @@ config="client.voxy.mixins.json"
 
 [[mixins]]
 config="common.voxy.mixins.json"
+
+[[mixins]]
+config="fakesight.voxy.mixins.json"

@@ -10,14 +10,13 @@ import org.spongepowered.asm.mixin.injection.ModifyArg;
 
 @Mixin(IntegratedServer.class)
 public abstract class MixinIntegratedServer {
-    @Unique private static final int VOXY_MOVING_DISTANCE = 32;
-    @Unique private static final int VOXY_STATIONARY_DELAY_TICKS = 80;
     @Unique private static final int VOXY_EXPANSION_INTERVAL_TICKS = 40;
-    @Unique private static final int VOXY_EXPANSION_STEP = 8;
-
+    @Unique private static final int VOXY_MOVEMENT_PAUSE_TICKS = 80;
+    @Unique private int voxy$currentRequestDistance = -1;
+    @Unique private int voxy$expansionTicks;
+    @Unique private int voxy$movementPauseTicks;
     @Unique private long voxy$lastPlayerChunk = Long.MIN_VALUE;
     @Unique private int voxy$lastDimensionHash;
-    @Unique private int voxy$stationaryTicks;
 
     @ModifyArg(
             method = "tickServer",
@@ -34,13 +33,16 @@ public abstract class MixinIntegratedServer {
             return originalDistance;
         }
 
-        int requestedDistance = VoxyConfig.CONFIG.getRequestDistance();
-        int movingDistance = Math.min(requestedDistance, VOXY_MOVING_DISTANCE);
+        int requestedDistance = Math.max(originalDistance, VoxyConfig.CONFIG.getRequestDistance());
+        if (this.voxy$currentRequestDistance < originalDistance) {
+            this.voxy$currentRequestDistance = originalDistance;
+        } else if (this.voxy$currentRequestDistance > requestedDistance) {
+            this.voxy$currentRequestDistance = requestedDistance;
+        }
         var server = (IntegratedServer) (Object) this;
         var players = server.getPlayerList().getPlayers();
         if (players.isEmpty()) {
-            this.voxy$resetExtendedDistanceState();
-            return movingDistance;
+            return this.voxy$currentRequestDistance;
         }
 
         var player = players.getFirst();
@@ -50,27 +52,25 @@ public abstract class MixinIntegratedServer {
         if (chunkKey != this.voxy$lastPlayerChunk || dimensionHash != this.voxy$lastDimensionHash) {
             this.voxy$lastPlayerChunk = chunkKey;
             this.voxy$lastDimensionHash = dimensionHash;
-            this.voxy$stationaryTicks = 0;
-            return movingDistance;
+            this.voxy$movementPauseTicks = VOXY_MOVEMENT_PAUSE_TICKS;
+            this.voxy$expansionTicks = 0;
         }
-
-        if (this.voxy$stationaryTicks < Integer.MAX_VALUE) {
-            this.voxy$stationaryTicks++;
+        if (this.voxy$movementPauseTicks > 0) {
+            this.voxy$movementPauseTicks--;
+        } else if (this.voxy$currentRequestDistance < requestedDistance
+                && ++this.voxy$expansionTicks >= VOXY_EXPANSION_INTERVAL_TICKS) {
+            this.voxy$currentRequestDistance++;
+            this.voxy$expansionTicks = 0;
         }
-        if (this.voxy$stationaryTicks < VOXY_STATIONARY_DELAY_TICKS) {
-            return movingDistance;
-        }
-
-        int expansionSteps = 1 + (this.voxy$stationaryTicks - VOXY_STATIONARY_DELAY_TICKS)
-                / VOXY_EXPANSION_INTERVAL_TICKS;
-        int expandedDistance = movingDistance + expansionSteps * VOXY_EXPANSION_STEP;
-        return Math.min(requestedDistance, expandedDistance);
+        return this.voxy$currentRequestDistance;
     }
 
     @Unique
     private void voxy$resetExtendedDistanceState() {
         this.voxy$lastPlayerChunk = Long.MIN_VALUE;
         this.voxy$lastDimensionHash = 0;
-        this.voxy$stationaryTicks = 0;
+        this.voxy$currentRequestDistance = -1;
+        this.voxy$expansionTicks = 0;
+        this.voxy$movementPauseTicks = 0;
     }
 }

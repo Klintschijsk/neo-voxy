@@ -64,7 +64,7 @@
   "voxy.config.fakesight.enabled": "启用扩展区块请求",
   "voxy.config.fakesight.enabled.tooltip": "在单人游戏中为 Voxy 请求额外区块。移动时优先加载附近原版区块，停止移动后再逐级扩展 LOD 请求半径。",
   "voxy.config.fakesight.distance": "请求距离",
-  "voxy.config.fakesight.distance.tooltip": "单人游戏请求半径，最高 127 区块。超过 32 的部分会在静止时逐级生效，以保证附近原版区块持续刷新。数值越高，CPU 和内存负载增长越明显。",
+  "voxy.config.fakesight.distance.tooltip": "单人游戏请求半径，最高48区块。移动时暂停扩张，静止后逐步恢复，以保护帧时间。",
   "voxy.config.general.leafLodMode": "树叶 LOD 模式",
   "voxy.config.general.leafLodMode.tooltip": "调节远景树叶的画质与性能。性能模式使用不透明树叶；平衡模式按叶块稳定旋转纹理、剔除不可见内部面并保留不规则 Mip 镂空，性能影响为中；质量模式保留细小透明孔洞，但 GPU 开销更高。",
   "voxy.config.general.leafLodMode.fast": "性能",
@@ -74,5 +74,6 @@
   "voxy.config.general.earthCurveRatio.tooltip": "0 为关闭；数值越大曲率越明显。曲率从原版区块边缘外开始。",
   "voxy.config.general.showJoinMessage": "进服消息",
   "voxy.config.general.showJoinMessage.tooltip": "每次进入服务器或世界时显示版本消息；可在此关闭。",
-  "voxy.join.disableHint": "可在 Sodium 视频设置的 Neo Voxy 页面关闭此进服消息。"
+  "voxy.join.disableHint": "可在 Sodium 视频设置的 Neo Voxy 页面关闭此进服消息。",
+  "voxy.join.upgradeCleanup": "若更新后出现异常，请删除 Neo Voxy 配置文件与存档中的 Voxy 缓存后重试。"
 }

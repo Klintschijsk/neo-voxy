@@ -75,5 +75,22 @@
   "voxy.config.general.earthCurveRatio.tooltip": "0 disables curvature; larger values produce a stronger curve beyond the vanilla chunk boundary.",
   "voxy.config.general.showJoinMessage": "Join message",
   "voxy.config.general.showJoinMessage.tooltip": "Show a version message whenever joining a server or world; disable it here.",
-  "voxy.join.disableHint": "This join message can be disabled from Neo Voxy in Embeddium Video Settings."
+  "voxy.config.general.lodBoundaryFade": "LOD fade",
+  "voxy.config.general.lodBoundaryFade.tooltip": "Uses a stable world-space handoff between vanilla chunks and LOD terrain; disabled automatically underwater and for detached cameras.",
+  "voxy.config.general.lodBoundaryFadeLength": "LOD fade width",
+  "voxy.config.general.lodBoundaryFadeLength.tooltip": "Width of the short ownership transition band.",
+  "voxy.config.general.lodBoundaryInset": "LOD fade inset",
+  "voxy.config.general.lodBoundaryInset.tooltip": "Keeps the handoff inside the reliable vanilla terrain radius.",
+  "voxy.config.general.fogDistancePercent": "LOD fog distance",
+  "voxy.config.general.fogDistancePercent.tooltip": "Scales optional distance fog against the LOD render radius.",
+  "voxy.config.general.biomeBlendRadius": "LOD biome water blend radius",
+  "voxy.config.general.biomeBlendRadius.tooltip": "Smooths LOD water colours across biome borders; changing it rebuilds the renderer.",
+  "voxy.config.general.biomeBlendRadius.off": "Off",
+  "voxy.config.fakesight": "Extended Chunk Request",
+  "voxy.config.fakesight.enabled": "Enable extended chunk request",
+  "voxy.config.fakesight.enabled.tooltip": "Requests extra chunks in singleplayer. Expansion pauses while moving and resumes gradually while stationary.",
+  "voxy.config.fakesight.distance": "Request distance",
+  "voxy.config.fakesight.distance.tooltip": "Singleplayer request radius, capped at 48 chunks to limit CPU and memory pressure.",
+  "voxy.join.disableHint": "This join message can be disabled from Neo Voxy in Embeddium Video Settings.",
+  "voxy.join.upgradeCleanup": "If an update causes problems, delete the Neo Voxy config and the world's Voxy cache before retrying."
 }

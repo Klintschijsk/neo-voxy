@@ -25,6 +25,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.BlockTags;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.world.level.BlockAndTintGetter;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.ColorResolver;
@@ -129,6 +130,9 @@ public class ModelFactory {
 
     private final Mapper mapper;
     private final ModelStore storage;
+    private final BiomeBlendPalette blendPalette = new BiomeBlendPalette();
+
+    public BiomeBlendPalette blendPalette() { return this.blendPalette; }
 
     private final ConcurrentLinkedDeque<BlockBake> bakeQueue = new ConcurrentLinkedDeque<>();
 
@@ -329,6 +333,10 @@ public class ModelFactory {
         return (this.blockStatesInFlight.size()!=0)||(!this.bakeQueue.isEmpty())||!this.biomeQueue.isEmpty();
     }
 
+    public void drainBlendPalette() {
+        if (this.blendPalette.drainUploads(this.storage.modelColourBuffer)) UploadStream.INSTANCE.commit();
+    }
+
     public void processUploads(long totalBudgetNanos) {
         var upload = this.uploadResults.poll();
         if (upload==null) return;
@@ -416,7 +424,8 @@ public class ModelFactory {
         //TODO: add thing for `blockState.hasEmissiveLighting()` and `blockState.getLuminance()`
 
         boolean isFluid = isFluidBlockState(blockState);
-        boolean balancedLeaf = isLeafBlockState(blockState)
+        boolean leafModel = isLeafBlockState(blockState);
+        boolean balancedLeaf = leafModel
                 && VoxyConfig.CONFIG.getLeafLodMode() == VoxyConfig.LeafLodMode.BALANCED;
 
         int modelId = -1;
@@ -676,8 +685,10 @@ public class ModelFactory {
 
         //TODO: THIS
         modelFlags |= isShaded?8:0;//model has AO and shade
-        modelFlags |= isFluid?16:0;//Allows coarse LOD fluid tops to use the dimension fluid datum
+        modelFlags |= isFluid && blockState.getFluidState().is(FluidTags.WATER) ? 16 : 0;
         modelFlags |= balancedLeaf ? 32 : 0;
+        modelFlags |= isFluid && blockState.getFluidState().is(FluidTags.LAVA) ? 64 : 0;
+        modelFlags |= leafModel ? 128 : 0;
 
         //modelFlags |= blockRenderLayer == RenderLayer.getSolid()?0:1;// should discard alpha
         MemoryUtil.memPutInt(uploadPtr, modelFlags); uploadPtr += 4;
@@ -691,6 +702,7 @@ public class ModelFactory {
         } else {
             //Populate the list of biomes for the model state
             int biomeIndex = this.modelsRequiringBiomeColours.size() * this.biomes.size();
+            if (biomeIndex + this.biomes.size() > BiomeBlendPalette.PALETTE_BASE) this.blendPalette.disable();
             MemoryUtil.memPutInt(uploadPtr, biomeIndex);
             this.modelsRequiringBiomeColours.add(new Pair<>(modelId, colourState));
             if (!this.biomes.isEmpty()) {
@@ -699,6 +711,7 @@ public class ModelFactory {
                 for (var biome : this.biomes) {
                     MemoryUtil.memPutInt(clrUploadPtr, captureColourConstant(colourProvider, colourState, biome) | 0xFF000000); clrUploadPtr += 4;
                 }
+                this.blendPalette.mirrorRow(modelId, biomeIndex, uploadResult.biomeUpload.address, this.biomes.size());
             }
         }
         uploadPtr += 4;
@@ -844,6 +857,12 @@ public class ModelFactory {
             }
         }
 
+        if (this.modelsRequiringBiomeColours.size() * this.biomes.size() > BiomeBlendPalette.PALETTE_BASE) {
+            this.blendPalette.disable();
+        }
+        this.blendPalette.mirrorRebuild(result.modelBiomeIndexPairs.address,
+                this.modelsRequiringBiomeColours.size(), result.biomeColourBuffer.address,
+                (int)(result.biomeColourBuffer.size / 4), this.biomes.size());
         return result;
     }
 

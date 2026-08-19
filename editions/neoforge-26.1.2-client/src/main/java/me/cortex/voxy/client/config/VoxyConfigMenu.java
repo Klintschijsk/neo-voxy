@@ -154,6 +154,15 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                         .setImpact(OptionImpact.MEDIUM)
                         .setPostChangeFlags(RENDER_RELOAD),
                      new SodiumConfigBuilder.IntOption(
+                           "voxy:biome_blend_radius",
+                           Component.translatable("voxy.config.general.biomeBlendRadius"),
+                           () -> CFG.biomeBlendRadius,
+                           v -> CFG.biomeBlendRadius = v,
+                           new Range(0, 7, 1)
+                        )
+                        .setPostChangeFlags(RENDER_RELOAD)
+                        .setImpact(OptionImpact.MEDIUM),
+                     new SodiumConfigBuilder.IntOption(
                            "voxy:earth_curve_ratio",
                            Component.translatable("voxy.config.general.earthCurveRatio"),
                            () -> CFG.earthCurveRatio,
@@ -191,6 +200,23 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                          .setFormatter(v -> Component.translatable("voxy.config.unit.blocks", v))
                         .setEnabler("voxy:lod_boundary_fade")
                         .setImpact(OptionImpact.LOW)
+                  ),
+                  new SodiumConfigBuilder.Group(Component.translatable("voxy.config.fakesight"),
+                     new SodiumConfigBuilder.BoolOption(
+                           "voxy:extended_request",
+                           Component.translatable("voxy.config.fakesight.enabled"),
+                           () -> CFG.enableExtendedRequestDistance,
+                           v -> CFG.enableExtendedRequestDistance = v
+                        )
+                        .setImpact(OptionImpact.HIGH),
+                     new SodiumConfigBuilder.IntOption(
+                           "voxy:request_distance",
+                           Component.translatable("voxy.config.fakesight.distance"),
+                           CFG::getRequestDistance,
+                           v -> CFG.requestDistance = v,
+                           new Range(8, 48, 1)
+                        )
+                        .setImpact(OptionImpact.HIGH)
                   ),
                   new SodiumConfigBuilder.Group(Component.translatable("voxy.config.group.vanillaEffects"),
                         new SodiumConfigBuilder.BoolOption(

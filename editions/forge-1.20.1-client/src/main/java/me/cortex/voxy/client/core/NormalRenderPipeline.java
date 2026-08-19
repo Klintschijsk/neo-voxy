@@ -5,6 +5,7 @@ import me.cortex.voxy.client.config.VoxyConfig;
 import me.cortex.voxy.client.core.gl.GlFramebuffer;
 import me.cortex.voxy.client.core.gl.GlTexture;
 import me.cortex.voxy.client.core.rendering.Viewport;
+import me.cortex.voxy.client.core.rendering.LodBoundaryFade;
 import me.cortex.voxy.client.core.rendering.hierachical.AsyncNodeManager;
 import me.cortex.voxy.client.core.rendering.hierachical.HierarchicalOcclusionTraverser;
 import me.cortex.voxy.client.core.rendering.hierachical.NodeCleaner;
@@ -17,6 +18,7 @@ import java.util.List;
 import java.util.function.BooleanSupplier;
 
 import static org.lwjgl.opengl.GL11C.GL_BLEND;
+import static org.lwjgl.opengl.GL11C.GL_ALWAYS;
 import static org.lwjgl.opengl.GL11C.GL_COLOR;
 import static org.lwjgl.opengl.GL11C.GL_DEPTH_COMPONENT;
 import static org.lwjgl.opengl.GL11C.GL_DEPTH_TEST;
@@ -86,7 +88,7 @@ public class NormalRenderPipeline extends AbstractRenderPipeline {
         }
 
         glClearNamedFramebufferfv(this.fb.framebuffer.id, GL_COLOR, 0, CLEAR_COLOUR);
-        this.initDepthStencil(sourceFB, this.fb.framebuffer.id,
+        this.initDepthStencil(viewport, sourceFB, this.fb.framebuffer.id,
                 viewport.width, viewport.height, viewport.width, viewport.height);
 
         return this.fb.getDepthTex().id;
@@ -112,6 +114,11 @@ public class NormalRenderPipeline extends AbstractRenderPipeline {
         boolean requiredFog = vrs != null && vrs.isCapturedFogRequired();
 
         boolean optionalFog = VoxyConfig.CONFIG.useEnvironmentalFog && VoxyConfig.CONFIG.fogIntensity > 0.0f;
+        if (!requiredFog && optionalFog) {
+            fogEnd = VoxyConfig.CONFIG.getLodRenderDistanceBlocks()
+                    * (VoxyConfig.CONFIG.fogDistancePercent / 100.0f);
+            fogStart = fogEnd * 0.5f;
+        }
         float fogRange = Math.abs(fogEnd - fogStart);
         boolean useFog = requiredFog ? fogRange > 1.0e-4f : optionalFog && fogRange > 1.0f;
         if (useFog) {
@@ -120,21 +127,26 @@ public class NormalRenderPipeline extends AbstractRenderPipeline {
             glUniform1i(6, RenderSystem.getShaderFogShape().getIndex());
             glUniform1f(7, requiredFog ? 1.0f : Math.max(0.0f, Math.min(1.0f, VoxyConfig.CONFIG.fogIntensity)));
             glUniform1f(8, requiredFog ? 0.0f : Math.max(0.0f, Math.min(1.0f, VoxyConfig.CONFIG.fogDensity)));
+            glUniform1i(9, requiredFog ? 1 : 0);
         } else {
             glUniform2f(4, 0, 0);
             glUniform4f(5, 0, 0, 0, 0);
             glUniform1i(6, 0);
             glUniform1f(7, 0);
             glUniform1f(8, 0);
+            glUniform1i(9, 0);
         }
 
         glBindTextureUnit(3, this.colourSSAOTex.id);
 
         glEnable(GL_BLEND);
         glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+        boolean circularHandoff = LodBoundaryFade.getDistances().enabled();
+        if (circularHandoff) glDepthFunc(GL_ALWAYS);
         AbstractRenderPipeline.transformBlitDepth(this.finalBlit, this.fb.getDepthTex().id,
                 sourceFrameBuffer, viewport,
                 this.targetTransform.set(viewport.vanillaProjection).mul(viewport.modelView));
+        if (circularHandoff) glDepthFunc(this.properties.closerEqualDepthCompare());
         glDisable(GL_BLEND);
         //glBlitNamedFramebuffer(this.fbSSAO.id, sourceFrameBuffer, 0,0, viewport.width, viewport.height, 0,0, viewport.width, viewport.height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
     }

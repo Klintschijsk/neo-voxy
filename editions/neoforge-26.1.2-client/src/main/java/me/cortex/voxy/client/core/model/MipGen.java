@@ -6,6 +6,7 @@ import me.cortex.voxy.common.util.MemoryBuffer;
 import org.lwjgl.system.MemoryUtil;
 
 public class MipGen {
+   private static final int TINT_MASK_ALPHA_BIT = 128;
    private static final ThreadLocal<MipGen.Cache> CACHE = ThreadLocal.withInitial(MipGen.Cache::new);
 
    private static long getOffset(int bx, int by, int i) {
@@ -64,6 +65,18 @@ public class MipGen {
       }
    }
 
+   private static int encodeTintMask(int colour, int depth) {
+      int alpha = colour >>> 24;
+      if (alpha == 0) return colour;
+      alpha = alpha & ~TINT_MASK_ALPHA_BIT | depth >>> 7 & TINT_MASK_ALPHA_BIT;
+      return colour & 16777215 | alpha << 24;
+   }
+
+   private static int clearTintMask(int colour) {
+      int alpha = colour >>> 24 & ~TINT_MASK_ALPHA_BIT;
+      return colour & 16777215 | alpha << 24;
+   }
+
    public static void putTextures(boolean darkened, ColourDepthTextureData[] textures, MemoryBuffer into) {
       long addr = into.address;
       int LENGTH_B = 48;
@@ -75,10 +88,12 @@ public class MipGen {
          int j = 0;
          boolean anyTransparent = false;
 
-         for (int t : textures[i].colour()) {
+         int[] colourData = textures[i].colour();
+         int[] depthData = textures[i].depth();
+         for (int t : colourData) {
             int o = ((y + (j >> ModelFactory.LAYERS)) * 48 + (j & 15) + x) * 4;
             j++;
-            MemoryUtil.memPutInt(addr + o, t);
+            MemoryUtil.memPutInt(addr + o, encodeTintMask(t, depthData[j - 1]));
             anyTransparent |= (t & 0xFF000000) == 0;
          }
 
@@ -95,18 +110,31 @@ public class MipGen {
       for (int i = 0; i < ModelFactory.LAYERS - 1; i++) {
          long sAddr = dAddr;
          dAddr += 6144 >> (i << 1);
-         int width = 48 >> i + 1;
-         int sWidth = 48 >> i;
-         int height = 32 >> i + 1;
-
-         for (int px = 0; px < width; px++) {
-            for (int py = 0; py < height; py++) {
-               long bp = sAddr + (px * 2 + py * 2 * sWidth) * 4;
-               int C00 = MemoryUtil.memGetInt(bp);
-               int C01 = MemoryUtil.memGetInt(bp + sWidth * 4);
-               int C10 = MemoryUtil.memGetInt(bp + 4L);
-               int C11 = MemoryUtil.memGetInt(bp + sWidth * 4 + 4L);
-               MemoryUtil.memPutInt(dAddr + (px + py * width) * 4L, TextureUtils.mipColours(darkened, C00, C01, C10, C11));
+         int sTileSize = 16 >> i;
+         int dTileSize = sTileSize >> 1;
+         int sWidth = sTileSize * 3;
+         int dWidth = dTileSize * 3;
+         for (int face = 0; face < 6; face++) {
+            int sBx = (face >> 1) * sTileSize;
+            int sBy = (face & 1) * sTileSize;
+            int dBx = (face >> 1) * dTileSize;
+            int dBy = (face & 1) * dTileSize;
+            for (int px = 0; px < dTileSize; px++) {
+               for (int py = 0; py < dTileSize; py++) {
+                  long bp = sAddr + ((sBx + px * 2L) + (sBy + py * 2L) * sWidth) * 4;
+                  int C00 = MemoryUtil.memGetInt(bp);
+                  int C01 = MemoryUtil.memGetInt(bp + sWidth * 4L);
+                  int C10 = MemoryUtil.memGetInt(bp + 4L);
+                  int C11 = MemoryUtil.memGetInt(bp + sWidth * 4L + 4L);
+                  if (i == 0) {
+                     C00 = clearTintMask(C00);
+                     C01 = clearTintMask(C01);
+                     C10 = clearTintMask(C10);
+                     C11 = clearTintMask(C11);
+                  }
+                  MemoryUtil.memPutInt(dAddr + ((dBx + px) + (dBy + py) * (long)dWidth) * 4L,
+                     TextureUtils.mipColours(darkened, C00, C01, C10, C11));
+               }
             }
          }
       }

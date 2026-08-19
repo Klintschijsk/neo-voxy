@@ -170,6 +170,11 @@ public class MDICSectionRenderer extends AbstractSectionRenderer<MDICViewport, B
         MemoryUtil.memPutFloat(ptr, Math.max(net.minecraft.client.Minecraft.getInstance().options.getEffectiveRenderDistance() * 16.0f - 16.0f, 16.0f)); ptr += 4;
         MemoryUtil.memPutFloat(ptr, 0.0f); ptr += 4;
         MemoryUtil.memPutFloat(ptr, 0.0f); ptr += 4;
+        var fade = me.cortex.voxy.client.core.rendering.LodBoundaryFade.getDistances();
+        MemoryUtil.memPutFloat(ptr, fade.enabled() ? 1.0f : 0.0f); ptr += 4;
+        MemoryUtil.memPutFloat(ptr, fade.fadeStart()); ptr += 4;
+        MemoryUtil.memPutFloat(ptr, fade.fadeEnd()); ptr += 4;
+        MemoryUtil.memPutFloat(ptr, 0.0f); ptr += 4;
 
         UploadStream.INSTANCE.commit();
     }

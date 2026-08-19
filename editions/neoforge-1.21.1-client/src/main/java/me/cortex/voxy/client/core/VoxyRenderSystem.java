@@ -251,6 +251,14 @@ public class VoxyRenderSystem {
     }
 
     public void renderOpaque(Viewport<?> viewport) {
+        var minecraft = Minecraft.getInstance();
+        if (minecraft.gameRenderer != null
+                && minecraft.gameRenderer.getMainCamera().getEntity()
+                instanceof net.minecraft.world.entity.LivingEntity living
+                && (living.hasEffect(net.minecraft.world.effect.MobEffects.BLINDNESS)
+                || living.hasEffect(net.minecraft.world.effect.MobEffects.DARKNESS))) {
+            return;
+        }
         if (viewport == null) {
             return;
         }
@@ -303,6 +311,7 @@ public class VoxyRenderSystem {
 
         GPUTiming.INSTANCE.marker();
         // Run the LOD pipeline.
+        this.modelService.drainBlendPalette();
         this.pipeline.runPipeline(viewport, boundFB, this.viewportDimensions[2], this.viewportDimensions[3]);
         GPUTiming.INSTANCE.marker();
 

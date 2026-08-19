@@ -220,6 +220,7 @@ public class VoxyRenderSystem {
 
             TimingStatistics.E.stop();
             GPUTiming.INSTANCE.marker();
+            this.modelService.drainBlendPalette();
             this.pipeline.runPipeline(viewport, sourceDepthTexture, sourceColourTexture, scrWidth, scrHeight);
             GPUTiming.INSTANCE.marker();
             TimingStatistics.main.stop();

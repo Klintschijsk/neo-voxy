@@ -165,6 +165,14 @@ public abstract class AbstractRenderPipeline extends TrackedObject {
         nglUniformMatrix4fv(2, 1, false, SCRATCH);
         glUniform1f(6, boundary.fadeStart());
         glUniform1f(7, boundary.fadeEnd());
+        int cameraBlockX = (int) Math.floor(viewport.cameraX);
+        int cameraBlockY = (int) Math.floor(viewport.cameraY);
+        int cameraBlockZ = (int) Math.floor(viewport.cameraZ);
+        glUniform3i(8, cameraBlockX, cameraBlockY, cameraBlockZ);
+        glUniform3f(9,
+                (float) (viewport.cameraX - cameraBlockX),
+                (float) (viewport.cameraY - cameraBlockY),
+                (float) (viewport.cameraZ - cameraBlockZ));
 
         glUniform1i(10, 0);
         glDepthMask(true);

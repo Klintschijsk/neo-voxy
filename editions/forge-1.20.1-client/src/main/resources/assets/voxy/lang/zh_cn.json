@@ -96,5 +96,22 @@
   "voxy.config.general.earthCurveRatio.tooltip": "0 为关闭；数值越大曲率越明显。曲率从原版区块边缘外开始。",
   "voxy.config.general.showJoinMessage": "进服消息",
   "voxy.config.general.showJoinMessage.tooltip": "每次进入服务器或世界时显示版本消息；可在此关闭。",
-  "voxy.join.disableHint": "可在 Embeddium 视频设置的 Neo Voxy 页面关闭此进服消息。"
+  "voxy.config.general.lodBoundaryFade": "LOD淡入",
+  "voxy.config.general.lodBoundaryFade.tooltip": "在原版区块与LOD地形间进行世界坐标稳定的替换；水下和自由相机会自动回退。",
+  "voxy.config.general.lodBoundaryFadeLength": "LOD淡入宽度",
+  "voxy.config.general.lodBoundaryFadeLength.tooltip": "设置较短的渲染归属过渡带宽度。",
+  "voxy.config.general.lodBoundaryInset": "LOD淡入内缩",
+  "voxy.config.general.lodBoundaryInset.tooltip": "使交界保持在原版区块可靠渲染范围内。",
+  "voxy.config.general.fogDistancePercent": "LOD雾气距离",
+  "voxy.config.general.fogDistancePercent.tooltip": "按LOD渲染半径缩放无光影距离雾。",
+  "voxy.config.general.biomeBlendRadius": "LOD群系水色混合半径",
+  "voxy.config.general.biomeBlendRadius.tooltip": "平滑群系交界处LOD水色；修改后需要重建渲染器。",
+  "voxy.config.general.biomeBlendRadius.off": "关闭",
+  "voxy.config.fakesight": "扩展区块请求",
+  "voxy.config.fakesight.enabled": "启用扩展区块请求",
+  "voxy.config.fakesight.enabled.tooltip": "在单人游戏请求额外区块；移动时暂停扩张，静止后逐步恢复。",
+  "voxy.config.fakesight.distance": "请求距离",
+  "voxy.config.fakesight.distance.tooltip": "单人游戏请求半径，最高48区块，以限制CPU与内存压力。",
+  "voxy.join.disableHint": "可在 Embeddium 视频设置的 Neo Voxy 页面关闭此进服消息。",
+  "voxy.join.upgradeCleanup": "若更新后出现异常，请删除 Neo Voxy 配置文件与存档中的 Voxy 缓存后重试。"
 }

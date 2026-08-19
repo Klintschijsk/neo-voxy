@@ -21,6 +21,7 @@ layout(location = 0) in flat uvec4 interData;
 #ifndef USE_NV_BARRY
 layout(location = 1) in vec2 uv;
 #endif
+layout(location = 2) in float boundaryDistanceSquared;
 
 #ifdef DEBUG_RENDER
 layout(location = 7) in flat uint quadDebug;
@@ -76,6 +77,14 @@ bool useDiscard() {
 
 bool useBalancedLeafCutout() {
     return ((interData.x >> 1u) & 1u) == 1u;
+}
+
+bool useIndependentWaterBoundary() {
+    return ((interData.w >> 11u) & 1u) == 1u;
+}
+
+bool useOriginalLeafHandoff() {
+    return useBalancedLeafCutout() || ((interData.w >> 12u) & 1u) == 1u;
 }
 
 vec2 varyBalancedLeafUV(vec2 localUV, vec2 tile, out uint transform, out uint leafHash) {
@@ -160,6 +169,13 @@ vec4 computeColour(vec2 texturePos, vec4 colour) {
 
 
 void main() {
+    if (circularLodBoundaryEnabled > 0.5
+            && !useIndependentWaterBoundary()
+            && !useOriginalLeafHandoff()
+            && boundaryDistanceSquared < lodBoundaryFadeStart * lodBoundaryFadeStart) {
+        discard;
+        return;
+    }
     //vec2 uv = vec2(0);
     //Tile is the tile we are in
     vec2 tile;

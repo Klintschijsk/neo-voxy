@@ -4,6 +4,9 @@ layout(binding = 0, std140) uniform SceneUniform {
     uint frameId;
     vec3 cameraSubPos;
     float circularLodBoundaryEnabled;
+    float lodBoundaryFadeStart;
+    float lodBoundaryFadeEnd;
+    float _scenePadding;
     vec4 worldCurveData;
 };
 

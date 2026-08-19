@@ -30,7 +30,8 @@ Release JARs remove unused platform natives, duplicate module descriptors, and b
 | Circular LOD handoff | ✅ | ✅ | ✅ | ✅ |
 | Crossed ground-plant models | ✅ | ✅ | ✅ | ✅ |
 | Leaf LOD modes | ✅ | ✅ | ✅ | ✅ |
-| Extended chunk requests | ✅ | ✅ | — | — |
+| Extended chunk requests (single-player, max 48) | ✅ | ✅ | ✅ | ✅ |
+| LOD biome water-colour blending | ✅ | ✅ | ✅ | ✅ |
 | LOD build-pressure control | ✅ | ✅ | ✅ | ✅ |
 | World curvature | ✅ | ✅ | ✅ | ✅ |
 | Distant beacon beams | ✅ | — | — | — |
@@ -41,11 +42,13 @@ Release JARs remove unused platform natives, duplicate module descriptors, and b
 
 ### Main options
 
-- Ground plants and leaves: all four editions provide centered crossed-plant LODs plus Fast, Balanced, and Quality leaf modes. Balanced culls hidden internal faces while retaining irregular cutouts; Quality preserves finer transparency.
-- Extended chunk requests: based on the approach used by [FakeSight](https://github.com/MoePus/fakesight), asks the game for chunks beyond vanilla distance. High values substantially increase CPU, memory, network, world-generation, and save load. It is currently available on 1.21.1, capped at 48 chunks, and disabled by default.
+- Ground plants and leaves: all four editions provide centered crossed-plant LODs plus Fast, Balanced, and Quality leaf modes. Balanced culls hidden internal faces while keeping stable asymmetric cutouts. Leaves bypass alpha fading and hand directly between vanilla and LOD models, preventing the disappear/reappear cycle.
+- Extended chunk requests: based on the approach used by [FakeSight](https://github.com/MoePus/fakesight), asks for chunks beyond vanilla distance in single-player. It is disabled by default and capped at 48 chunks in all four editions. Expansion pauses while moving and resumes gradually when stationary. High values can still increase CPU, memory, world-generation, and save load substantially.
+- Biome water-colour blending: all four editions smooth LOD water colours across biome borders while models are built. Results use a compact palette and require no per-tick world traversal.
 - LOD build pressure: adjusts per-frame node processing and model-baking budgets from maximum FPS to maximum catch-up speed.
-- Circular LOD handoff: blends the vanilla/LOD boundary. Disable it when a shader pack already implements its own LOD transition, such as Photon, to avoid double transitions, noise, or shadow seams.
-- Fog and clouds: environmental fog, sky-fog distance, fog intensity/density, and adaptive cloud distance are available depending on edition.
+- Circular LOD handoff: all four editions use 3D camera distance and world-stable dithering. Water and leaves use dedicated non-alpha handoff paths. Disable it when a shader pack already implements its own LOD transition, such as Photon, to avoid duplicate transitions, noise, or shadow seams.
+- Fog and effects: shader-free fog on 1.20.1 and 1.21.1 scales against the LOD radius while preserving required medium masks such as underwater fog. Distant LODs no longer show through Blindness or Darkness. Version 26.1.2 uses the newer native fog path.
+- Model and fluid quality: per-face mip generation and exact per-pixel tint masks reduce grass-side and waterlogged-plant colour errors; nearest rounding, independent fluid boundaries, and biome-colour handling improve distant water and terrain.
 - Experimental Lite LOD shading: the 1.21.1 integrations build uses paired Lite programs and atomically falls back if loading or compilation fails, the version is unsupported, or the transition is unsafe. Eclipse Shader 482 is supported by a built-in NeoVoxy patch and does not require shader-pack changes; Complementary Unbound r5.8.1 + Euphoria Patches 1.9.3 uses a separate overlay.
 - Subdivision size: controls the screen-space threshold for finer LODs. Lower values improve detail at higher build and rendering cost.
 - World curvature: all four editions curve only the LOD beyond vanilla distance in the GPU vertex stage; 0 disables it, with no chunk scan or per-tick traversal.

@@ -36,9 +36,14 @@ public class VoxyConfig {
    public boolean useEnvironmentalFog = true;
    public boolean dontUseSodiumBuilderThreads = false;
    public int renderPressure = 2;
-   public String leafLodMode = "balanced";
-   public int earthCurveRatio = 0;
-   public boolean showJoinMessage = true;
+    public String leafLodMode = "balanced";
+    public int earthCurveRatio = 0;
+    public int biomeBlendRadius = 2;
+    public String biomeBlendScope = "water";
+    public boolean enableExtendedRequestDistance = false;
+    public int requestDistance = 48;
+    public boolean showJoinMessage = true;
+    public boolean upgradeCleanupNoticeShown = false;
    public boolean enableLodBoundaryFade = true;
    public int lodBoundaryFadeLength = 16;
    public int lodBoundaryInset = 8;
@@ -119,6 +124,7 @@ public class VoxyConfig {
    }
 
    public void save() {
+      this.sanitize();
       if (!VoxyCommon.isAvailable()) {
          Logger.info("Not saving config since voxy is unavalible");
       } else {
@@ -128,6 +134,23 @@ public class VoxyConfig {
             Logger.error("Failed to write config file", var2);
          }
       }
+   }
+
+   public void sanitize() {
+      this.sectionRenderDistance = Math.clamp(this.sectionRenderDistance, 2.0F, 64.0F);
+      this.subDivisionSize = Math.clamp(this.subDivisionSize, 28.0F, 256.0F);
+      this.lodBoundaryFadeLength = Math.clamp(this.lodBoundaryFadeLength, 8, 64);
+      this.lodBoundaryInset = Math.clamp(this.lodBoundaryInset, 8, 32);
+      this.biomeBlendRadius = Math.clamp(this.biomeBlendRadius, 0, 7);
+      this.requestDistance = Math.clamp(this.requestDistance, 8, 48);
+      if (!"water".equals(this.biomeBlendScope) && !"water_grass".equals(this.biomeBlendScope)) {
+         this.biomeBlendScope = "water";
+      }
+      this.setLeafLodMode(this.getLeafLodMode());
+   }
+
+   public int getRequestDistance() {
+      return Math.clamp(this.requestDistance, 8, 48);
    }
 
    private static Path getConfigPath() {

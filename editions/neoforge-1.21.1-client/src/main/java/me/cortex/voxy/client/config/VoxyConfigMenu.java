@@ -153,6 +153,13 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                                         .setPostChangeFlags(RENDER_RELOAD)
                                         .setImpact(OptionImpact.MEDIUM),
                                 new IntOption(
+                                        "voxy:biome_blend_radius",
+                                        Component.translatable("voxy.config.general.biomeBlendRadius"),
+                                        ()->CFG.biomeBlendRadius, v->CFG.biomeBlendRadius=v,
+                                        new Range(0, 7, 1))
+                                        .setPostChangeFlags(RENDER_RELOAD)
+                                        .setImpact(OptionImpact.MEDIUM),
+                                new IntOption(
                                         "voxy:earth_curve_ratio",
                                         Component.translatable("voxy.config.general.earthCurveRatio"),
                                         ()->CFG.earthCurveRatio, v->CFG.earthCurveRatio=(v > 0 && v < 50) ? 50 : v,
@@ -204,6 +211,12 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                                         Component.translatable("voxy.config.general.skyFogDistance"),
                                         ()->CFG.skyFogDistance, v->CFG.skyFogDistance=v,
                                         new Range(0, 1024, 1))
+                                        .setImpact(OptionImpact.LOW)
+                                ,new IntOption(
+                                        "voxy:fog_distance_percent",
+                                        Component.translatable("voxy.config.general.fogDistancePercent"),
+                                        ()->CFG.fogDistancePercent, v->CFG.fogDistancePercent=v,
+                                        new Range(5, 200, 5))
                                         .setImpact(OptionImpact.LOW)
                         )
                         .setEnablerInherit(s->!IrisUtil.irisShaderPackEnabled(), ConfigState.UPDATE_ON_REBUILD),

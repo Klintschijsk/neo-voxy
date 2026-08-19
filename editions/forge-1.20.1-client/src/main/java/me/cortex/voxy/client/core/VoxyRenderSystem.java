@@ -99,6 +99,15 @@ public class VoxyRenderSystem {
     public boolean isCapturedFogRequired() { return this.capturedFogRequired; }
     public float[] getCapturedFogColor() { return this.capturedFogColor; }
 
+    private static boolean visionEffectPresent() {
+        var minecraft = Minecraft.getInstance();
+        if (minecraft.gameRenderer == null) return false;
+        return minecraft.gameRenderer.getMainCamera().getEntity()
+                instanceof net.minecraft.world.entity.LivingEntity living
+                && (living.hasEffect(net.minecraft.world.effect.MobEffects.BLINDNESS)
+                || living.hasEffect(net.minecraft.world.effect.MobEffects.DARKNESS));
+    }
+
     private static AbstractSectionRenderer.Factory<?,? extends IGeometryData> getRenderBackendFactory() {
         //TODO: need todo a thing where selects optimal section render based on if supports the pipeline and geometry data type
         return MDICSectionRenderer.FACTORY;
@@ -251,6 +260,11 @@ public class VoxyRenderSystem {
     }
 
     public void renderOpaque(Viewport<?> viewport) {
+        // Blindness and darkness deliberately remove distant terrain. Rendering
+        // LOD behind vanilla's collapsed fog makes both effects ineffective.
+        if (visionEffectPresent()) {
+            return;
+        }
         if (viewport == null) {
             return;
         }
@@ -300,6 +314,7 @@ public class VoxyRenderSystem {
 
         GPUTiming.INSTANCE.marker();
         //The entire rendering pipeline (excluding the chunkbound thing)
+        this.modelService.drainBlendPalette();
         this.pipeline.runPipeline(viewport, boundFB, dims[2], dims[3]);
         GPUTiming.INSTANCE.marker();
 

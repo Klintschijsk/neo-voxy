@@ -48,6 +48,8 @@ public class ModelBakerySubsystem {
       }
    }
 
+   public void drainBlendPalette() { this.factory.drainBlendPalette(); }
+
    public void shutdown() {
       this.isRunning = false;
       LockSupport.unpark(this.processingThread);

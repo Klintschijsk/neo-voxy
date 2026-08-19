@@ -4,6 +4,7 @@ import me.cortex.voxy.client.RenderStatistics;
 import me.cortex.voxy.client.TimingStatistics;
 import me.cortex.voxy.client.VoxyClient;
 import me.cortex.voxy.client.core.model.ModelBakerySubsystem;
+import me.cortex.voxy.client.core.rendering.LodBoundaryFade;
 import me.cortex.voxy.client.core.rendering.Viewport;
 import me.cortex.voxy.client.core.rendering.hierachical.AsyncNodeManager;
 import me.cortex.voxy.client.core.rendering.hierachical.HierarchicalOcclusionTraverser;
@@ -133,7 +134,8 @@ public abstract class AbstractRenderPipeline extends TrackedObject {
         glBindFramebuffer(GL_FRAMEBUFFER, sourceFrameBuffer);
     }
 
-    protected void initDepthStencil(int sourceFrameBuffer, int targetFb, int srcWidth, int srcHeight, int width, int height) {
+    protected void initDepthStencil(Viewport<?> viewport, int sourceFrameBuffer, int targetFb,
+                                    int srcWidth, int srcHeight, int width, int height) {
         glClearNamedFramebufferfi(targetFb, GL_DEPTH_STENCIL, 0, this.properties.clearDepth(), 1);
         // using blit to copy depth from mismatched depth formats is not portable so instead a full screen pass is performed for a depth copy
         // the mismatched formats in this case is the d32 to d24s8
@@ -155,9 +157,33 @@ public abstract class AbstractRenderPipeline extends TrackedObject {
         glBindSampler(0, DEPTH_SAMPLER);
         glUniform2f(1,((float)width)/srcWidth, ((float)height)/srcHeight);
 
+        var boundary = LodBoundaryFade.getDistances();
+        INVERSE_MVP.set(viewport.vanillaProjection).mul(viewport.modelView).invert().getToAddress(SCRATCH);
+        nglUniformMatrix4fv(2, 1, false, SCRATCH);
+        glUniform1f(6, boundary.fadeStart());
+        glUniform1f(7, boundary.fadeEnd());
+        int cameraBlockX = (int)Math.floor(viewport.cameraX);
+        int cameraBlockY = (int)Math.floor(viewport.cameraY);
+        int cameraBlockZ = (int)Math.floor(viewport.cameraZ);
+        glUniform3i(8, cameraBlockX, cameraBlockY, cameraBlockZ);
+        glUniform3f(9, (float)(viewport.cameraX - cameraBlockX),
+                (float)(viewport.cameraY - cameraBlockY),
+                (float)(viewport.cameraZ - cameraBlockZ));
+        glUniform1i(10, 0);
+
         glDepthMask(true);
         glColorMask(false,false,false,false);
         this.depthStencilSetup.blit();
+
+        if (boundary.enabled()) {
+            glStencilMask(0x00);
+            glUniform1i(10, 1);
+            viewport.MVP.getToAddress(SCRATCH);
+            nglUniformMatrix4fv(11, 1, false, SCRATCH);
+            this.depthStencilSetup.blit();
+            glUniform1i(10, 0);
+            glStencilMask(0xFF);
+        }
 
         glDepthFunc(this.properties.closerEqualDepthCompare());
         glColorMask(true,true,true,true);

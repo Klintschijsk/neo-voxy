@@ -2,36 +2,57 @@ package me.cortex.voxy.client.core.rendering;
 
 import me.cortex.voxy.client.config.VoxyConfig;
 import net.minecraft.client.Minecraft;
+import net.minecraft.world.level.material.FogType;
 
-/** Camera-centred ownership distances shared by the depth mask and LOD shaders. */
+/** Cached camera-centred ownership distances shared by all render paths. */
 public final class LodBoundaryFade {
-   private static final float MIN_VANILLA_RADIUS = 16.0F;
+    private static final float MIN_VANILLA_RADIUS = 16.0f;
+    private static final Distances DISABLED = new Distances(0.0f, 0.0f);
+    private static int cachedRenderDistance = Integer.MIN_VALUE;
+    private static boolean cachedEnabled;
+    private static int cachedLength;
+    private static int cachedInset;
+    private static boolean cachedSubmerged;
+    private static boolean cachedDetachedCamera;
+    private static Distances cachedDistances = DISABLED;
 
-   private LodBoundaryFade() {
-   }
+    private LodBoundaryFade() {}
 
-   public record Distances(float fadeStart, float fadeEnd) {
-      public boolean enabled() {
-         return this.fadeEnd > this.fadeStart;
-      }
-   }
+    public record Distances(float fadeStart, float fadeEnd) {
+        public boolean enabled() { return this.fadeEnd > this.fadeStart; }
+    }
 
-   public static Distances getDistances() {
-      float vanillaDistance = Minecraft.getInstance().options.getEffectiveRenderDistance() * 16.0F;
-      VoxyConfig config = VoxyConfig.CONFIG;
-      if (!config.enableLodBoundaryFade) {
-         return new Distances(vanillaDistance, vanillaDistance);
-      }
+    public static Distances getDistances() {
+        VoxyConfig config = VoxyConfig.CONFIG;
+        Minecraft minecraft = Minecraft.getInstance();
+        int renderDistance = minecraft.options.getEffectiveRenderDistance();
+        var camera = minecraft.gameRenderer.getMainCamera();
+        boolean submerged = camera.getFluidInCamera() != FogType.NONE;
+        boolean detachedCamera = minecraft.player != null
+                && camera.position().distanceToSqr(minecraft.player.position()) > 64.0;
 
-      float inset = Math.clamp(config.lodBoundaryInset, 8, 32);
-      float requestedWidth = Math.clamp(config.lodBoundaryFadeLength, 8, 64);
-      float fadeEnd = Math.max(MIN_VANILLA_RADIUS, vanillaDistance - inset);
-      float availableWidth = Math.max(0.0F, fadeEnd - MIN_VANILLA_RADIUS);
-      float fadeWidth = Math.min(requestedWidth, availableWidth);
-      if (fadeWidth < 1.0F) {
-         return new Distances(vanillaDistance, vanillaDistance);
-      }
+        if (renderDistance == cachedRenderDistance
+                && config.enableLodBoundaryFade == cachedEnabled
+                && config.lodBoundaryFadeLength == cachedLength
+                && config.lodBoundaryInset == cachedInset
+                && submerged == cachedSubmerged
+                && detachedCamera == cachedDetachedCamera) return cachedDistances;
 
-      return new Distances(fadeEnd - fadeWidth, fadeEnd);
-   }
+        cachedRenderDistance = renderDistance;
+        cachedEnabled = config.enableLodBoundaryFade;
+        cachedLength = config.lodBoundaryFadeLength;
+        cachedInset = config.lodBoundaryInset;
+        cachedSubmerged = submerged;
+        cachedDetachedCamera = detachedCamera;
+
+        float vanillaDistance = renderDistance * 16.0f;
+        if (!config.enableLodBoundaryFade || submerged || detachedCamera) {
+            return cachedDistances = new Distances(vanillaDistance, vanillaDistance);
+        }
+        float fadeEnd = Math.max(MIN_VANILLA_RADIUS, vanillaDistance - config.lodBoundaryInset);
+        float fadeWidth = Math.min(config.lodBoundaryFadeLength,
+                Math.max(0.0f, fadeEnd - MIN_VANILLA_RADIUS));
+        if (fadeWidth < 1.0f) return cachedDistances = new Distances(vanillaDistance, vanillaDistance);
+        return cachedDistances = new Distances(fadeEnd - fadeWidth, fadeEnd);
+    }
 }

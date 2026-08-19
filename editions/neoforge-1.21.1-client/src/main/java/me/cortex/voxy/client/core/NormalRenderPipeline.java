@@ -114,6 +114,11 @@ public class NormalRenderPipeline extends AbstractRenderPipeline {
 
         boolean useOptionalFog = VoxyConfig.CONFIG.useEnvironmentalFog
                 && VoxyConfig.CONFIG.fogIntensity > 0.0f;
+        if (!requiredFog && useOptionalFog) {
+            fogEnd = VoxyConfig.CONFIG.getLodRenderDistanceBlocks()
+                    * (VoxyConfig.CONFIG.fogDistancePercent / 100.0f);
+            fogStart = fogEnd * 0.5f;
+        }
         float fogRange = Math.abs(fogEnd - fogStart);
         boolean useFog = requiredFog
                 ? fogRange > 1.0e-4f
@@ -125,12 +130,14 @@ public class NormalRenderPipeline extends AbstractRenderPipeline {
             glUniform1i(6, RenderSystem.getShaderFogShape().getIndex());
             glUniform1f(7, requiredFog ? 1.0f : Math.clamp(VoxyConfig.CONFIG.fogIntensity, 0.0f, 1.0f));
             glUniform1f(8, requiredFog ? 0.0f : Math.clamp(VoxyConfig.CONFIG.fogDensity, 0.0f, 1.0f));
+            glUniform1i(9, requiredFog ? 1 : 0);
         } else {
             glUniform2f(4, 0, 0);
             glUniform4f(5, 0, 0, 0, 0);
             glUniform1i(6, 0);
             glUniform1f(7, 0);
             glUniform1f(8, 0);
+            glUniform1i(9, 0);
         }
 
         glBindTextureUnit(3, this.colourSSAOTex.id);

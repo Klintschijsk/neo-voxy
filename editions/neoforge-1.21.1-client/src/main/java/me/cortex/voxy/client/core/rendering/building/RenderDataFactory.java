@@ -213,6 +213,79 @@ public class RenderDataFactory {
         return quadData;
     }
 
+    private final int[] blendBiomeScratch = new int[15 * 15];
+
+    private void applyBiomeBlend(long[] raw, int neighborMask, boolean neighborsLoaded) {
+        int radius = me.cortex.voxy.client.config.VoxyConfig.CONFIG.biomeBlendRadius;
+        if (radius <= 0) return;
+        radius = Math.min(radius, 7);
+        boolean waterOnly = !"water_grass".equals(me.cortex.voxy.client.config.VoxyConfig.CONFIG.biomeBlendScope);
+        if (waterOnly) {
+            boolean anyFluid = false;
+            for (int mask : this.fluidMasks) if (mask != 0) { anyFluid = true; break; }
+            if (!anyFluid) return;
+        }
+
+        var palette = this.modelMan.blendPalette();
+        var colours = palette.snapshot();
+        if (colours.rowBaseByModelId().length == 0) return;
+        int window = radius * 2 + 1;
+        int sampleCount = window * window;
+
+        for (int i = 0; i < 32 * 32 * 32; i++) {
+            long metadata = this.sectionData[i * 2 + 1];
+            if (metadata == 0 || !ModelQueries.isBiomeColoured(metadata)) continue;
+            if (!ModelQueries.isFluid(metadata) && (waterOnly || ModelQueries.containsFluid(metadata))) continue;
+
+            int x = i & 31, z = (i >> 5) & 31, y = i >> 10;
+            int centerBiome = (int)((raw[i] >>> 47) & 0x1FF);
+            boolean mixed = false;
+            int sampleIndex = 0;
+            for (int dz = -radius; dz <= radius; dz++) {
+                int nz = z + dz;
+                for (int dx = -radius; dx <= radius; dx++) {
+                    int nx = x + dx;
+                    int biome = centerBiome;
+                    if (nx >= 0 && nx < 32 && nz >= 0 && nz < 32) {
+                        long sample = raw[nx | (nz << 5) | (y << 10)];
+                        if (!Mapper.isAir(sample)) biome = (int)((sample >>> 47) & 0x1FF);
+                    } else if (neighborsLoaded) {
+                        long sample = 0;
+                        if (nx == -1 && nz >= 0 && nz < 32 && (neighborMask & 1) != 0) sample = this.neighboringFaces[nz | (y << 5)];
+                        else if (nx == 32 && nz >= 0 && nz < 32 && (neighborMask & 2) != 0) sample = this.neighboringFaces[(nz | (y << 5)) + 1024];
+                        else if (nz == -1 && nx >= 0 && nx < 32 && (neighborMask & 16) != 0) sample = this.neighboringFaces[(nx | (y << 5)) + 4096];
+                        else if (nz == 32 && nx >= 0 && nx < 32 && (neighborMask & 32) != 0) sample = this.neighboringFaces[(nx | (y << 5)) + 5120];
+                        if (sample != 0 && !Mapper.isAir(sample)) biome = (int)((sample >>> 47) & 0x1FF);
+                    }
+                    this.blendBiomeScratch[sampleIndex++] = biome;
+                    mixed |= biome != centerBiome;
+                }
+            }
+            if (!mixed) continue;
+
+            int modelId = (int)((this.sectionData[i * 2] >>> 26) & 0xFFFF);
+            int red = 0, green = 0, blue = 0;
+            boolean unavailable = false;
+            for (int j = 0; j < sampleCount; j++) {
+                int colour = colours.colourOf(modelId, this.blendBiomeScratch[j]);
+                if (colour == -1) { unavailable = true; break; }
+                red += colour & 0xFF;
+                green += (colour >>> 8) & 0xFF;
+                blue += (colour >>> 16) & 0xFF;
+            }
+            if (unavailable) continue;
+            int blended = red / sampleCount | (green / sampleCount) << 8 | (blue / sampleCount) << 16;
+            int index = palette.indexFor(blended);
+            if (index < 0) continue;
+            long quad = this.sectionData[i * 2];
+            quad &= ~((0x1FFL << 46) | (0xFL << 42));
+            quad |= (long)(index & 0x1FF) << 46;
+            quad |= (long)((index >>> 9) & 0xF) << 42;
+            this.sectionData[i * 2] = quad | 1L << 63;
+        }
+    }
+
+
     private int prepareSectionData(final long[] rawSectionData) {
         final var sectionData = this.sectionData;
         final var rawModelIds = this.modelMan._unsafeRawAccess();
@@ -1781,6 +1854,7 @@ public class RenderDataFactory {
         }
 
         try {
+            this.applyBiomeBlend(section._unsafeGetRawDataArray(), neighborMsk, CHECK_NEIGHBOR_FACE_OCCLUSION);
             this.generateYZFaces();
             this.generateXFaces();
             this.generateFluidFaces();

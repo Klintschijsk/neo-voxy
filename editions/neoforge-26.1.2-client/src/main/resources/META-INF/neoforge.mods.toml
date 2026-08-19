@@ -21,6 +21,9 @@ config = "common.voxy.mixins.json"
 [[mixins]]
 config = "client.voxy.mixins.json"
 
+[[mixins]]
+config = "fakesight.voxy.mixins.json"
+
 [[dependencies.voxy]]
 modId = "neoforge"
 type = "required"

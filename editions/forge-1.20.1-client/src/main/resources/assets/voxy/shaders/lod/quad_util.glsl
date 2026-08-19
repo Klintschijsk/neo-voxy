@@ -46,6 +46,8 @@ uint makeQuadFlags(uint faceData, uint modelId, ivec2 quadSize, const in BlockMo
         flags |= uint(any(greaterThan(quadSize, ivec2(1)))) & faceHasAlphaCuttoutOverride(faceData);
     }
 
+    flags |= modelUsesBalancedLeafCutout(model) ? 2u : 0u;
+
     //TODO: remove, there is no non mip code path anymore
     //flags |= uint(!modelHasMipmaps(model))<<1;//Not mipmaps
 
@@ -53,6 +55,20 @@ uint makeQuadFlags(uint faceData, uint modelId, ivec2 quadSize, const in BlockMo
     flags |= face<<4;//Face
 
     return flags;
+}
+
+uint makeBalancedLeafSeed(const in Quad quad, ivec3 lodPos, uint lodLevel, uint face) {
+    uvec3 worldPos = (uvec3(lodPos) << lodLevel) * 32u
+            + (uvec3(extractPos(quad)) << lodLevel);
+    uint hash = worldPos.x * 0x8da6b343u;
+    hash ^= worldPos.y * 0xd8163841u;
+    hash ^= worldPos.z * 0xcb1ab31fu;
+    hash ^= face * 0x165667b1u;
+    hash ^= lodLevel * 0x9e3779b9u;
+    hash ^= hash >> 16u;
+    hash *= 0x7feb352du;
+    hash ^= hash >> 15u;
+    return hash & 0xFFFFu;
 }
 
 uint packVec4(vec4 vec) {
@@ -74,7 +90,9 @@ uvec3 makeRemainingAttributes(const in BlockModel model, const in Quad quad, uin
     uint tintColour = model.colourTint;
 
     if (modelHasBiomeLUT(model)) {
-        tintColour = colourData[tintColour + extractBiomeId(quad)];
+        tintColour = quadUsesBlendPalette(quad) != 0u
+                ? colourData[57344u + extractBlendIdx(quad)]
+                : colourData[tintColour + extractBiomeId(quad)];
     }
 
     #ifdef PATCHED_SHADER
@@ -112,13 +130,17 @@ uvec3 makeRemainingAttributes(const in BlockModel model, const in Quad quad, uin
     attributes.z = addin|(face<<8);
     #endif
 
+    attributes.z |= modelUsesFluidDatum(model) ? (1u << 11u) : 0u;
+    attributes.z |= modelIsLeaf(model) ? (1u << 12u) : 0u;
+
     return attributes;
 }
 
 void setupQuad(out QuadData quad, const in Quad rawQuad, uvec2 sPos, bool generateAttributes) {
     uint lodLevel = getLoDLevel(sPos);
     float lodScale = 1<<lodLevel;
-    ivec3 baseSection = (getLoDPosition(sPos)<<lodLevel) - baseSectionPos;
+    ivec3 lodPos = getLoDPosition(sPos);
+    ivec3 baseSection = (lodPos<<lodLevel) - baseSectionPos;
 
     uint face = extractFace(rawQuad);
     uint modelId = extractStateId(rawQuad);
@@ -129,6 +151,9 @@ void setupQuad(out QuadData quad, const in Quad rawQuad, uvec2 sPos, bool genera
     if (generateAttributes) {
         quad.attributeData.x = makeQuadFlags(faceData, modelId, quadSize, model, face);
         quad.attributeData.yzw = makeRemainingAttributes(model, rawQuad, lodLevel, face);
+        if (modelUsesBalancedLeafCutout(model)) {
+            quad.attributeData.w |= makeBalancedLeafSeed(rawQuad, lodPos, lodLevel, face) << 16u;
+        }
     }
 
     vec4 faceSize = getFaceSize(faceData);
@@ -150,6 +175,11 @@ void setupQuad(out QuadData quad, const in Quad rawQuad, uvec2 sPos, bool genera
     quad.uvCorner = faceSize.xz;
 }
 
+vec3 getQuadCornerPoint(in QuadData quad, uint cornerId) {
+    vec2 cornerMask = vec2((cornerId>>1)&1u, cornerId&1u)*quad.lodScale;
+    return quad.basePoint + swizzelDataAxis(quad.axis,vec3(quad.quadSizeAddin*cornerMask,0));
+}
+
 vec3 applyWorldCurvature(vec3 point) {
     float radius = worldCurveData.x;
     vec2 delta = point.xz - cameraSubPos.xz;
@@ -164,9 +194,7 @@ vec3 applyWorldCurvature(vec3 point) {
 }
 
 vec4 getQuadCornerPos(in QuadData quad, uint cornerId) {
-    vec2 cornerMask = vec2((cornerId>>1)&1u, cornerId&1u)*quad.lodScale;
-    vec3 point = quad.basePoint + swizzelDataAxis(quad.axis,vec3(quad.quadSizeAddin*cornerMask,0));
-    vec4 pos = MVP * vec4(applyWorldCurvature(point), 1.0f);
+    vec4 pos = MVP * vec4(applyWorldCurvature(getQuadCornerPoint(quad, cornerId)), 1.0f);
     pos.xy += taaOffset*pos.w;
     return pos;
 }

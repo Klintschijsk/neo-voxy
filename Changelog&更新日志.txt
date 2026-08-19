@@ -9,7 +9,12 @@ Neo Voxy 更新日志 / Changelog
 - 统一三档树叶 LOD 模式及配置入口；保留隐藏内部面剔除，避免额外的逐帧方块扫描。
 - 向旧版降级移植水体优先的 LOD 降采样、占用率就近取整和光照选择，减少流体破碎与 LOD 系统性抬升。
 - 进服消息改为每次进入世界显示，默认开启，并可在 Sodium/Embeddium 的 Neo Voxy 设置中关闭；消息会直接提示关闭位置。
-- 扩展区块请求保持 1.21.1 专用、默认关闭并限制为 48 区块；远景信标的完整缓存渲染继续由联动版提供，避免在缺少数据索引的客户端版引入假兼容。
+- 将联动版最新圆形 LOD 淡入同步至三个客户端版：使用三维相机距离与世界坐标稳定抖动，水体独立交接，树叶跳过透明淡入，减少空洞、噪点及树叶消失后重现。
+- 将扩展区块请求同步至全部客户端版，默认关闭并限制为 48 区块；移动时暂停扩张，静止后渐进恢复，避免集中请求拖垮帧时间。
+- 将 LOD 群系水色混合同步至全部客户端版；在模型构建时写入紧凑调色板，不增加逐 tick 世界遍历。
+- 修复 1.20.1 与 1.21.1 无光影远景雾距离，补全 1.20.1 水下雾遮罩，并使失明、黑暗正确遮挡 LOD；26.1.2 保留新版原生雾路径。
+- 同步逐面独立 mip、精确逐像素染色掩码、水体边界分类及相关降采样修复，改善植被、水体和原版/LOD 交界质量。
+- 远景信标的完整缓存渲染继续由联动版提供，避免在缺少数据索引的客户端版引入无效选项。
 
 ### English
 
@@ -18,7 +23,12 @@ Neo Voxy 更新日志 / Changelog
 - Unified the three leaf LOD modes and their settings while retaining hidden internal-face culling and avoiding per-frame block scans.
 - Down-ported water-aware LOD sampling, nearest occupancy rounding, and light selection to reduce broken fluids and systematic LOD uplift.
 - Join messages now appear on every world entry, are enabled by default, and can be disabled in the Neo Voxy Sodium/Embeddium settings; the message states where to disable it.
-- Extended chunk requests remain a guarded, disabled-by-default 1.21.1 feature capped at 48 chunks. Full cache-backed distant beacons remain in the integrations edition instead of exposing a non-functional client-only toggle.
+- Synchronized the integrations edition's latest circular LOD handoff to all three client editions: 3D camera distance, world-stable dithering, independent water ownership, and direct leaf replacement reduce holes, noise, and leaf disappear/reappear transitions.
+- Extended chunk requests are now available in every client edition, disabled by default and capped at 48 chunks. Expansion pauses while moving and resumes gradually while stationary to protect frame time.
+- Added build-time LOD biome water-colour blending to every client edition using a compact palette with no per-tick world traversal.
+- Fixed shader-free distant fog on 1.20.1 and 1.21.1, restored the 1.20.1 underwater fog mask, and made Blindness/Darkness hide LODs correctly. Version 26.1.2 retains its newer native fog path.
+- Synchronized per-face mip generation, exact per-pixel tint masks, fluid boundary classification, and related downsampling fixes for better vegetation, water, and vanilla/LOD boundary quality.
+- Full cache-backed distant beacons remain in the integrations edition instead of exposing a non-functional client-only toggle.
 
 ## 0.4.0-beta-2 (1.21.1 NeoForge 联动版) — 2026-08-17
 

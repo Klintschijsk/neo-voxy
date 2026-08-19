@@ -72,7 +72,9 @@ uvec3 makeRemainingAttributes(const in BlockModel model, const in Quad quad, uin
     uint tintColour = model.colourTint;
 
     if (modelHasBiomeLUT(model)) {
-        tintColour = colourData[tintColour + extractBiomeId(quad)];
+        tintColour = quadUsesBlendPalette(quad) != 0u
+                ? colourData[57344u + extractBlendIdx(quad)]
+                : colourData[tintColour + extractBiomeId(quad)];
     }
 
     #ifdef PATCHED_SHADER
@@ -109,6 +111,9 @@ uvec3 makeRemainingAttributes(const in BlockModel model, const in Quad quad, uin
     attributes.y = conditionalTinting;
     attributes.z = addin|(face<<8);
     #endif
+
+    attributes.z |= modelUsesFluidDatum(model) ? (1u << 11u) : 0u;
+    attributes.z |= modelIsLeaf(model) ? (1u << 12u) : 0u;
 
     return attributes;
 }
@@ -180,6 +185,11 @@ void setupQuad(out QuadData quad, const in Quad rawQuad, uvec2 sPos, bool genera
     quad.uvCorner = faceSize.xz;
 }
 
+vec3 getQuadCornerPoint(in QuadData quad, uint cornerId) {
+    vec2 cornerMask = vec2((cornerId>>1)&1u, cornerId&1u)*quad.lodScale;
+    return quad.basePoint + swizzelDataAxis(quad.axis,vec3(quad.quadSizeAddin*cornerMask,0));
+}
+
 vec3 applyWorldCurvature(vec3 point) {
     float radius = worldCurveData.x;
     vec2 delta = point.xz - cameraSubPos.xz;
@@ -194,9 +204,7 @@ vec3 applyWorldCurvature(vec3 point) {
 }
 
 vec4 getQuadCornerPos(in QuadData quad, uint cornerId) {
-    vec2 cornerMask = vec2((cornerId>>1)&1u, cornerId&1u)*quad.lodScale;
-    vec3 point = quad.basePoint + swizzelDataAxis(quad.axis,vec3(quad.quadSizeAddin*cornerMask,0));
-    vec4 pos = MVP * vec4(applyWorldCurvature(point), 1.0f);
+    vec4 pos = MVP * vec4(applyWorldCurvature(getQuadCornerPoint(quad, cornerId)), 1.0f);
     pos.xy += taaOffset*pos.w;
     return pos;
 }

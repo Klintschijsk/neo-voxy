@@ -56,6 +56,7 @@ public class VoxyConfig
     public boolean enableExtendedRequestDistance = false;
     public int requestDistance = 48;
     public boolean showJoinMessage = true;
+    public boolean upgradeCleanupNoticeShown = false;
 
     public String ssaoMode;
 
@@ -157,6 +158,10 @@ public class VoxyConfig
     }
 
     public int getRequestDistance() { return clamp(this.requestDistance, 8, 48); }
+
+    public int getLodRenderDistanceBlocks() {
+        return clamp(Math.round(this.sectionRenderDistance * 32.0f * 16.0f), 64, 32768);
+    }
 
     private static int clamp(int value, int min, int max) { return Math.max(min, Math.min(max, value)); }
     private static float clamp(float value, float min, float max) { return Math.max(min, Math.min(max, value)); }

@@ -133,6 +133,14 @@ public abstract class AbstractRenderPipeline extends TrackedObject {
       GL42.nglUniformMatrix4fv(2, 1, false, SCRATCH);
       GL42.glUniform1f(6, boundary.fadeStart());
       GL42.glUniform1f(7, boundary.fadeEnd());
+      int cameraBlockX = (int)Math.floor(viewport.cameraX);
+      int cameraBlockY = (int)Math.floor(viewport.cameraY);
+      int cameraBlockZ = (int)Math.floor(viewport.cameraZ);
+      GL42.glUniform3i(8, cameraBlockX, cameraBlockY, cameraBlockZ);
+      GL42.glUniform3f(9,
+         (float)(viewport.cameraX - cameraBlockX),
+         (float)(viewport.cameraY - cameraBlockY),
+         (float)(viewport.cameraZ - cameraBlockZ));
       GL42.glUniform1i(10, 0);
       GL42.glDepthMask(true);
       GL11C.glColorMask(false, false, false, false);

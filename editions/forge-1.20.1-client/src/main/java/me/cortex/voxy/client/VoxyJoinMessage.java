@@ -18,7 +18,7 @@ public final class VoxyJoinMessage {
 
     @SubscribeEvent
     public static void onLogin(ClientPlayerNetworkEvent.LoggingIn event) {
-        pending = VoxyConfig.CONFIG.showJoinMessage ? 20 : -1;
+        pending = VoxyConfig.CONFIG.showJoinMessage || !VoxyConfig.CONFIG.upgradeCleanupNoticeShown ? 20 : -1;
     }
 
     @SubscribeEvent
@@ -30,9 +30,17 @@ public final class VoxyJoinMessage {
     public static void onTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END || pending < 0 || pending-- > 0) return;
         var player = Minecraft.getInstance().player;
-        if (player != null && VoxyConfig.CONFIG.showJoinMessage) {
-            player.displayClientMessage(Component.literal("[Neo Voxy] " + version()).withStyle(ChatFormatting.AQUA), false);
-            player.displayClientMessage(Component.translatable("voxy.join.disableHint").withStyle(ChatFormatting.DARK_GRAY), false);
+        if (player != null) {
+            if (VoxyConfig.CONFIG.showJoinMessage) {
+                player.displayClientMessage(Component.literal("[Neo Voxy] " + version()).withStyle(ChatFormatting.AQUA), false);
+                player.displayClientMessage(Component.literal("Maintainer: JohnSnow | https://github.com/NHblock-Johnsnow/neo-voxy").withStyle(ChatFormatting.GRAY), false);
+                player.displayClientMessage(Component.translatable("voxy.join.disableHint").withStyle(ChatFormatting.DARK_GRAY), false);
+            }
+            if (!VoxyConfig.CONFIG.upgradeCleanupNoticeShown) {
+                player.displayClientMessage(Component.translatable("voxy.join.upgradeCleanup").withStyle(ChatFormatting.YELLOW), false);
+                VoxyConfig.CONFIG.upgradeCleanupNoticeShown = true;
+                VoxyConfig.CONFIG.save();
+            }
         }
     }
 
