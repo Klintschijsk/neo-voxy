@@ -125,3 +125,9 @@ Neo Voxy 更新日志 / Changelog
 - Combined the 1.21.1 NeoForge integrations edition, 1.21.1 NeoForge client edition, 1.20.1 Forge client edition, and 26.1.2 NeoForge client edition in one multiversion repository.
 - Added per-edition and all-edition build commands; release artifacts remove unused natives, duplicate module descriptors, and build intermediates.
 - GitHub Actions exposes four individual build jobs and publishes only the final `neo-voxy-multiversion` bundle.
+2026-08-21
+- 修复 1.20.1 叶片颜色提供器兼容修复导致的无光影水体白色回归；恢复流体原有颜色提供器判定，仅对未注册叶片颜色提供器使用 `-1` 特判。
+- 修复 1.20.1 LOD 水体烘焙未保留流体顶点颜色，导致水面变白及锯齿的问题。
+- 扩展区块请求改为独立于 Voxy 渲染开关，1.20.1 与 26.1.2 配置启用后可正常作用。
+- 26.1.2 扩展区块请求页面不再受 Voxy 总开关禁用状态限制。
+- 补齐 1.20.1 中文配置页标题翻译。

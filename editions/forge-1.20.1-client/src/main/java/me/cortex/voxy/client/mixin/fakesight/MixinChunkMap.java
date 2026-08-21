@@ -11,7 +11,7 @@ public abstract class MixinChunkMap {
     @ModifyArg(method = "setViewDistance", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/util/Mth;clamp(III)I"), index = 2, require = 0)
     private int voxy$extendIntegratedServerLimit(int vanillaLimit) {
-        return VoxyConfig.CONFIG.enableExtendedRequestDistance && VoxyConfig.CONFIG.isRenderingEnabled()
+        return VoxyConfig.CONFIG.enableExtendedRequestDistance
                 ? Math.max(vanillaLimit, 49) : vanillaLimit;
     }
 }

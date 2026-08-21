@@ -183,6 +183,8 @@ public class SoftwareModelTextureBakery {
                 //TODO: need to make a quad once tinting thing
                 translucentVC.setDefaultMeta(translucentVC.getDefaultMeta()|4);//Tinting
                 opaqueVC.setDefaultMeta(opaqueVC.getDefaultMeta()|4);//Tinting
+                translucentVC.setVertexAlphaOnly(true);
+                opaqueVC.setVertexAlphaOnly(true);
                 return -1;
             }
 
@@ -231,7 +233,7 @@ public class SoftwareModelTextureBakery {
 
             @Override
             public float getShade(Direction direction, boolean bl) {
-                return 0;
+                return getVanillaLikeFluidShade(direction);
             }
         
         };
@@ -244,9 +246,26 @@ public class SoftwareModelTextureBakery {
         } else {
             this.opaqueVC.setDefaultMeta(this.opaqueVC.getDefaultMeta()&~1);//remove discard
         }
-        Minecraft.getInstance().getBlockRenderer().renderLiquid(BlockPos.ZERO, getter, vc, state, state.getFluidState());
-        this.translucentVC.setDefaultMeta(0);//Reset default meta
-        this.opaqueVC.setDefaultMeta(0);//Reset default meta
+        try {
+            Minecraft.getInstance().getBlockRenderer().renderLiquid(BlockPos.ZERO, getter, vc, state, state.getFluidState());
+        } finally {
+            this.translucentVC.setVertexAlphaOnly(false);
+            this.opaqueVC.setVertexAlphaOnly(false);
+            this.translucentVC.setDefaultMeta(0);//Reset default meta
+            this.opaqueVC.setDefaultMeta(0);//Reset default meta
+        }
+    }
+
+    private static float getVanillaLikeFluidShade(Direction direction) {
+        if (direction == null) {
+            return 1.0f;
+        }
+        return switch (direction) {
+            case DOWN -> 0.5f;
+            case UP -> 1.0f;
+            case NORTH, SOUTH -> 0.8f;
+            case WEST, EAST -> 0.6f;
+        };
     }
 
     private static boolean shouldReturnAirForFluid(BlockPos pos, int face) {

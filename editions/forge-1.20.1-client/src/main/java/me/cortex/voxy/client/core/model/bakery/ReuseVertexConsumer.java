@@ -14,11 +14,12 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 public final class ReuseVertexConsumer implements VertexConsumer {
-    public static final int VERTEX_FORMAT_SIZE = 24;
+    public static final int VERTEX_FORMAT_SIZE = 28;
     private MemoryBuffer buffer = new MemoryBuffer(8192);
     private long ptr;
     private int count;
     private int defaultMeta;
+    private boolean vertexAlphaOnly;
 
     public boolean anyShaded;
     public boolean anyDarkendTex;
@@ -63,6 +64,7 @@ public final class ReuseVertexConsumer implements VertexConsumer {
         MemoryUtil.memPutFloat(this.ptr, (float) x);
         MemoryUtil.memPutFloat(this.ptr + 4, (float) y);
         MemoryUtil.memPutFloat(this.ptr + 8, (float) z);
+        MemoryUtil.memPutInt(this.ptr + 24, 0xFFFFFFFF);
         //?} else {
         /*MemoryUtil.memPutFloat(this.ptr, x);
         MemoryUtil.memPutFloat(this.ptr + 4, y);
@@ -79,11 +81,20 @@ public final class ReuseVertexConsumer implements VertexConsumer {
 
     @Override
     public ReuseVertexConsumer color(int red, int green, int blue, int alpha) {
-        return this;
+        return this.color((alpha << 24) | (blue << 16) | (green << 8) | red);
     }
 
     @Override
-    public VertexConsumer color(int i) {
+    public ReuseVertexConsumer color(int i) {
+        if (this.vertexAlphaOnly) {
+            i = (i & 0xFF000000) | 0x00FFFFFF;
+        }
+        MemoryUtil.memPutInt(this.ptr + 24, i);
+        return this;
+    }
+
+    public ReuseVertexConsumer setVertexAlphaOnly(boolean vertexAlphaOnly) {
+        this.vertexAlphaOnly = vertexAlphaOnly;
         return this;
     }
 
@@ -174,6 +185,7 @@ public final class ReuseVertexConsumer implements VertexConsumer {
             // look at FaceBakery
             int j = i * 8;
             this.vertex(Float.intBitsToFloat(vertices[j]), Float.intBitsToFloat(vertices[j + 1]), Float.intBitsToFloat(vertices[j + 2]));
+            this.color(vertices[j + 3]);
             this.uv(Float.intBitsToFloat(vertices[j + 4]), Float.intBitsToFloat(vertices[j + 5]));
 
             this.meta(metadata|this.globalOrMetadata);
@@ -199,6 +211,7 @@ public final class ReuseVertexConsumer implements VertexConsumer {
         this.anyDarkendTex = false;
         this.anyDiscard = false;
         this.defaultMeta = 0;//RESET THE DEFAULT META
+        this.vertexAlphaOnly = false;
         this.count = 0;
         this.ptr = this.buffer.address - VERTEX_FORMAT_SIZE;//the thing is first time this gets incremented by FORMAT_STRIDE
         return this;

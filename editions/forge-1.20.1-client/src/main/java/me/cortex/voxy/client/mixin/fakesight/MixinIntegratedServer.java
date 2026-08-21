@@ -21,7 +21,7 @@ public abstract class MixinIntegratedServer {
     @ModifyArg(method = "tickServer", at = @At(value = "INVOKE",
             target = "Ljava/lang/Math;max(II)I", ordinal = 0), index = 1, require = 0)
     private int voxy$extendIntegratedDistance(int originalDistance) {
-        if (!VoxyConfig.CONFIG.enableExtendedRequestDistance || !VoxyConfig.CONFIG.isRenderingEnabled()) {
+        if (!VoxyConfig.CONFIG.enableExtendedRequestDistance) {
             voxy$reset();
             return originalDistance;
         }

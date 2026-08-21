@@ -12,7 +12,7 @@ public abstract class MixinOptions {
     @Redirect(method = "broadcastOptions", at = @At(value = "INVOKE",
             target = "Lnet/minecraft/client/OptionInstance;get()Ljava/lang/Object;", ordinal = 0), require = 0)
     private Object voxy$extendedDistance(OptionInstance<?> option) {
-        return VoxyConfig.CONFIG.enableExtendedRequestDistance && VoxyConfig.CONFIG.isRenderingEnabled()
+        return VoxyConfig.CONFIG.enableExtendedRequestDistance
                 ? Integer.valueOf(VoxyConfig.CONFIG.getRequestDistance()) : option.get();
     }
 }

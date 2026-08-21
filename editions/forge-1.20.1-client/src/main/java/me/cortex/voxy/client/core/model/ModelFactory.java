@@ -850,10 +850,13 @@ public class ModelFactory {
     private static BlockColor getColourProvider(Block block) {
         BlockState state = block.defaultBlockState();
         var colors = Minecraft.getInstance().getBlockColors();
-        // BlockColors returns -1 when no provider is registered.  Treating that
-        // value as a real tint turns unregistered foliage (notably cherry leaves
-        // in 1.20.1) into opaque black in the no-shader LOD path.
-        if (colors.getColor(state, null, BlockPos.ZERO, 0) == -1) {
+        int colour = colors.getColor(state, null, BlockPos.ZERO, 0);
+        // Keep the pre-foliage-fix behaviour for fluids and all other blocks:
+        // their null-context probe uses 0 as the no-provider sentinel.  The
+        // 1.20.1 renderer additionally returns -1 for unregistered foliage;
+        // only treat that value as absent for leaves, otherwise water would be
+        // routed through a new tint path and become white in no-shader LODs.
+        if (colour == 0 || (isLeafBlockState(state) && colour == -1)) {
             return null;
         }
         return colors::getColor;

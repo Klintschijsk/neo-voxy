@@ -287,7 +287,6 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                         .setEnabler("voxy:extended_request")
                   )
                )
-               .setEnabler("voxy:enabled")
          );
       }
    }
