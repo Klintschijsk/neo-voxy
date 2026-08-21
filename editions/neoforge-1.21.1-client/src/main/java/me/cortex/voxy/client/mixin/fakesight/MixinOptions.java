@@ -18,7 +18,7 @@ public abstract class MixinOptions {
             )
     )
     private Object voxy$modifyPlayerInformationRenderDistance(OptionInstance<?> instance) {
-        if (VoxyConfig.CONFIG.enableExtendedRequestDistance && VoxyConfig.CONFIG.isRenderingEnabled()) {
+        if (VoxyConfig.CONFIG.enableExtendedRequestDistance) {
             return Integer.valueOf(VoxyConfig.CONFIG.getRequestDistance());
         }
         return instance.get();

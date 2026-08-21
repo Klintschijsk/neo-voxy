@@ -10,7 +10,7 @@ Neo Voxy 更新日志 / Changelog
 - 修复藤蔓及其他被错误声明为 SOLID 的透明植物/薄片方块在 LOD 中变成黑色矩形的问题，烘焙阶段会按实际图集像素自动启用 alpha discard。
 - 补齐 26.1.2 的雾气配置选项，并修复 1.20.1 无光影时 LOD 距离雾距离过远而几乎不可见的问题。
 - 将 26.1.2 的叶片识别与无光影染色修复补齐到 1.20.1；修复未注册原版颜色提供器的樱花树叶被错误染成黑色的问题。
-- 彻底移除 1.20.1 的 LOD 边界淡入路径，并修复 Sodium 地形矩阵捕获时机导致的远景拖影填充天空问题。
+- 彻底移除 1.20.1 的 LOD 边界淡入路径，因为其造成了严重问题，并修复 Sodium 地形矩阵捕获时机导致的远景拖影填充天空问题。
 
 ### English
 
@@ -126,6 +126,8 @@ Neo Voxy 更新日志 / Changelog
 - Added per-edition and all-edition build commands; release artifacts remove unused natives, duplicate module descriptors, and build intermediates.
 - GitHub Actions exposes four individual build jobs and publishes only the final `neo-voxy-multiversion` bundle.
 2026-08-21
+- 修复全部客户端版本扩展区块请求未实际扩大服务器区块跟踪范围的问题；现在集成服务器会在静止后逐步更新视距并触发新的区块发送。
+- 修复 1.20.1 与 26.1.2 修改扩展请求配置后未立即重新传达客户端视距的问题。
 - 修正 1.20.1 Forge 构建仓库配置，改用 Forge Maven，避免误向 NeoForge Maven 请求 Forge 的动态 ModLauncher 依赖。
 - 修复 1.20.1 叶片颜色提供器兼容修复导致的无光影水体白色回归；恢复流体原有颜色提供器判定，仅对未注册叶片颜色提供器使用 `-1` 特判。
 - 修复 1.20.1 LOD 水体烘焙未保留流体顶点颜色，导致水面变白及锯齿的问题。

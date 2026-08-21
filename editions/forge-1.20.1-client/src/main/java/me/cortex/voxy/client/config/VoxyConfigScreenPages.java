@@ -284,14 +284,24 @@ public abstract class VoxyConfigScreenPages {
                         .setName(Component.translatable("voxy.config.fakesight.enabled"))
                         .setTooltip(Component.translatable("voxy.config.fakesight.enabled.tooltip"))
                         .setControl(TickBoxControl::new)
-                        .setBinding((s, v) -> s.enableExtendedRequestDistance = v, s -> s.enableExtendedRequestDistance)
+                        .setBinding((s, v) -> {
+                            s.enableExtendedRequestDistance = v;
+                            if (Minecraft.getInstance().getConnection() != null) {
+                                Minecraft.getInstance().options.broadcastOptions();
+                            }
+                        }, s -> s.enableExtendedRequestDistance)
                         .setImpact(OptionImpact.HIGH)
                         .build()
                 ).add(OptionImpl.createBuilder(int.class, storage)
                         .setName(Component.translatable("voxy.config.fakesight.distance"))
                         .setTooltip(Component.translatable("voxy.config.fakesight.distance.tooltip"))
                         .setControl(opt -> new SliderControl(opt, 8, 48, 1, v -> Component.literal(Integer.toString(v))))
-                        .setBinding((s, v) -> s.requestDistance = v, VoxyConfig::getRequestDistance)
+                        .setBinding((s, v) -> {
+                            s.requestDistance = v;
+                            if (Minecraft.getInstance().getConnection() != null) {
+                                Minecraft.getInstance().options.broadcastOptions();
+                            }
+                        }, VoxyConfig::getRequestDistance)
                         .setImpact(OptionImpact.HIGH)
                         .build()
                 ).build());

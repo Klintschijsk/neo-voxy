@@ -11,6 +11,7 @@ import org.spongepowered.asm.mixin.injection.ModifyArg;
 @Mixin(IntegratedServer.class)
 public abstract class MixinIntegratedServer {
     @Unique private static final int VOXY_EXPANSION_INTERVAL_TICKS = 40;
+    @Unique private static final int VOXY_EXPANSION_STEP = 8;
     @Unique private static final int VOXY_MOVEMENT_PAUSE_TICKS = 80;
     @Unique private int voxy$currentRequestDistance = -1;
     @Unique private int voxy$expansionTicks;
@@ -18,17 +19,11 @@ public abstract class MixinIntegratedServer {
     @Unique private long voxy$lastPlayerChunk = Long.MIN_VALUE;
     @Unique private int voxy$lastDimensionHash;
 
-    @ModifyArg(
-            method = "tickServer",
-            at = @At(
-                    value = "INVOKE",
-                    target = "Ljava/lang/Math;max(II)I",
-                    ordinal = 0
-            ),
-            index = 1
-    )
+    @ModifyArg(method = "tickServer", at = @At(value = "INVOKE",
+            target = "Ljava/lang/Math;max(II)I", ordinal = 0),
+            index = 1, require = 1)
     private int voxy$modifyIntegratedServerRenderDistance(int originalDistance) {
-        if (!VoxyConfig.CONFIG.enableExtendedRequestDistance || !VoxyConfig.CONFIG.isRenderingEnabled()) {
+        if (!VoxyConfig.CONFIG.enableExtendedRequestDistance) {
             this.voxy$resetExtendedDistanceState();
             return originalDistance;
         }
@@ -39,8 +34,7 @@ public abstract class MixinIntegratedServer {
         } else if (this.voxy$currentRequestDistance > requestedDistance) {
             this.voxy$currentRequestDistance = requestedDistance;
         }
-        var server = (IntegratedServer) (Object) this;
-        var players = server.getPlayerList().getPlayers();
+        var players = ((IntegratedServer) (Object) this).getPlayerList().getPlayers();
         if (players.isEmpty()) {
             return this.voxy$currentRequestDistance;
         }
@@ -59,7 +53,8 @@ public abstract class MixinIntegratedServer {
             this.voxy$movementPauseTicks--;
         } else if (this.voxy$currentRequestDistance < requestedDistance
                 && ++this.voxy$expansionTicks >= VOXY_EXPANSION_INTERVAL_TICKS) {
-            this.voxy$currentRequestDistance++;
+            this.voxy$currentRequestDistance = Math.min(requestedDistance,
+                    this.voxy$currentRequestDistance + VOXY_EXPANSION_STEP);
             this.voxy$expansionTicks = 0;
         }
         return this.voxy$currentRequestDistance;

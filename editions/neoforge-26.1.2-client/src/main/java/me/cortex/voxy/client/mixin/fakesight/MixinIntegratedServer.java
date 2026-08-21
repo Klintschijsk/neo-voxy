@@ -11,6 +11,7 @@ import org.spongepowered.asm.mixin.injection.ModifyArg;
 @Mixin(IntegratedServer.class)
 public abstract class MixinIntegratedServer {
    @Unique private static final int VOXY_EXPANSION_INTERVAL = 40;
+   @Unique private static final int VOXY_EXPANSION_STEP = 8;
    @Unique private static final int VOXY_MOVEMENT_PAUSE = 80;
    @Unique private int voxy$current = -1;
    @Unique private int voxy$expansionTicks;
@@ -19,9 +20,10 @@ public abstract class MixinIntegratedServer {
    @Unique private int voxy$lastDimension;
 
    @ModifyArg(method = "tickServer", at = @At(value = "INVOKE",
-      target = "Ljava/lang/Math;max(II)I", ordinal = 0), index = 1, require = 0)
+      target = "Ljava/lang/Math;max(II)I", ordinal = 0),
+      index = 1, require = 1)
    private int voxy$extendedDistance(int original) {
-        if (!VoxyConfig.CONFIG.enableExtendedRequestDistance) {
+      if (!VoxyConfig.CONFIG.enableExtendedRequestDistance) {
          voxy$reset();
          return original;
       }
@@ -41,7 +43,7 @@ public abstract class MixinIntegratedServer {
       }
       if (voxy$pauseTicks > 0) --voxy$pauseTicks;
       else if (voxy$current < target && ++voxy$expansionTicks >= VOXY_EXPANSION_INTERVAL) {
-         ++voxy$current;
+         voxy$current = Math.min(target, voxy$current + VOXY_EXPANSION_STEP);
          voxy$expansionTicks = 0;
       }
       return voxy$current;

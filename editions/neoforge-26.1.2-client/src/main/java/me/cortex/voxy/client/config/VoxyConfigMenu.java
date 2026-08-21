@@ -38,7 +38,14 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                if (instance != null) {
                   instance.updateDedicatedThreads();
                }
-            }, "voxy:enabled").register("voxy:iris_reload", () -> IrisUtil.reload()),
+            }, "voxy:enabled")
+               .register("voxy:iris_reload", () -> IrisUtil.reload())
+               .register("voxy:refresh_chunk_request", () -> {
+                  var minecraft = net.minecraft.client.Minecraft.getInstance();
+                  if (minecraft.getConnection() != null) {
+                     minecraft.options.broadcastOptions();
+                  }
+               }),
             new SodiumConfigBuilder.Page(
                   Component.translatable("voxy.config.general"),
                   new SodiumConfigBuilder.Group(Component.translatable("voxy.config.group.general"),
@@ -72,7 +79,7 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                            new Range(1, CpuLayout.getCoreCount(), 1)
                         )
                         .setPostChangeFlags("voxy:update_threads"),
-                     new SodiumConfigBuilder.BoolOption(
+                        new SodiumConfigBuilder.BoolOption(
                            "voxy:use_sodium_threads",
                            Component.translatable("voxy.config.general.useSodiumBuilder"),
                            () -> !CFG.dontUseSodiumBuilderThreads,
@@ -160,9 +167,10 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                            v -> CFG.biomeBlendRadius = v,
                            new Range(0, 7, 1)
                         )
+                        .setPostChangeFlags("voxy:refresh_chunk_request"),
                         .setPostChangeFlags(RENDER_RELOAD)
                         .setImpact(OptionImpact.MEDIUM),
-                     new SodiumConfigBuilder.IntOption(
+                        new SodiumConfigBuilder.IntOption(
                            "voxy:earth_curve_ratio",
                            Component.translatable("voxy.config.general.earthCurveRatio"),
                            () -> CFG.earthCurveRatio,
@@ -275,7 +283,8 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                            () -> CFG.enableExtendedRequestDistance,
                            v -> CFG.enableExtendedRequestDistance = v
                         )
-                        .setImpact(OptionImpact.HIGH),
+                        .setImpact(OptionImpact.HIGH)
+                        .setPostChangeFlags("voxy:refresh_chunk_request"),
                      new SodiumConfigBuilder.IntOption(
                            "voxy:request_distance",
                            Component.translatable("voxy.config.fakesight.distance"),
@@ -284,6 +293,7 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                            new Range(8, 48, 1)
                         )
                         .setImpact(OptionImpact.HIGH)
+                        .setPostChangeFlags("voxy:refresh_chunk_request")
                         .setEnabler("voxy:extended_request")
                   )
                )
