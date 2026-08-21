@@ -167,7 +167,6 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                            v -> CFG.biomeBlendRadius = v,
                            new Range(0, 7, 1)
                         )
-                        .setPostChangeFlags("voxy:refresh_chunk_request"),
                         .setPostChangeFlags(RENDER_RELOAD)
                         .setImpact(OptionImpact.MEDIUM),
                         new SodiumConfigBuilder.IntOption(

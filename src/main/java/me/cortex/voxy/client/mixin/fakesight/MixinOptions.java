@@ -1,33 +1,26 @@
 package me.cortex.voxy.client.mixin.fakesight;
 
 import me.cortex.voxy.client.config.VoxyConfig;
+import net.minecraft.client.OptionInstance;
 import net.minecraft.client.Options;
-import net.minecraft.server.level.ClientInformation;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import org.spongepowered.asm.mixin.injection.Redirect;
 
 @Mixin(Options.class)
 public abstract class MixinOptions {
-    @Inject(
+    @Redirect(
             method = "buildPlayerInformation",
-            at = @At("RETURN"),
-            cancellable = true,
-            require = 0
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/client/OptionInstance;get()Ljava/lang/Object;",
+                    ordinal = 0
+            )
     )
-    private void voxy$modifyPlayerInformationRenderDistance(CallbackInfoReturnable<ClientInformation> cir) {
-        if (net.neoforged.neoforge.client.loading.ClientModLoader.isLoading()
-                || !VoxyConfig.CONFIG.enableExtendedRequestDistance
-                || !VoxyConfig.CONFIG.isRenderingEnabled()) return;
-
-        ClientInformation current = cir.getReturnValue();
-        if (current == null) return;
-        int requestDistance = Math.max(current.viewDistance(), VoxyConfig.CONFIG.getRequestDistance());
-        if (current.viewDistance() == requestDistance) return;
-        cir.setReturnValue(new ClientInformation(
-                current.language(), requestDistance, current.chatVisibility(),
-                current.chatColors(), current.modelCustomisation(), current.mainHand(),
-                current.textFilteringEnabled(), current.allowsListing()));
+    private Object voxy$modifyPlayerInformationRenderDistance(OptionInstance<?> instance) {
+        if (VoxyConfig.CONFIG.enableExtendedRequestDistance) {
+            return Integer.valueOf(VoxyConfig.CONFIG.getRequestDistance());
+        }
+        return instance.get();
     }
 }

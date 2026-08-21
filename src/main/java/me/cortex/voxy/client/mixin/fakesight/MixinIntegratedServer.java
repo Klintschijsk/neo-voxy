@@ -11,6 +11,7 @@ import org.spongepowered.asm.mixin.injection.ModifyArg;
 @Mixin(IntegratedServer.class)
 public abstract class MixinIntegratedServer {
     @Unique private static final int VOXY_EXPANSION_INTERVAL_TICKS = 40;
+    @Unique private static final int VOXY_EXPANSION_STEP = 8;
     @Unique private static final int VOXY_MOVEMENT_PAUSE_TICKS = 80;
 
     @Unique private int voxy$currentRequestDistance = -1;
@@ -27,11 +28,10 @@ public abstract class MixinIntegratedServer {
                     ordinal = 0
             ),
             index = 1,
-            require = 0
+            require = 1
     )
     private int voxy$modifyIntegratedServerRenderDistance(int originalDistance) {
-        if (!VoxyConfig.CONFIG.enableExtendedRequestDistance
-                || !VoxyConfig.CONFIG.isRenderingEnabled()) {
+        if (!VoxyConfig.CONFIG.enableExtendedRequestDistance) {
             this.voxy$resetRequestExpansion();
             return originalDistance;
         }
@@ -63,7 +63,8 @@ public abstract class MixinIntegratedServer {
             this.voxy$movementPauseTicks--;
         } else if (this.voxy$currentRequestDistance < safeRequestDistance
                 && ++this.voxy$expansionTicks >= VOXY_EXPANSION_INTERVAL_TICKS) {
-            this.voxy$currentRequestDistance++;
+            this.voxy$currentRequestDistance = Math.min(safeRequestDistance,
+                    this.voxy$currentRequestDistance + VOXY_EXPANSION_STEP);
             this.voxy$expansionTicks = 0;
         }
 

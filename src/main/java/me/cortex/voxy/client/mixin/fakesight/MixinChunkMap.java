@@ -14,12 +14,10 @@ public abstract class MixinChunkMap {
                     value = "INVOKE",
                     target = "Lnet/minecraft/util/Mth;clamp(III)I"
             ),
-            index = 2,
-            require = 0
+            index = 2
     )
     private int voxy$extendIntegratedServerLimit(int vanillaLimit) {
-        if (VoxyConfig.CONFIG.enableExtendedRequestDistance
-                && VoxyConfig.CONFIG.isRenderingEnabled()) {
+        if (VoxyConfig.CONFIG.enableExtendedRequestDistance) {
             // ChunkMap tracks one extra boundary ring.
             return Math.max(vanillaLimit, VoxyConfig.MAX_REQUEST_DISTANCE + 1);
         }
