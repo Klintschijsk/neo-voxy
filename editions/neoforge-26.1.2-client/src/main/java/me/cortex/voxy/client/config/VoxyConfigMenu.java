@@ -172,7 +172,7 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                         .setPostChangeFlags(RENDER_RELOAD)
                         .setImpact(OptionImpact.LOW)
                    ),
-                  new SodiumConfigBuilder.Group(Component.translatable("voxy.config.group.experimental"),
+                   new SodiumConfigBuilder.Group(Component.translatable("voxy.config.group.experimental"),
                      new SodiumConfigBuilder.BoolOption(
                            "voxy:lod_boundary_fade",
                             Component.translatable("voxy.config.general.lodBoundaryFade"),
@@ -199,9 +199,76 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                         )
                          .setFormatter(v -> Component.translatable("voxy.config.unit.blocks", v))
                         .setEnabler("voxy:lod_boundary_fade")
+                         .setImpact(OptionImpact.LOW)
+                   ),
+                  new SodiumConfigBuilder.Group(Component.translatable("voxy.config.group.fog"),
+                     new SodiumConfigBuilder.BoolOption(
+                           "voxy:environmental_fog",
+                           Component.translatable("voxy.config.general.environmental_fog"),
+                           () -> CFG.useEnvironmentalFog,
+                           v -> CFG.useEnvironmentalFog = v
+                        )
+                        .setPostChangeFlags(RENDER_RELOAD),
+                     new SodiumConfigBuilder.IntOption(
+                           "voxy:fog_intensity",
+                           Component.translatable("voxy.config.general.fogIntensity"),
+                           () -> Math.round(CFG.fogIntensity * 100.0F),
+                           v -> CFG.fogIntensity = v / 100.0F,
+                           new Range(0, 100, 1)
+                        )
+                        .setFormatter(v -> Component.literal(v + "%"))
+                        .setEnabler("voxy:environmental_fog")
+                        .setImpact(OptionImpact.LOW),
+                     new SodiumConfigBuilder.IntOption(
+                           "voxy:fog_density",
+                           Component.translatable("voxy.config.general.fogDensity"),
+                           () -> Math.round(CFG.fogDensity * 100.0F),
+                           v -> CFG.fogDensity = v / 100.0F,
+                           new Range(0, 100, 1)
+                        )
+                        .setFormatter(v -> Component.literal(v + "%"))
+                        .setEnabler("voxy:environmental_fog")
+                        .setImpact(OptionImpact.LOW),
+                     new SodiumConfigBuilder.IntOption(
+                           "voxy:sky_fog_distance",
+                           Component.translatable("voxy.config.general.skyFogDistance"),
+                           () -> CFG.skyFogDistance,
+                           v -> CFG.skyFogDistance = v,
+                           new Range(0, 1024, 1)
+                        )
+                        .setFormatter(v -> Component.translatable("voxy.config.unit.chunks", v))
+                        .setEnabler("voxy:environmental_fog")
+                        .setImpact(OptionImpact.LOW),
+                     new SodiumConfigBuilder.IntOption(
+                           "voxy:fog_distance_percent",
+                           Component.translatable("voxy.config.general.fogDistancePercent"),
+                           () -> CFG.fogDistancePercent,
+                           v -> CFG.fogDistancePercent = v,
+                           new Range(5, 200, 5)
+                        )
+                        .setFormatter(v -> Component.literal(v + "%"))
+                        .setEnabler("voxy:environmental_fog")
                         .setImpact(OptionImpact.LOW)
-                  ),
-                  new SodiumConfigBuilder.Group(Component.translatable("voxy.config.fakesight"),
+                  )
+                  .setEnablerInherit(s -> !IrisUtil.irisShadersEnabledInConfig(), ConfigState.UPDATE_ON_REBUILD),
+                  new SodiumConfigBuilder.Group(Component.translatable("voxy.config.group.vanillaEffects"),
+                        new SodiumConfigBuilder.EnumOption<>(
+                              "voxy:ssao_mode",
+                              SSAO.SSAOMode.class,
+                              Component.translatable("voxy.config.general.ssao_mode"),
+                              () -> CFG.getSSAOMode(),
+                              v -> CFG.setSSAOMode(v)
+                           )
+                           .setNameProvider(v -> Component.translatable("voxy.config.general.ssao_mode." + v.name().toLowerCase()))
+                           .setImpact(OptionImpact.MEDIUM)
+                           .setPostChangeFlags(RENDER_RELOAD)
+                     )
+                     .setEnablerInherit(s -> !IrisUtil.irisShadersEnabledInConfig(), ConfigState.UPDATE_ON_REBUILD)
+               )
+               .setEnablerAND("voxy:enabled", "voxy:rendering"),
+            new SodiumConfigBuilder.Page(
+                  Component.translatable("voxy.config.fakesight"),
+                  new SodiumConfigBuilder.Group(Component.translatable("voxy.config.group.chunkRequests"),
                      new SodiumConfigBuilder.BoolOption(
                            "voxy:extended_request",
                            Component.translatable("voxy.config.fakesight.enabled"),
@@ -217,29 +284,10 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
                            new Range(8, 48, 1)
                         )
                         .setImpact(OptionImpact.HIGH)
-                  ),
-                  new SodiumConfigBuilder.Group(Component.translatable("voxy.config.group.vanillaEffects"),
-                        new SodiumConfigBuilder.BoolOption(
-                              "voxy:eviromental_fog",
-                              Component.translatable("voxy.config.general.environmental_fog"),
-                              () -> CFG.useEnvironmentalFog,
-                              v -> CFG.useEnvironmentalFog = v
-                           )
-                           .setPostChangeFlags(RENDER_RELOAD),
-                        new SodiumConfigBuilder.EnumOption<>(
-                              "voxy:ssao_mode",
-                              SSAO.SSAOMode.class,
-                              Component.translatable("voxy.config.general.ssao_mode"),
-                              () -> CFG.getSSAOMode(),
-                              v -> CFG.setSSAOMode(v)
-                           )
-                           .setNameProvider(v -> Component.translatable("voxy.config.general.ssao_mode." + v.name().toLowerCase()))
-                           .setImpact(OptionImpact.MEDIUM)
-                           .setPostChangeFlags(RENDER_RELOAD)
-                     )
-                     .setEnablerInherit(s -> !IrisUtil.irisShadersEnabledInConfig(), ConfigState.UPDATE_ON_REBUILD)
+                        .setEnabler("voxy:extended_request")
+                  )
                )
-               .setEnablerAND("voxy:enabled", "voxy:rendering")
+               .setEnabler("voxy:enabled")
          );
       }
    }

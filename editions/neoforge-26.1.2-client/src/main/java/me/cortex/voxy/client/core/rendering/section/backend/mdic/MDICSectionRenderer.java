@@ -67,10 +67,13 @@ public class MDICSectionRenderer extends AbstractSectionRenderer<MDICViewport, B
    private final GlBuffer distanceCountBuffer = new GlBuffer(404096L).zero();
    private final GlBuffer statisticsBuffer = new GlBuffer(1024L).zero();
    private final AbstractRenderPipeline pipeline;
+   private final float fluidDatumY;
 
    public MDICSectionRenderer(AbstractRenderPipeline pipeline, ModelStore modelStore, BasicSectionGeometryData geometryData) {
       super(pipeline.properties, modelStore, geometryData);
       this.pipeline = pipeline;
+      var level = Minecraft.getInstance().level;
+      this.fluidDatumY = level == null ? -1.0e9F : level.getSeaLevel() - 7.0F / 64.0F;
       String vertex = ShaderLoader.parse("voxy:lod/gl46/quads3.vert");
       String taa = pipeline.taaFunction("taaShift");
       if (taa != null) {
@@ -123,6 +126,7 @@ public class MDICSectionRenderer extends AbstractSectionRenderer<MDICViewport, B
       ptr += 4L;
         viewport.innerTranslation.getToAddress(ptr);
         ptr += 12L;
+        MemoryUtil.memPutFloat(ptr, this.fluidDatumY); ptr += 4L;
         var fade = LodBoundaryFade.getDistances();
         MemoryUtil.memPutFloat(ptr, fade.enabled() ? 1.0F : 0.0F); ptr += 4L;
         MemoryUtil.memPutFloat(ptr, fade.fadeStart()); ptr += 4L;

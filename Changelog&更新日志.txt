@@ -1,5 +1,27 @@
 Neo Voxy 更新日志 / Changelog
 
+## 0.3.1（1.20.1 Forge / 26.1.2 NeoForge 客户端版）— 2026-08-20
+
+### 简体中文
+
+- 将 1.21.1 联动版的水面基准校正同步至 1.20.1 与 26.1.2，避免粗粒度 LOD 像素把连续水面切成高低不一的接缝。
+- 将 26.1.2 的扩展区块请求从渲染设置中拆分为独立配置页，与其他客户端版本保持一致。
+- 修复 1.20.1 与 26.1.2 原版及模组树叶在 LOD 中染色掩码、叶片识别或模型去重失效导致的浅色、透明感和零散黑块；群系染色叶片也统一走稳定 tint 路径。
+- 修复藤蔓及其他被错误声明为 SOLID 的透明植物/薄片方块在 LOD 中变成黑色矩形的问题，烘焙阶段会按实际图集像素自动启用 alpha discard。
+- 补齐 26.1.2 的雾气配置选项，并修复 1.20.1 无光影时 LOD 距离雾距离过远而几乎不可见的问题。
+- 将 26.1.2 的叶片识别与无光影染色修复补齐到 1.20.1；修复未注册原版颜色提供器的樱花树叶被错误染成黑色的问题。
+- 彻底移除 1.20.1 的 LOD 边界淡入路径，并修复 Sodium 地形矩阵捕获时机导致的远景拖影填充天空问题。
+
+### English
+
+- Ported the integrations edition's water-datum correction to 1.20.1 and 26.1.2 so coarse LOD pixels no longer split continuous water surfaces into visible height seams.
+- Moved extended chunk requests out of the 26.1.2 rendering settings and into a separate configuration page, matching the other client editions.
+- Fixed vanilla and modded 1.20.1 and 26.1.2 leaves appearing washed out, transparent, or speckled with black blocks in LODs when tint masks, leaf identification, or model deduplication failed; biome-tinted leaves now use the same stable tint path.
+- Fixed vines and other transparent plant/thin-quad blocks incorrectly declared as SOLID from becoming black rectangular cards in LODs; baking now enables alpha discard from the actual atlas sprite pixels.
+- Restored the full fog settings group on 26.1.2 and fixed 1.20.1 no-shader LOD fog using a distance so far away that it was effectively invisible.
+- Completed the 26.1.2 leaf-identification and shader-free tint fixes on 1.20.1; unregistered vanilla colour providers no longer turn cherry leaves black in LODs.
+- Removed the 1.20.1 LOD boundary fade path entirely and fixed sky-filling terrain trails caused by capturing Sodium terrain matrices at the wrong time.
+
 ## 0.4.1beta（1.21.1 NeoForge 联动版）/ 0.3.0（客户端版）— 2026-08-18
 
 ### 简体中文

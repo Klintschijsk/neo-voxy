@@ -8,6 +8,7 @@ import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.fog.FogData;
 import net.minecraft.client.renderer.fog.FogRenderer;
+import net.minecraft.world.level.material.FogType;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -24,7 +25,9 @@ public class MixinFogRenderer {
          if (vrs != null) {
             FogData data = (FogData)cir.getReturnValue();
             boolean fogIsDamnClose = data.environmentalEnd < 10.0F;
-            if (!VoxyConfig.CONFIG.useEnvironmentalFog && !fogIsDamnClose) {
+            if (!VoxyConfig.CONFIG.useEnvironmentalFog
+               && camera.getFluidInCamera() == FogType.NONE
+               && !fogIsDamnClose) {
                data.environmentalStart = 1.0E8F;
                data.environmentalEnd = 1.0E8F;
             }

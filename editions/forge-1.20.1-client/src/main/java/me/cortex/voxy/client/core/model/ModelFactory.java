@@ -70,9 +70,9 @@ public class ModelFactory {
 
     //TODO: replace the fluid BlockState with a client model id integer of the fluidState, requires looking up
     // the fluid state in the mipper
-    private record ModelEntry(ColourDepthTextureData down, ColourDepthTextureData up, ColourDepthTextureData north, ColourDepthTextureData south, ColourDepthTextureData west, ColourDepthTextureData east, int fluidBlockStateId, int tintingColour) {
-        public ModelEntry(ColourDepthTextureData[] textures, int fluidBlockStateId, int tintingColour) {
-            this(textures[0], textures[1], textures[2], textures[3], textures[4], textures[5], fluidBlockStateId, tintingColour);
+    private record ModelEntry(ColourDepthTextureData down, ColourDepthTextureData up, ColourDepthTextureData north, ColourDepthTextureData south, ColourDepthTextureData west, ColourDepthTextureData east, int fluidBlockStateId, int tintingColour, boolean leafModel) {
+        public ModelEntry(ColourDepthTextureData[] textures, int fluidBlockStateId, int tintingColour, boolean leafModel) {
+            this(textures[0], textures[1], textures[2], textures[3], textures[4], textures[5], fluidBlockStateId, tintingColour, leafModel);
         }
     }
 
@@ -290,7 +290,7 @@ public class ModelFactory {
         if (layer==null && (flags&8)!=0) {
             layer = RenderType.cutout();
         }
-        if (bake.state.is(BlockTags.LEAVES)) {
+        if (isLeafBlockState(bake.state)) {
             layer = VoxyConfig.CONFIG.getLeafLodMode() == VoxyConfig.LeafLodMode.FAST
                     ? RenderType.solid()
                     : RenderType.cutout();
@@ -421,6 +421,9 @@ public class ModelFactory {
         //TODO: add thing for `blockState.hasEmissiveLighting()` and `blockState.getLuminance()`
 
         boolean isFluid = blockState.getBlock() instanceof LiquidBlock;
+        boolean leafModel = isLeafBlockState(blockState);
+        boolean balancedLeaf = leafModel
+                && VoxyConfig.CONFIG.getLeafLodMode() == VoxyConfig.LeafLodMode.BALANCED;
         int modelId = -1;
 
 
@@ -447,7 +450,7 @@ public class ModelFactory {
 
         ModelEntry entry;
         {//Deduplicate same entries
-            entry = new ModelEntry(textureData, clientFluidStateId, isBiomeColourDependent||colourProvider==null?-1:captureColourConstant(colourProvider, blockState, DEFAULT_BIOME)|0xFF000000);
+            entry = new ModelEntry(textureData, clientFluidStateId, isBiomeColourDependent||colourProvider==null?-1:captureColourConstant(colourProvider, blockState, DEFAULT_BIOME)|0xFF000000, leafModel);
             int possibleDuplicate = this.modelTexture2id.getInt(entry);
             if (possibleDuplicate != -1) {//Duplicate found
                 this.idMappings[blockId] = possibleDuplicate;
@@ -536,6 +539,9 @@ public class ModelFactory {
             if (allTrue) {
                 cullsSame = true;
             }
+        }
+        if (balancedLeaf) {
+            cullsSame = true;
         }
 
 
@@ -629,7 +635,7 @@ public class ModelFactory {
 
             //Bits 24,25 are tint metadata
             if (colourProvider!=null) {//We have a colour provider
-                int tintState = TextureUtils.computeFaceTint(textureData[face], checkMode);
+                int tintState = leafModel ? 3 : TextureUtils.computeFaceTint(textureData[face], checkMode);
                 if (tintState == 2) {//Partial tint
                     faceModelData |= 1<<24;
                 } else if (tintState == 3) {//Full tint
@@ -661,9 +667,8 @@ public class ModelFactory {
 
         //TODO: THIS
         modelFlags |= isShaded?8:0;//model has AO and shade
-        boolean leafModel = blockState.is(BlockTags.LEAVES);
         modelFlags |= isFluid && blockState.getFluidState().is(FluidTags.WATER) ? 16 : 0;
-        modelFlags |= leafModel && VoxyConfig.CONFIG.getLeafLodMode() == VoxyConfig.LeafLodMode.BALANCED ? 32 : 0;
+        modelFlags |= balancedLeaf ? 32 : 0;
         modelFlags |= isFluid && blockState.getFluidState().is(FluidTags.LAVA) ? 64 : 0;
         modelFlags |= leafModel ? 128 : 0;
 
@@ -845,7 +850,10 @@ public class ModelFactory {
     private static BlockColor getColourProvider(Block block) {
         BlockState state = block.defaultBlockState();
         var colors = Minecraft.getInstance().getBlockColors();
-        if (colors.getColor(state, null, BlockPos.ZERO, 0) == 0) {
+        // BlockColors returns -1 when no provider is registered.  Treating that
+        // value as a real tint turns unregistered foliage (notably cherry leaves
+        // in 1.20.1) into opaque black in the no-shader LOD path.
+        if (colors.getColor(state, null, BlockPos.ZERO, 0) == -1) {
             return null;
         }
         return colors::getColor;
@@ -906,6 +914,10 @@ public class ModelFactory {
         int c = colorProvider.getColor(state, getter, BlockPos.ZERO, 0);
         if (c!=-1) return c;
         return colorProvider.getColor(state, getter, BlockPos.ZERO, 1);
+    }
+
+    public static boolean isLeafBlockState(BlockState state) {
+        return state.is(BlockTags.LEAVES) || state.getBlock() instanceof LeavesBlock;
     }
 
     private static boolean isBiomeDependentColour(BlockColor colorProvider, BlockState state) {

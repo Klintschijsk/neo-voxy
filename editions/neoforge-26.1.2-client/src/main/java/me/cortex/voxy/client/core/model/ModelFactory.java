@@ -41,6 +41,7 @@ import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.block.LiquidBlock;
+import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.BushBlock;
 import net.minecraft.world.level.block.StairBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -197,7 +198,7 @@ public class ModelFactory {
             layer = ChunkSectionLayer.CUTOUT;
          }
 
-         if (bake.state.is(BlockTags.LEAVES)) {
+         if (isLeafBlockState(bake.state)) {
             layer = VoxyConfig.CONFIG.getLeafLodMode() == VoxyConfig.LeafLodMode.FAST
                ? ChunkSectionLayer.SOLID
                : ChunkSectionLayer.CUTOUT;
@@ -207,7 +208,7 @@ public class ModelFactory {
             layer = ChunkSectionLayer.SOLID;
          }
 
-         boolean centeredGroundCross = bake.state.getBlock() instanceof BushBlock && !bake.state.is(BlockTags.LEAVES);
+         boolean centeredGroundCross = bake.state.getBlock() instanceof BushBlock && !isLeafBlockState(bake.state);
          ModelFactory.ModelBakeResultUpload bakeResult = this.processTextureBakeResult(
             bake.blockId, bake.state, textureData, isShaded, hasDarkenedTextures, layer, centeredGroundCross
          );
@@ -302,7 +303,8 @@ public class ModelFactory {
             ModelFactory.ModelEntry entry = new ModelFactory.ModelEntry(
                textureData,
                clientFluidStateId,
-               !isBiomeColourDependent && tintSources != null ? captureColourConstant(tintSources, blockState, this.DEFAULT_BIOME) | 0xFF000000 : -1
+               !isBiomeColourDependent && tintSources != null ? captureColourConstant(tintSources, blockState, this.DEFAULT_BIOME) | 0xFF000000 : -1,
+               isLeafBlockState(blockState)
             );
             int possibleDuplicate = this.modelTexture2id.getInt(entry);
             if (possibleDuplicate != -1) {
@@ -328,6 +330,7 @@ public class ModelFactory {
                ModelFactory.ModelBakeResultUpload uploadResult = new ModelFactory.ModelBakeResultUpload();
                uploadResult.modelId = modelId;
                long uploadPtr = uploadResult.model.address;
+               boolean leafModel = isLeafBlockState(blockState);
                if (!isFluid && !blockState.getFluidState().isEmpty() && clientFluidStateId != -1) {
                   isBiomeColourDependent |= ModelQueries.isBiomeColoured(this.getModelMetadataFromClientId(clientFluidStateId));
                }
@@ -362,8 +365,8 @@ public class ModelFactory {
                   cullsSame = true;
                }
 
-               if (blockState.is(BlockTags.LEAVES)
-                  && VoxyConfig.CONFIG.getLeafLodMode() == VoxyConfig.LeafLodMode.BALANCED) {
+               if (leafModel
+                   && VoxyConfig.CONFIG.getLeafLodMode() == VoxyConfig.LeafLodMode.BALANCED) {
                   cullsSame = true;
                }
 
@@ -413,7 +416,7 @@ public class ModelFactory {
                      faceModelData |= needsAlphaDiscard ? 4194304 : 0;
                      faceModelData |= !faceCoversFullBlock && layer != ChunkSectionLayer.TRANSLUCENT ? 8388608 : 0;
                      if (tintSources != null) {
-                        int tintState = TextureUtils.computeFaceTint(textureData[face], possibleDuplicate);
+                        int tintState = leafModel ? 3 : TextureUtils.computeFaceTint(textureData[face], possibleDuplicate);
                         if (tintState == 2) {
                            faceModelData |= 16777216;
                         } else if (tintState == 3) {
@@ -435,7 +438,6 @@ public class ModelFactory {
                modelFlags |= isBiomeColourDependent ? 2 : 0;
                modelFlags |= layer == ChunkSectionLayer.TRANSLUCENT ? 4 : 0;
                modelFlags |= isShaded ? 8 : 0;
-               boolean leafModel = blockState.is(BlockTags.LEAVES);
                modelFlags |= isFluid && blockState.getFluidState().is(FluidTags.WATER) ? 16 : 0;
                modelFlags |= leafModel && VoxyConfig.CONFIG.getLeafLodMode() == VoxyConfig.LeafLodMode.BALANCED ? 32 : 0;
                modelFlags |= isFluid && blockState.getFluidState().is(FluidTags.LAVA) ? 64 : 0;
@@ -620,6 +622,10 @@ public class ModelFactory {
       }
 
       return -1;
+   }
+
+   public static boolean isLeafBlockState(BlockState state) {
+      return state.is(BlockTags.LEAVES) || state.getBlock() instanceof LeavesBlock;
    }
 
    private static boolean isBiomeDependentColour(List<BlockTintSource> tintSources, final BlockState state) {
@@ -846,10 +852,11 @@ public class ModelFactory {
       ColourDepthTextureData west,
       ColourDepthTextureData east,
       int fluidBlockStateId,
-      int tintingColour
+      int tintingColour,
+      boolean leafModel
    ) {
-      public ModelEntry(ColourDepthTextureData[] textures, int fluidBlockStateId, int tintingColour) {
-         this(textures[0], textures[1], textures[2], textures[3], textures[4], textures[5], fluidBlockStateId, tintingColour);
+      public ModelEntry(ColourDepthTextureData[] textures, int fluidBlockStateId, int tintingColour, boolean leafModel) {
+         this(textures[0], textures[1], textures[2], textures[3], textures[4], textures[5], fluidBlockStateId, tintingColour, leafModel);
       }
    }
 

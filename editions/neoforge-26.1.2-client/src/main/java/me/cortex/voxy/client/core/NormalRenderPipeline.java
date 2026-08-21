@@ -12,6 +12,8 @@ import me.cortex.voxy.client.core.rendering.hierachical.HierarchicalOcclusionTra
 import me.cortex.voxy.client.core.rendering.hierachical.NodeCleaner;
 import me.cortex.voxy.client.core.rendering.post.FullscreenBlit;
 import me.cortex.voxy.client.core.util.GPUTiming;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.level.material.FogType;
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL11C;
 import org.lwjgl.opengl.GL30C;
@@ -22,7 +24,6 @@ public class NormalRenderPipeline extends AbstractRenderPipeline {
    private GlTexture colourTex;
    private GlTexture colourSSAOTex;
    private final GlFramebuffer fbSSAO = new GlFramebuffer();
-   private final boolean useEnvFog = VoxyConfig.CONFIG.useEnvironmentalFog;
    private final FullscreenBlit finalBlit;
    private final SSAO ssao;
 
@@ -35,7 +36,7 @@ public class NormalRenderPipeline extends AbstractRenderPipeline {
    ) {
       super(properties, nodeManager, nodeCleaner, traversal, frexSupplier, false);
       this.finalBlit = new FullscreenBlit(
-         properties, "voxy:post/blit_texture_depth_cutout.frag", a -> a.defineIf("USE_ENV_FOG", this.useEnvFog).define("EMIT_COLOUR")
+         properties, "voxy:post/blit_texture_depth_cutout.frag", a -> a.define("USE_ENV_FOG").define("EMIT_COLOUR")
       );
       this.ssao = SSAO.createSSAO(properties, VoxyConfig.CONFIG.getSSAOMode());
    }
@@ -76,42 +77,49 @@ public class NormalRenderPipeline extends AbstractRenderPipeline {
    @Override
    protected void finish(Viewport<?> viewport, int sourceDepthTexture, int outputFramebuffer, int srcWidth, int srcHeight) {
       this.finalBlit.bind();
-      boolean fogCoversAllRendering = viewport.fogParameters.environmentalEnd() < VoxyRenderSystem.getRenderDistance();
-      if (this.useEnvFog) {
-         float start = viewport.fogParameters.environmentalStart();
-         float end = viewport.fogParameters.environmentalEnd();
-         if (Math.abs(end - start) > 1.0F) {
-            float invEndFogDelta = 1.0F / (end - start);
-            float endDistance = Math.max(VoxyRenderSystem.getRenderDistance(), 320.0F);
-            endDistance *= (float)Math.sqrt(3.0);
-            float startDelta = -start * invEndFogDelta;
-            GL30C.glUniform4f(4, invEndFogDelta, startDelta, Math.clamp(endDistance * invEndFogDelta + startDelta, 0.0F, 1.0F), 0.0F);
-            GL30C.glUniform4f(5, viewport.fogParameters.red(), viewport.fogParameters.green(), viewport.fogParameters.blue(), viewport.fogParameters.alpha());
-         } else {
-            GL30C.glUniform4f(4, 0.0F, 0.0F, 0.0F, 0.0F);
-            GL30C.glUniform4f(5, 0.0F, 0.0F, 0.0F, 0.0F);
-         }
+      float fogStart = viewport.fogParameters.environmentalStart();
+      float fogEnd = viewport.fogParameters.environmentalEnd();
+      boolean requiredFog = Minecraft.getInstance().gameRenderer.getMainCamera().getFluidInCamera() != FogType.NONE
+         || fogEnd < 10.0F;
+      boolean optionalFog = VoxyConfig.CONFIG.useEnvironmentalFog && VoxyConfig.CONFIG.fogIntensity > 0.0F;
+      if (!requiredFog && optionalFog) {
+         fogEnd = Math.max(16.0F, VoxyConfig.CONFIG.skyFogDistance * 16.0F
+            * (VoxyConfig.CONFIG.fogDistancePercent / 100.0F));
+         fogStart = fogEnd * 0.5F;
+      }
+
+      float fogRange = Math.abs(fogEnd - fogStart);
+      boolean useFog = requiredFog ? fogRange > 1.0E-4F : optionalFog && fogRange > 1.0F;
+      if (useFog) {
+         GL30C.glUniform2f(4, fogStart, fogEnd);
+         GL30C.glUniform4f(5, viewport.fogParameters.red(), viewport.fogParameters.green(),
+            viewport.fogParameters.blue(), 1.0F);
+         GL30C.glUniform1f(6, requiredFog ? 1.0F : Math.clamp(VoxyConfig.CONFIG.fogIntensity, 0.0F, 1.0F));
+         GL30C.glUniform1f(7, requiredFog ? 0.0F : Math.clamp(VoxyConfig.CONFIG.fogDensity, 0.0F, 1.0F));
+         GL30C.glUniform1i(8, requiredFog ? 1 : 0);
+      } else {
+         GL30C.glUniform2f(4, 0.0F, 0.0F);
+         GL30C.glUniform4f(5, 0.0F, 0.0F, 0.0F, 0.0F);
+         GL30C.glUniform1f(6, 0.0F);
+         GL30C.glUniform1f(7, 0.0F);
+         GL30C.glUniform1i(8, 0);
       }
 
       GL45C.glBindTextureUnit(3, this.colourSSAOTex.id);
-      if (!fogCoversAllRendering) {
-         GL30C.glEnable(3042);
-         GL30C.glBlendFuncSeparate(770, 771, 1, 771);
-         boolean circularHandoff = LodBoundaryFade.getDistances().enabled();
-         if (circularHandoff) {
-            GL30C.glDepthFunc(GL11C.GL_ALWAYS);
-         }
-         AbstractRenderPipeline.transformBlitDepth(
-            this.finalBlit, this.fb.getDepthTex().id, outputFramebuffer, viewport, new Matrix4f(viewport.vanillaProjection).mul(viewport.modelView)
-         );
-         if (circularHandoff) {
-            GL30C.glDepthFunc(this.properties.closerEqualDepthCompare());
-         }
-         GL30C.glDisable(3042);
-      } else {
-         GL30C.glDisable(2960);
-         GL30C.glDisable(2929);
+
+      GL30C.glEnable(3042);
+      GL30C.glBlendFuncSeparate(770, 771, 1, 771);
+      boolean circularHandoff = LodBoundaryFade.getDistances().enabled();
+      if (circularHandoff) {
+         GL30C.glDepthFunc(GL11C.GL_ALWAYS);
       }
+      AbstractRenderPipeline.transformBlitDepth(
+         this.finalBlit, this.fb.getDepthTex().id, outputFramebuffer, viewport, new Matrix4f(viewport.vanillaProjection).mul(viewport.modelView)
+      );
+      if (circularHandoff) {
+         GL30C.glDepthFunc(this.properties.closerEqualDepthCompare());
+      }
+      GL30C.glDisable(3042);
    }
 
    @Override

@@ -4,7 +4,7 @@ license = "LGPL-3.0-only"
 
 [[mods]]
 modId = "voxy"
-version = "${file.jarVersion}"
+version = "${version}"
 displayName = "Voxy"
 logoFile = "assets/voxy/icon.png"
 authors = "Cortex, NeoForge port contributors"

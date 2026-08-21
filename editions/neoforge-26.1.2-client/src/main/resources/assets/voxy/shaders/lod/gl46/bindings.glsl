@@ -3,6 +3,7 @@ layout(binding = 0, std140) uniform SceneUniform {
     ivec3 baseSectionPos;
     uint frameId;
     vec3 cameraSubPos;
+    float fluidDatumY;
     float circularLodBoundaryEnabled;
     float lodBoundaryFadeStart;
     float lodBoundaryFadeEnd;

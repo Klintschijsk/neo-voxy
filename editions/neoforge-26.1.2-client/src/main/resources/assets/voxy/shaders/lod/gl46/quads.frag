@@ -70,6 +70,10 @@ uint tintingState() {
     return (interData.x>>2)&3u;
 }
 
+bool modelIsLeaf() {
+    return ((interData.w >> 12u) & 1u) != 0u;
+}
+
 bool useDiscard() {
     return (interData.x&1u)==1u;
 }
@@ -150,7 +154,7 @@ vec4 computeColour(vec2 texturePos, vec4 colour) {
     uint tintingFunction = tintingState();
     bool doTint = tintingFunction==2;//Always tint if function == 2
     if (tintingFunction == 1) {//partial tint
-        doTint = sampleTintMask(texturePos);
+        doTint = modelIsLeaf() || sampleTintMask(texturePos);
     }
     if (doTint) {
         colour *= uint2vec4RGBA(interData.z).yzwx;
@@ -280,7 +284,7 @@ void main() {
     uint tintingFunction = tintingState();
     bool doTint = tintingFunction==2;//Always tint if function == 2
     if (tintingFunction==1) {//Partial tint
-        doTint = sampleTintMask(texPos);
+        doTint = modelIsLeaf(model) || sampleTintMask(texPos);
     }
     vec4 tint = vec4(1);
     if (doTint) {

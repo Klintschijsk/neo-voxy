@@ -9,6 +9,10 @@ import net.minecraft.client.resources.model.geometry.BakedQuad;
 import org.joml.Vector3fc;
 import org.lwjgl.system.MemoryUtil;
 
+import java.util.Collections;
+import java.util.Map;
+import java.util.WeakHashMap;
+
 public final class ReuseVertexConsumer implements VertexConsumer {
    public static final int VERTEX_FORMAT_SIZE = 24;
    private MemoryBuffer buffer = new MemoryBuffer(8192L);
@@ -19,6 +23,8 @@ public final class ReuseVertexConsumer implements VertexConsumer {
    public boolean anyDarkendTex;
    public boolean anyDiscard;
    private final int globalOrMetadata;
+   private static final Map<Object, Boolean> VOXY_SPRITE_ALPHA_CACHE =
+      Collections.synchronizedMap(new WeakHashMap<>());
 
    public ReuseVertexConsumer() {
       this(0);
@@ -91,9 +97,38 @@ public final class ReuseVertexConsumer implements VertexConsumer {
 
    public ReuseVertexConsumer quad(BakedQuad quad, boolean forceSolid) {
       int meta = 0;
-      meta |= forceSolid ? 0 : (quad.materialInfo().layer() != ChunkSectionLayer.SOLID ? 1 : 0);
+      meta |= forceSolid ? 0 : (quad.materialInfo().layer() != ChunkSectionLayer.SOLID || spriteHasTransparency(quad) ? 1 : 0);
       meta |= quad.materialInfo().isTinted() ? 4 : 0;
       return this.quad(quad, meta);
+   }
+
+   /**
+    * Some plant/cross models are declared as SOLID even though their atlas sprite
+    * contains transparent texels.  Baking those pixels without alpha discard
+    * produces a dark rectangular card in coarse LODs (vines and modded plants
+    * are common examples).
+    */
+   private static boolean spriteHasTransparency(BakedQuad quad) {
+      try {
+         var contents = quad.materialInfo().sprite().contents();
+         Boolean cached = VOXY_SPRITE_ALPHA_CACHE.get(contents);
+         if (cached != null) return cached;
+         boolean transparent = false;
+         int width = contents.width();
+         int height = contents.height();
+         for (int y = 0; y < height && !transparent; y++) {
+            for (int x = 0; x < width; x++) {
+               if (contents.isTransparent(0, x, y)) {
+                  transparent = true;
+                  break;
+               }
+            }
+         }
+         VOXY_SPRITE_ALPHA_CACHE.put(contents, transparent);
+         return transparent;
+      } catch (Throwable ignored) {
+         return false;
+      }
    }
 
    public ReuseVertexConsumer quad(BakedQuad quad, int metadata) {

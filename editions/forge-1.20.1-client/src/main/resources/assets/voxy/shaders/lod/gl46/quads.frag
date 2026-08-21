@@ -70,6 +70,10 @@ uint tintingState() {
     return (interData.x>>2)&3u;
 }
 
+bool modelIsLeaf() {
+    return ((interData.w >> 12u) & 1u) != 0u;
+}
+
 bool useDiscard() {
     return (interData.x&1u)==1u;
 }
@@ -150,7 +154,7 @@ vec4 computeColour(vec2 texturePos, vec4 colour) {
     uint tintingFunction = tintingState();
     bool doTint = tintingFunction==2;//Always tint if function == 2
     if (tintingFunction == 1) {//partial tint
-        doTint = sampleTintMask(texturePos);
+        doTint = modelIsLeaf() || sampleTintMask(texturePos);
     }
     if (doTint) {
         colour *= uint2vec4RGBA(interData.z).yzwx;
@@ -162,14 +166,7 @@ vec4 computeColour(vec2 texturePos, vec4 colour) {
 
 
 void main() {
-    if (circularLodBoundaryEnabled > 0.5
-            && !useIndependentWaterBoundary()
-            && !useOriginalLeafHandoff()
-            && boundaryDistanceSquared < lodBoundaryFadeStart * lodBoundaryFadeStart) {
-        discard;
-        return;
-    }
-    //vec2 uv = vec2(0);
+//vec2 uv = vec2(0);
     //Tile is the tile we are in
     vec2 tile;
     #ifdef USE_NV_BARRY
@@ -226,7 +223,7 @@ void main() {
     #ifdef TRANSLUCENT
     const bool useChunkBounds = true;
     #else
-    bool useChunkBounds = circularLodBoundaryEnabled < 0.5;
+    const bool useChunkBounds = true;
     #endif
     if (useChunkBounds && DEPTH_SCALAR_COMPARE(gl_FragCoord.z,
             texelFetch(depthTex, ivec2(gl_FragCoord.xy), 0).r)) {
@@ -279,7 +276,7 @@ void main() {
     uint tintingFunction = tintingState();
     bool doTint = tintingFunction==2;//Always tint if function == 2
     if (tintingFunction==1) {//Partial tint
-        doTint = sampleTintMask(texPos);
+        doTint = modelIsLeaf(model) || sampleTintMask(texPos);
     }
     vec4 tint = vec4(1);
     if (doTint) {

@@ -34,6 +34,10 @@ public class VoxyConfig {
    public int serviceThreads = (int)Math.max(CpuLayout.getCoreCount() / 1.5, 1.0);
    public float subDivisionSize = 64.0F;
    public boolean useEnvironmentalFog = true;
+   public int skyFogDistance = 96;
+   public float fogIntensity = 1.0F;
+   public float fogDensity = 0.0F;
+   public int fogDistancePercent = 100;
    public boolean dontUseSodiumBuilderThreads = false;
    public int renderPressure = 2;
     public String leafLodMode = "balanced";
@@ -139,6 +143,10 @@ public class VoxyConfig {
    public void sanitize() {
       this.sectionRenderDistance = Math.clamp(this.sectionRenderDistance, 2.0F, 64.0F);
       this.subDivisionSize = Math.clamp(this.subDivisionSize, 28.0F, 256.0F);
+      this.skyFogDistance = Math.clamp(this.skyFogDistance, 0, 1024);
+      this.fogIntensity = Math.clamp(this.fogIntensity, 0.0F, 1.0F);
+      this.fogDensity = Math.clamp(this.fogDensity, 0.0F, 1.0F);
+      this.fogDistancePercent = Math.clamp(this.fogDistancePercent, 5, 200);
       this.lodBoundaryFadeLength = Math.clamp(this.lodBoundaryFadeLength, 8, 64);
       this.lodBoundaryInset = Math.clamp(this.lodBoundaryInset, 8, 32);
       this.biomeBlendRadius = Math.clamp(this.biomeBlendRadius, 0, 7);

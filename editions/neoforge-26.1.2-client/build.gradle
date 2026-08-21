@@ -65,6 +65,11 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 tasks.named('processResources') {
+    inputs.property('version', project.version)
+    filesMatching('META-INF/neoforge.mods.toml') {
+        expand(version: project.version)
+    }
+
     // Keep the recovered legacy binary in the source snapshot, but never put
     // it in the distributable. The game-provided 1.10.1 remains available to
     // LZ4Compressor at compile time and runtime.

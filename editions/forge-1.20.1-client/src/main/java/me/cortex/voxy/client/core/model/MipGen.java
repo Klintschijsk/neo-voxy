@@ -10,7 +10,7 @@ import static me.cortex.voxy.client.core.model.ModelFactory.LAYERS;
 import static me.cortex.voxy.client.core.model.ModelFactory.MODEL_TEXTURE_SIZE;
 
 public class MipGen {
-    private static final int TINT_MASK_ALPHA_BIT = 0x80;
+    private static final int TINT_MASK_ALPHA_BIT = 0x01;
     static {
         if (MODEL_TEXTURE_SIZE>16) throw new IllegalStateException("TODO: THIS MUST BE UPDATED, IT CURRENTLY ASSUMES 16 OR SMALLER SIZE");
     }

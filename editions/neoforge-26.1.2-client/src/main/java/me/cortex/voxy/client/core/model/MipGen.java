@@ -6,7 +6,7 @@ import me.cortex.voxy.common.util.MemoryBuffer;
 import org.lwjgl.system.MemoryUtil;
 
 public class MipGen {
-   private static final int TINT_MASK_ALPHA_BIT = 128;
+   private static final int TINT_MASK_ALPHA_BIT = 1;
    private static final ThreadLocal<MipGen.Cache> CACHE = ThreadLocal.withInitial(MipGen.Cache::new);
 
    private static long getOffset(int bx, int by, int i) {

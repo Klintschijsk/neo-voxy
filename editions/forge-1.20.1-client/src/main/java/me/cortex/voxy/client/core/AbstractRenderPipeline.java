@@ -4,7 +4,6 @@ import me.cortex.voxy.client.RenderStatistics;
 import me.cortex.voxy.client.TimingStatistics;
 import me.cortex.voxy.client.VoxyClient;
 import me.cortex.voxy.client.core.model.ModelBakerySubsystem;
-import me.cortex.voxy.client.core.rendering.LodBoundaryFade;
 import me.cortex.voxy.client.core.rendering.Viewport;
 import me.cortex.voxy.client.core.rendering.hierachical.AsyncNodeManager;
 import me.cortex.voxy.client.core.rendering.hierachical.HierarchicalOcclusionTraverser;
@@ -156,35 +155,9 @@ public abstract class AbstractRenderPipeline extends TrackedObject {
         glBindTextureUnit(0, depthTexture);
         glBindSampler(0, DEPTH_SAMPLER);
         glUniform2f(1,((float)width)/srcWidth, ((float)height)/srcHeight);
-
-        var boundary = LodBoundaryFade.getDistances();
-        INVERSE_MVP.set(viewport.vanillaProjection).mul(viewport.modelView).invert().getToAddress(SCRATCH);
-        nglUniformMatrix4fv(2, 1, false, SCRATCH);
-        glUniform1f(6, boundary.fadeStart());
-        glUniform1f(7, boundary.fadeEnd());
-        int cameraBlockX = (int)Math.floor(viewport.cameraX);
-        int cameraBlockY = (int)Math.floor(viewport.cameraY);
-        int cameraBlockZ = (int)Math.floor(viewport.cameraZ);
-        glUniform3i(8, cameraBlockX, cameraBlockY, cameraBlockZ);
-        glUniform3f(9, (float)(viewport.cameraX - cameraBlockX),
-                (float)(viewport.cameraY - cameraBlockY),
-                (float)(viewport.cameraZ - cameraBlockZ));
-        glUniform1i(10, 0);
-
         glDepthMask(true);
         glColorMask(false,false,false,false);
         this.depthStencilSetup.blit();
-
-        if (boundary.enabled()) {
-            glStencilMask(0x00);
-            glUniform1i(10, 1);
-            viewport.MVP.getToAddress(SCRATCH);
-            nglUniformMatrix4fv(11, 1, false, SCRATCH);
-            this.depthStencilSetup.blit();
-            glUniform1i(10, 0);
-            glStencilMask(0xFF);
-        }
-
         glDepthFunc(this.properties.closerEqualDepthCompare());
         glColorMask(true,true,true,true);
 

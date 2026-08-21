@@ -45,10 +45,6 @@ public class VoxyConfig
     public boolean dontUseSodiumBuilderThreads = false;
     public int renderPressure = 2;
     public String leafLodMode = "balanced";
-    public int lodBoundaryBuffer = 1;
-    public boolean enableLodBoundaryFade = true;
-    public int lodBoundaryFadeLength = 16;
-    public int lodBoundaryInset = 8;
     public int earthCurveRatio = 0;
     public int fogDistancePercent = 100;
     public int biomeBlendRadius = 2;
@@ -146,9 +142,6 @@ public class VoxyConfig
         this.fogIntensity = clamp(this.fogIntensity, 0.0f, 1.0f);
         this.fogDensity = clamp(this.fogDensity, 0.0f, 1.0f);
         this.fogDistancePercent = clamp(this.fogDistancePercent, 5, 200);
-        this.lodBoundaryBuffer = clamp(this.lodBoundaryBuffer, 0, 4);
-        this.lodBoundaryFadeLength = clamp(this.lodBoundaryFadeLength, 8, 64);
-        this.lodBoundaryInset = clamp(this.lodBoundaryInset, 8, 32);
         this.biomeBlendRadius = clamp(this.biomeBlendRadius, 0, 7);
         this.requestDistance = clamp(this.requestDistance, 8, 48);
         if (!"water".equals(this.biomeBlendScope) && !"water_grass".equals(this.biomeBlendScope)) {
