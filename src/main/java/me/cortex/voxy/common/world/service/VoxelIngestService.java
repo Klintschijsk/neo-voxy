@@ -28,7 +28,8 @@ public class VoxelIngestService {
     private final Service service;
     private record IngestSection(int cx, int cy, int cz, WorldEngine world, LevelChunk chunk,
                                  BlockEntity[] domumBlockEntities, LevelChunkSection section,
-                                 DataLayer blockLight, DataLayer skyLight){}
+                                 DataLayer blockLight, DataLayer skyLight,
+                                 me.cortex.voxy.commonImpl.compat.littletiles.LittleTilesCompat.SectionSnapshot littleTiles){}
     private final ConcurrentLinkedDeque<IngestSection> ingestQueue = new ConcurrentLinkedDeque<>();
 
     public VoxelIngestService(ServiceManager pool) {
@@ -47,6 +48,8 @@ public class VoxelIngestService {
                     task.world.getMapper(), task.world.storage, task.domumBlockEntities,
                     task.section, task.cx, task.cy, task.cz);
             me.cortex.voxy.commonImpl.compat.CreateCopycatCompat.beginSection(task.world.getMapper(), task.world.storage, task.chunk, task.section, task.cx, task.cy, task.cz);
+            me.cortex.voxy.commonImpl.compat.littletiles.LittleTilesCompat.beginSection(
+                    task.world.storage, task.littleTiles, task.cx, task.cy, task.cz);
             //Read off the section rather than the chunk's block entities: sections streamed by VSS arrive
             //with no chunk at all, and a beacon is a block whether or not its block entity is here.
             long tBeacon = me.cortex.voxy.commonImpl.VoxyProfile.begin();
@@ -74,6 +77,7 @@ public class VoxelIngestService {
         } finally {
             DomumOrnamentumCompat.endSection();
             me.cortex.voxy.commonImpl.compat.CreateCopycatCompat.endSection();
+            me.cortex.voxy.commonImpl.compat.littletiles.LittleTilesCompat.endSection();
             //The queue holds a ref per task rather than a one-shot markActive stamp, so a large backlog
             //on a laggy system cannot let the idle cleaner close the world out from under its own
             //pending ingests
@@ -130,6 +134,7 @@ public class VoxelIngestService {
         // Snapshot and group once on the caller thread. Each section job receives only its Domum
         // entities, avoiding repeated traversal of the live block-entity map on ingest workers.
         var domumBlockEntities = DomumOrnamentumCompat.captureBlockEntitiesBySection(chunk);
+        var littleTiles = me.cortex.voxy.commonImpl.compat.littletiles.LittleTilesCompat.capture(chunk);
 
         var lightingProvider = chunk.getLevel().getLightEngine();
         boolean gotLighting = false;
@@ -156,7 +161,8 @@ public class VoxelIngestService {
                 engine.acquireRef();
                 this.ingestQueue.add(new IngestSection(
                         chunk.getPos().x, i, chunk.getPos().z, engine, chunk,
-                        domumBlockEntities.forSection(i), section, null, null));
+                        domumBlockEntities.forSection(i), section, null, null,
+                        littleTiles == null ? null : littleTiles.section(i)));
                 try {
                     this.service.execute();
                 } catch (Exception e) {
@@ -206,7 +212,8 @@ public class VoxelIngestService {
             engine.acquireRef();
             this.ingestQueue.add(new IngestSection(
                     chunk.getPos().x, i, chunk.getPos().z, engine, chunk,
-                    domumBlockEntities.forSection(i), section, bl, sl));//TODO: fixme, this is technically not safe todo on the chunk load ingest, we need to copy the section data so it cant be modified while being read
+                    domumBlockEntities.forSection(i), section, bl, sl,
+                    littleTiles == null ? null : littleTiles.section(i)));//TODO: fixme, this is technically not safe todo on the chunk load ingest, we need to copy the section data so it cant be modified while being read
             try {
                 this.service.execute();
             } catch (Exception e) {
@@ -252,8 +259,10 @@ public class VoxelIngestService {
         engine.acquireRef();
         BlockEntity[] domumBlockEntities =
                 DomumOrnamentumCompat.captureBlockEntities(chunk, section);
+        var littleTiles = me.cortex.voxy.commonImpl.compat.littletiles.LittleTilesCompat.capture(chunk);
         this.ingestQueue.add(new IngestSection(
-                x, y, z, engine, chunk, domumBlockEntities, section, bl, sl));
+                x, y, z, engine, chunk, domumBlockEntities, section, bl, sl,
+                littleTiles == null ? null : littleTiles.section(y)));
         try {
             this.service.execute();
             return true;

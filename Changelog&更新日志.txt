@@ -1,5 +1,17 @@
 Neo Voxy 更新日志 / Changelog
 
+## 0.4.1beta（1.21.1 NeoForge 联动版）— 2026-08-22
+
+### 简体中文
+
+- 新增 LittleTiles 静态小方块远景兼容：区块摄取时一次性量化为 1/8 格稀疏表面网格，保留方块纹理、LittleTiles 颜色、群系染色与光照，并剔除内部相邻面。
+- 小方块网格随 Voxy 世界缓存持久化，每 tick 最多上传两个变化区段；LittleTiles 未安装时不注册渲染器、不扫描方块实体，体素热循环只保留一次区段级空值判断。
+
+### English
+
+- Added distant rendering for static LittleTiles microblocks. Geometry is captured once during section ingestion, quantized into sparse 1/8-block surface meshes, and keeps block textures, LittleTiles colours, biome tinting, lighting, and internal-face culling.
+- Microblock meshes persist with the Voxy world cache and upload at most two changed sections per tick. Without LittleTiles, no renderer or block-entity scan is registered and the voxel hot loop retains only one section-level null check.
+
 ## 0.3.1（1.20.1 Forge / 26.1.2 NeoForge 客户端版）— 2026-08-20
 
 ### 简体中文

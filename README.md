@@ -65,6 +65,7 @@ Neo Voxy 由 **JohnSnow** 维护，在 [NHblock714/voxy](https://github.com/NHbl
 | Sable | 1.21.1 联动版 | 远景物理结构及深度兼容 |
 | Ecliptic Seasons | 1.21.1 联动版 | 远景季节积雪 |
 | Domum Ornamentum | 1.21.1 联动版 | 特殊方块着色与独立 LOD 模型 |
+| LittleTiles | 1.21.1 联动版 | 静态小方块结构使用持久化的 1/8 格轻量 LOD 网格；仅安装 LittleTiles 时启用 |
 | Photon 等自带 LOD 过渡的光影 | 支持光影的版本 | 关闭 Neo Voxy 的 LOD 淡入，避免重复过渡 |
 
 专项联动仅在对应模组已安装时启用。Create、Sable 与节气兼容来自 **NHblock**。

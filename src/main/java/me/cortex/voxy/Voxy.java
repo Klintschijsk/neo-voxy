@@ -103,6 +103,12 @@ public class Voxy {
                 //cannot keep adjacent shafts in sync); the cull exempts them entirely.
             }
 
+            if (ModList.get().isLoaded("littletiles")) {
+                var littleTilesRenderer = new me.cortex.voxy.client.compat.littletiles.LittleTilesDistantRenderer();
+                NeoForge.EVENT_BUS.register(littleTilesRenderer);
+                me.cortex.voxy.client.compat.LodPipelineHooks.register(littleTilesRenderer);
+            }
+
             //Beacon beams derived from the voxel store, so one shows up whether or not its chunk was
             //ever loaded this session. Vanilla, not create - registered unconditionally.
             var beaconRenderer = new me.cortex.voxy.client.core.beacon.DistantBeaconRenderer();

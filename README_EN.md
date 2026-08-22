@@ -65,6 +65,7 @@ Release JARs remove unused platform natives, duplicate module descriptors, and b
 | Sable | 1.21.1 integrations | Distant physics objects and depth integration |
 | Ecliptic Seasons | 1.21.1 integrations | Seasonal snow in distant terrain |
 | Domum Ornamentum | 1.21.1 integrations | Special block coloring and dedicated LOD models |
+| LittleTiles | 1.21.1 integrations | Static microblock structures use persistent lightweight 1/8-block LOD meshes; enabled only when LittleTiles is installed |
 | Photon and other shaders with native LOD handoff | Shader-capable editions | Disable Neo Voxy's circular handoff to prevent duplicate transitions |
 
 Optional integrations activate only when the corresponding mod is installed. Create, Sable, and seasonal compatibility originate from **NHblock**.

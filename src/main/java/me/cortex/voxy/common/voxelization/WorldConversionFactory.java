@@ -199,7 +199,8 @@ public class WorldConversionFactory {
         // ThreadLocal lookups for every voxel in normal sections.
         final boolean hasDomumMappings = DomumOrnamentumCompat.hasSectionMappings();
         final int[] copycatIds = me.cortex.voxy.commonImpl.compat.CreateCopycatCompat.activeSectionIds();
-        final boolean hasVariantMappings = hasDomumMappings || copycatIds != null;
+        final long[] littleTilesHolders = me.cortex.voxy.commonImpl.compat.littletiles.LittleTilesCompat.activeHolders();
+        final boolean hasVariantMappings = hasDomumMappings || copycatIds != null || littleTilesHolders != null;
         var blockStorage = blockDataAccessor.voxy$getStorage();
         if (blockStorage instanceof SimpleBitStorage bStor) {
             var bDat = bStor.getRaw();
@@ -236,6 +237,7 @@ public class WorldConversionFactory {
                                 stateMapper, voxelState, bId, i);
                     }
                     if (copycatIds != null) { int m = copycatIds[i]; if (m != 0) bId = m; }
+                    if (littleTilesHolders != null && (littleTilesHolders[i >>> 6] & (1L << (i & 63))) != 0) bId = 0;
                 }
                 sample >>>= eBits;
 
@@ -267,6 +269,7 @@ public class WorldConversionFactory {
                                     stateMapper, voxelState, mappedBlockId, i);
                         }
                         if (copycatIds != null) { int m = copycatIds[i]; if (m != 0) mappedBlockId = m; }
+                        if (littleTilesHolders != null && (littleTilesHolders[i >>> 6] & (1L << (i & 63))) != 0) mappedBlockId = 0;
                     }
                     data[i] = Mapper.composeMappingId(light, mappedBlockId, biomes[Integer.compress(i,0b1100_1100_1100)]);
                 }
