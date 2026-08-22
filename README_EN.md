@@ -19,26 +19,32 @@ Neo Voxy is maintained by **JohnSnow**. It extends [NHblock714/voxy](https://git
 
 Release JARs remove unused platform natives, duplicate module descriptors, and build intermediates. Runtime shaders, languages, models, and storage libraries are retained.
 
-## Feature comparison
+## Feature and compatibility comparison
 
-| Feature | 1.21.1 integrations | 1.21.1 client | 1.20.1 client | 26.1.2 client |
-|---|:---:|:---:|:---:|:---:|
-| Terrain LODs, detail levels, persistent cache | ✅ | ✅ | ✅ | ✅ |
-| Sodium / Embeddium settings integration | ✅ | ✅ | ✅ | ✅ |
-| Iris / Oculus shader pipeline | ✅ | ✅ | ✅ | ✅ |
-| Environmental/sky fog and fluid fixes | ✅ | ✅ | ✅ | ✅ |
-| Circular LOD handoff | ✅ | ✅ | × | ✅ |
-| Crossed ground-plant models | ✅ | ✅ | ✅ | ✅ |
-| Leaf LOD modes | ✅ | ✅ | ✅ | ✅ |
-| Extended chunk requests (single-player, max 48) | ✅ | ✅ | ✅ | ✅ |
-| LOD biome water-colour blending | ✅ | ✅ | ✅ | ✅ |
-| LOD build-pressure control | ✅ | ✅ | ✅ | ✅ |
-| World curvature | ✅ | ✅ | ✅ | ✅ |
-| Distant beacon beams | ✅ | — | — | — |
-| Distant players, vehicles, and animation | ✅ | — | — | — |
-| Create, Sable, seasons, and Domum integrations | ✅ | — | — | — |
+| Feature, mod, or component | 1.21.1 integrations | 1.21.1 client | 1.20.1 client | 26.1.2 client | Notes |
+|---|:---:|:---:|:---:|:---:|---|
+| Terrain LODs, detail levels, persistent cache | ✅ | ✅ | ✅ | ✅ | Core distant-terrain support |
+| Sodium / Embeddium settings integration | ✅ | ✅ | ✅ | ✅ | Neo Voxy settings entry |
+| Iris / Oculus shader pipeline | ✅ | ✅ | ✅ | ✅ | Shaders are supported on 1.20.1; compatibility may vary by shader pack |
+| Environmental/sky fog and fluid fixes | ✅ | ✅ | ✅ | ✅ | Includes required medium masks such as underwater fog |
+| Circular LOD handoff | ✅ | ✅ | ❌ | ✅ | Not planned for 1.20.1; disable in other editions when the shader pack supplies its own LOD transition |
+| Crossed ground-plant models | ✅ | ✅ | ✅ | ✅ | Lightweight centred crossed models |
+| Leaf LOD modes | ✅ | ✅ | ✅ | ✅ | Fast, Balanced, and Quality modes |
+| Extended chunk requests (single-player, max 48) | ✅ | ✅ | ✅ | ✅ | Disabled by default |
+| LOD biome water-colour blending | ✅ | ✅ | ✅ | ✅ | Built with the model; no per-tick traversal |
+| LOD build-pressure control | ✅ | ✅ | ✅ | ✅ | Prioritise frame rate or catch-up speed |
+| World curvature | ✅ | ✅ | ✅ | ✅ | Implemented in the GPU vertex stage |
+| Distant beacon beams | ✅ | — | — | — | Width scales with distance |
+| Distant players, vehicles, and animation | ✅ | — | — | — | Integrations-edition feature |
+| Sodium / Iris | ✅ | ✅ | — | ✅ | Use the renderer major version appropriate for Minecraft |
+| Embeddium / Oculus | — | — | ✅ | — | Embeddium is the renderer; Oculus provides shader support |
+| Create | ✅ | — | — | — | Distant trains, tracks, contraptions, and kinetic components |
+| Sable | ✅ | — | — | — | Distant physics objects and depth integration |
+| Ecliptic Seasons | ✅ | — | — | — | Seasonal snow in distant terrain |
+| Domum Ornamentum | 🧪 | — | — | — | Preliminary: special colouring and dedicated LOD models |
+| LittleTiles | 🧪 | — | — | — | Preliminary: persistent lightweight 1/8-block LOD meshes for static structures |
 
-`—` means that the dedicated feature is not included; it does not necessarily imply incompatibility with basic terrain LOD rendering.
+`✅` means supported, `🧪` means preliminary compatibility, and `—` means no dedicated feature or not applicable; it does not necessarily imply incompatibility with basic terrain LOD rendering. Optional integrations activate only when the corresponding mod is installed. Create, Sable, and seasonal compatibility originate from **NHblock**.
 
 ### Main options
 
@@ -46,29 +52,13 @@ Release JARs remove unused platform natives, duplicate module descriptors, and b
 - Extended chunk requests: based on the approach used by [FakeSight](https://github.com/MoePus/fakesight), asks for chunks beyond vanilla distance in single-player. It is disabled by default and capped at 48 chunks in all four editions. Expansion pauses while moving and resumes gradually when stationary. High values can still increase CPU, memory, world-generation, and save load substantially.
 - Biome water-colour blending: all four editions smooth LOD water colours across biome borders while models are built. Results use a compact palette and require no per-tick world traversal.
 - LOD build pressure: adjusts per-frame node processing and model-baking budgets from maximum FPS to maximum catch-up speed.
-- Circular LOD handoff: all four editions use 3D camera distance and world-stable dithering. Water and leaves use dedicated non-alpha handoff paths. Disable it when a shader pack already implements its own LOD transition, such as Photon, to avoid duplicate transitions, noise, or shadow seams.
+- Circular LOD handoff: editions containing this feature use 3D camera distance and world-stable dithering. Water and leaves use dedicated non-alpha handoff paths. Disable it when a shader pack already implements its own LOD transition, such as Photon, to avoid duplicate transitions, noise, or shadow seams.
 - Fog and effects: shader-free fog on 1.20.1 and 1.21.1 scales against the LOD radius while preserving required medium masks such as underwater fog. Distant LODs no longer show through Blindness or Darkness. Version 26.1.2 uses the newer native fog path.
 - Model and fluid quality: per-face mip generation and exact per-pixel tint masks reduce grass-side and waterlogged-plant colour errors; nearest rounding, independent fluid boundaries, and biome-colour handling improve distant water and terrain.
 - Experimental Lite LOD shading: the 1.21.1 integrations build uses paired Lite programs and atomically falls back if loading or compilation fails, the version is unsupported, or the transition is unsafe. Eclipse Shader 482 is supported by a built-in NeoVoxy patch and does not require shader-pack changes; Complementary Unbound r5.8.1 + Euphoria Patches 1.9.3 uses a separate overlay.
 - Subdivision size: controls the screen-space threshold for finer LODs. Lower values improve detail at higher build and rendering cost.
 - World curvature: all four editions curve only the LOD beyond vanilla distance in the GPU vertex stage; 0 disables it, with no chunk scan or per-tick traversal.
 - Join message: shown whenever a server or single-player world is entered, enabled by default and removable from the Neo Voxy Sodium/Embeddium settings.
-
-## Mod compatibility
-
-| Mod or component | Editions | Notes |
-|---|---|---|
-| Sodium / Iris | 1.21.1 and 26.1.2 | Use the renderer major version appropriate for the Minecraft version |
-| Embeddium | 1.20.1 | Required native Forge renderer |
-| Oculus | 1.20.1 | Optional; shader support remains experimental |
-| Create | 1.21.1 integrations | Distant trains, tracks, contraptions, and kinetic components |
-| Sable | 1.21.1 integrations | Distant physics objects and depth integration |
-| Ecliptic Seasons | 1.21.1 integrations | Seasonal snow in distant terrain |
-| Domum Ornamentum | 1.21.1 integrations | Special block coloring and dedicated LOD models |
-| LittleTiles | 1.21.1 integrations (0.4.2-beta.1+) | Static microblock structures use persistent lightweight 1/8-block LOD meshes; enabled only when LittleTiles is installed |
-| Photon and other shaders with native LOD handoff | Shader-capable editions | Disable Neo Voxy's circular handoff to prevent duplicate transitions |
-
-Optional integrations activate only when the corresponding mod is installed. Create, Sable, and seasonal compatibility originate from **NHblock**.
 
 ## Building
 
