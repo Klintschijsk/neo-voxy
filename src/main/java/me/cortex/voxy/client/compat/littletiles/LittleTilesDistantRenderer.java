@@ -7,6 +7,7 @@ import me.cortex.voxy.client.compat.create.DistantShaders;
 import me.cortex.voxy.client.compat.create.DistantVisibility;
 import me.cortex.voxy.client.config.VoxyConfig;
 import me.cortex.voxy.client.core.rendering.Viewport;
+import me.cortex.voxy.client.core.rendering.LodBoundaryFade;
 import me.cortex.voxy.common.config.section.SectionStorage;
 import me.cortex.voxy.commonImpl.WorldIdentifier;
 import me.cortex.voxy.commonImpl.compat.littletiles.LittleTilesCompat;
@@ -41,7 +42,6 @@ import static org.lwjgl.opengl.GL11C.glDisable;
 import static org.lwjgl.opengl.GL11C.glEnable;
 import static org.lwjgl.opengl.GL11C.glStencilFunc;
 import static org.lwjgl.opengl.GL11C.glStencilOp;
-import static org.lwjgl.opengl.GL20C.glUniform2f;
 import static org.lwjgl.opengl.GL20C.glUseProgram;
 import static org.lwjgl.opengl.GL30C.glBindVertexArray;
 
@@ -154,7 +154,10 @@ public final class LittleTilesDistantRenderer implements LodPipelineHooks.Render
         pipeline.setupAndBindOpaque(viewport);
 
         double vanillaReach = Math.max(0.0, mc.options.getEffectiveRenderDistance() * 16.0 - 14.0);
-        double vanillaReachSq = vanillaReach * vanillaReach;
+        var boundary = LodBoundaryFade.getDistances();
+        boolean hardFadeHandoff = boundary.enabled();
+        double handoffDistance = hardFadeHandoff ? boundary.fadeStart() : vanillaReach;
+        double handoffDistanceSq = handoffDistance * handoffDistance;
         double maxDistance = VoxyConfig.CONFIG.sectionRenderDistance * 32.0 * 16.0;
         double maxDistanceSq = maxDistance * maxDistance;
         boolean bound = false;
@@ -167,11 +170,15 @@ public final class LittleTilesDistantRenderer implements LodPipelineHooks.Render
                 double dx = ox + 8.0 - viewport.cameraX;
                 double dy = oy + 8.0 - viewport.cameraY;
                 double dz = oz + 8.0 - viewport.cameraZ;
-                if (dx * dx + dz * dz < vanillaReachSq) continue;
+                double handoffSq = hardFadeHandoff ? dx * dx + dy * dy + dz * dz : dx * dx + dz * dz;
+                if (handoffSq < handoffDistanceSq) continue;
                 if (dx * dx + dy * dy + dz * dz > maxDistanceSq) continue;
                 if (!DistantVisibility.isBoxVisible(viewport, ox, oy, oz, ox + 16, oy + 16, oz + 16)) continue;
                 if (!bound) {
-                    DistantShaders.forPipeline(pipeline, true).bind();
+                    //LittleTiles snapshots already carry per-vertex sky/block light. The uniform-light
+                    //variant is for moving structures and was previously fed (1,1), making these meshes
+                    //effectively full-bright at night and in shade.
+                    DistantShaders.forPipeline(pipeline, false).bind();
                     DistantShaders.bindTextures();
                     glEnable(GL_DEPTH_TEST);
                     glDepthFunc(depthFunc);
@@ -185,7 +192,6 @@ public final class LittleTilesDistantRenderer implements LodPipelineHooks.Render
                 transform.set(viewport.MVP).translate((float) (ox - viewport.cameraX),
                         (float) (oy - viewport.cameraY), (float) (oz - viewport.cameraZ));
                 DistantShaders.uploadTransform(transform);
-                glUniform2f(4, 1.0f, 1.0f);
                 entry.mesh.draw();
             }
             if (bound) {
