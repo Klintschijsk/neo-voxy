@@ -16,7 +16,10 @@ import java.lang.reflect.Modifier;
 import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.IntSupplier;
 
@@ -26,6 +29,7 @@ import static org.lwjgl.opengl.GL33.*;
 public class IrisShaderPatch {
     public static final int VERSION = ((IntSupplier)()->1).getAsInt();
     public static final int SHADER_DEFINE_VERSION = 2;
+    private static final ThreadLocal<Set<String>> UNIFORMS_BEING_BUILT = new ThreadLocal<>();
 
 
     private static final class SSBODeserializer implements JsonDeserializer<Int2ObjectOpenHashMap<String>> {
@@ -246,6 +250,23 @@ public class IrisShaderPatch {
     public String[] getUniformList() {
         return this.patchData.uniforms;
     }
+
+    public static void beginUniformRetention(IrisShaderPatch patch) {
+        if (patch == null) {
+            UNIFORMS_BEING_BUILT.remove();
+            return;
+        }
+        UNIFORMS_BEING_BUILT.set(Collections.unmodifiableSet(new HashSet<>(List.of(patch.getUniformList()))));
+    }
+
+    public static Set<String> uniformsBeingBuilt() {
+        Set<String> uniforms = UNIFORMS_BEING_BUILT.get();
+        return uniforms == null ? Collections.emptySet() : uniforms;
+    }
+
+    public static void endUniformRetention() {
+        UNIFORMS_BEING_BUILT.remove();
+    }
     public Object2ObjectLinkedOpenHashMap<String, String> getSamplerSet() {
         return this.patchData.samplers;
     }
@@ -313,7 +334,17 @@ public class IrisShaderPatch {
             .create();
 
     public static IrisShaderPatch makePatch(ShaderPack ipack, AbsolutePackPath directory, Function<AbsolutePackPath, String> sourceProvider) {
-        String voxyPatchData = sourceProvider.apply(directory.resolve("voxy.json"));
+        AbsolutePackPath patchDirectory = directory;
+        String voxyPatchData = sourceProvider.apply(patchDirectory.resolve("voxy.json"));
+        if (voxyPatchData == null) {
+            // Newer packs commonly keep auxiliary programs below shaders/program.
+            // Oculus 1.20.1 does not redirect this lookup for Voxy itself.
+            patchDirectory = directory.resolve("program");
+            voxyPatchData = sourceProvider.apply(patchDirectory.resolve("voxy.json"));
+            if (voxyPatchData != null) {
+                Logger.info("Using Voxy shader patch from the program directory");
+            }
+        }
         if (voxyPatchData == null) {//No voxy patch data in shaderpack
             return null;
         }
@@ -354,18 +385,18 @@ public class IrisShaderPatch {
             }
 
             {//Inject data from the auxilery files if they are present
-                var opaque = sourceProvider.apply(directory.resolve("voxy_opaque.glsl"));
+                var opaque = sourceProvider.apply(patchDirectory.resolve("voxy_opaque.glsl"));
                 if (opaque != null) {
                     Logger.info("External opaque shader patch applied");
                     patchData.opaquePatchData = opaque;
                 }
-                var translucent = sourceProvider.apply(directory.resolve("voxy_translucent.glsl"));
+                var translucent = sourceProvider.apply(patchDirectory.resolve("voxy_translucent.glsl"));
                 if (translucent != null) {
                     Logger.info("External translucent shader patch applied");
                     patchData.translucentPatchData = translucent;
                 }
                 //This might be ok? not.. sure if is nice or not
-                var taa = sourceProvider.apply(directory.resolve("voxy_taa.glsl"));
+                var taa = sourceProvider.apply(patchDirectory.resolve("voxy_taa.glsl"));
                 if (taa != null) {
                     Logger.info("External taa shader patch applied");
                     patchData.taaOffset = taa;

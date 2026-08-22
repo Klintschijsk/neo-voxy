@@ -220,7 +220,10 @@ public class IrisVoxyRenderPipelineData {
                 }
             };//Writes all the uniforms to the locations
         }
-        return new StructLayout(pos*4, structLayout, updater);//*4 since each slot is 4 bytes
+        // A std140 block is rounded up to vec4 alignment. Allocating the raw
+        // member length made packs ending in scalars/vec2 read beyond our UBO.
+        int paddedSize = (pos + 3) & ~3;
+        return new StructLayout(paddedSize*4, structLayout, updater);//*4 since each slot is 4 bytes
     }
 
     private static LongConsumer createWriter(long offset, FunctionReturn ret, CachedUniform uniform) {
@@ -281,7 +284,7 @@ public class IrisVoxyRenderPipelineData {
     private static int getSizeAndAlignment(UniformType type) {
         return switch (type) {
             case INT, FLOAT -> P(1,1);//Size, Alignment
-            case MAT3 -> P(4+4+3,4);//is funky as each row is a vec3 padded to a vec4
+            case MAT3 -> P(4*3,4);//each vec3 column occupies a padded vec4 slot in std140
             case MAT4 -> P(4*4,4);
             case VEC2, VEC2I -> P(2,2);
             case VEC3, VEC3I -> P(3,4);
@@ -527,7 +530,10 @@ public class IrisVoxyRenderPipelineData {
         cu.mapholderToPass(uniformBuilder, patch);
 
         FunctionReturn cachedReturn = new FunctionReturn();
-        var customLocations = ((CustomUniformsAccessor)cu).getLocationMap().get(patch);
+        // This holder uses synthetic offsets rather than real OpenGL uniform
+        // locations. Consume and remove it so Oculus can never push those
+        // offsets through glUniform during a later pass.
+        var customLocations = ((CustomUniformsAccessor)cu).getLocationMap().remove(patch);
         if (customLocations != null) {
             customLocations.object2IntEntrySet().forEach(entry -> {
                 String name = entry.getKey().getName();

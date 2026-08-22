@@ -3,6 +3,7 @@ package me.cortex.voxy.client.mixin.iris;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import me.cortex.voxy.client.core.util.IrisUtil;
+import me.cortex.voxy.client.iris.IrisShaderPatch;
 import net.irisshaders.iris.uniforms.custom.CustomUniforms;
 import net.irisshaders.iris.uniforms.custom.cached.CachedUniform;
 import org.spongepowered.asm.mixin.Final;
@@ -29,11 +30,12 @@ public class MixinCustomUniforms {
         }
 
         Object2IntMap<CachedUniform> retained = new Object2IntOpenHashMap<>();
+        var requestedUniforms = IrisShaderPatch.uniformsBeingBuilt();
+        if (requestedUniforms.isEmpty()) {
+            return;
+        }
         for (CachedUniform uniform : this.uniforms) {
-            String name = uniform.getName();
-            if (name.equals("framemod4_DH")
-                    || name.equals("moonElevation")
-                    || name.equals("unsigned_WmoonVecSmooth")) {
+            if (requestedUniforms.contains(uniform.getName())) {
                 retained.put(uniform, 0);
             }
         }

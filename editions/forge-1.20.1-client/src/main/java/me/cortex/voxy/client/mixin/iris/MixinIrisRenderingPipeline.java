@@ -17,6 +17,7 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(value = IrisRenderingPipeline.class, remap = false)
@@ -26,6 +27,16 @@ public class MixinIrisRenderingPipeline implements IGetVoxyPatchData, IGetIrisVo
     @Unique IrisShaderPatch patchData;
     @Unique
     IrisVoxyRenderPipelineData pipeline;
+
+    @Redirect(method = "<init>", at = @At(value = "INVOKE", target = "Lnet/irisshaders/iris/uniforms/custom/CustomUniforms;optimise()V"))
+    private void voxy$optimiseCustomUniforms(CustomUniforms customUniforms, ProgramSet programSet) {
+        IrisShaderPatch.beginUniformRetention(((IGetVoxyPatchData) programSet).voxy$getPatchData());
+        try {
+            customUniforms.optimise();
+        } finally {
+            IrisShaderPatch.endUniformRetention();
+        }
+    }
 
     @Inject(method = "<init>", at = @At("RETURN"))
     private void voxy$initializePipeline(ProgramSet programSet, CallbackInfo ci) {
