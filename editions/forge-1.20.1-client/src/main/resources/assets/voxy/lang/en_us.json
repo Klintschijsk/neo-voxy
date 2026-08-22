@@ -10,7 +10,7 @@
   "voxy.config.group.fog": "Fog",
 
   "voxy.config.general": "General",
-  "voxy.config.rendering": "Rendering",
+  "voxy.config.rendering": "Neo-Voxy",
 
   "voxy.config.general.enabled": "Enable Voxy",
   "voxy.config.general.enabled.tooltip": "Fully enables or disables voxy",

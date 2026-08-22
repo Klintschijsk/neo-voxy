@@ -26,7 +26,7 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
 
         var CFG = VoxyConfig.CONFIG;
 
-        var cc = B.registerModOptions("voxy", "neo-voxy", VoxyCommon.MOD_VERSION)
+        var cc = B.registerModOptions("voxy", "Neo-Voxy", VoxyCommon.MOD_VERSION)
                 .setIcon(ResourceLocation.parse("voxy:icon.png"));
 
         final var RENDER_RELOAD = OptionFlag.REQUIRES_RENDERER_RELOAD.getId().toString();

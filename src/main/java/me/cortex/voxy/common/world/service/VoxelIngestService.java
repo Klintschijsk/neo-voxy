@@ -49,7 +49,7 @@ public class VoxelIngestService {
                     task.section, task.cx, task.cy, task.cz);
             me.cortex.voxy.commonImpl.compat.CreateCopycatCompat.beginSection(task.world.getMapper(), task.world.storage, task.chunk, task.section, task.cx, task.cy, task.cz);
             me.cortex.voxy.commonImpl.compat.littletiles.LittleTilesCompat.beginSection(
-                    task.world.storage, task.littleTiles, task.cx, task.cy, task.cz);
+                    task.world.storage, task.littleTiles, task.section, task.cx, task.cy, task.cz);
             //Read off the section rather than the chunk's block entities: sections streamed by VSS arrive
             //with no chunk at all, and a beacon is a block whether or not its block entity is here.
             long tBeacon = me.cortex.voxy.commonImpl.VoxyProfile.begin();

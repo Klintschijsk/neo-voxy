@@ -12,6 +12,7 @@ import me.cortex.voxy.commonImpl.WorldIdentifier;
 import me.cortex.voxy.commonImpl.compat.littletiles.LittleTilesCompat;
 import me.cortex.voxy.commonImpl.compat.littletiles.LittleTilesStore;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.core.Direction;
 import net.minecraft.core.BlockPos;
@@ -54,6 +55,7 @@ public final class LittleTilesDistantRenderer implements LodPipelineHooks.Render
     private final ArrayDeque<Long> bakeQueue = new ArrayDeque<>();
     private final HashSet<Long> queued = new HashSet<>();
     private SectionStorage storage;
+    private ClientLevel level;
     private boolean storageLoaded;
     private int lastScanX = Integer.MIN_VALUE, lastScanZ = Integer.MIN_VALUE;
 
@@ -63,7 +65,12 @@ public final class LittleTilesDistantRenderer implements LodPipelineHooks.Render
 
     public static void accept(SectionStorage storage, LittleTilesCompat.SectionSnapshot snapshot) {
         LittleTilesDistantRenderer renderer = active;
-        if (renderer != null) renderer.updates.add(new Update(storage, snapshot));
+        if (renderer != null) renderer.updates.add(new Update(storage, snapshot, true));
+    }
+
+    public static void checkpointActive() {
+        LittleTilesDistantRenderer renderer = active;
+        if (renderer != null) renderer.checkpoint();
     }
 
     @SubscribeEvent
@@ -73,33 +80,31 @@ public final class LittleTilesDistantRenderer implements LodPipelineHooks.Render
         var engine = WorldIdentifier.ofEngineNullable(mc.level);
         if (engine == null) return;
         if (this.storage != engine.storage) {
+            boolean sameLevel = this.level == mc.level;
+            if (sameLevel) drainUpdates(Integer.MAX_VALUE, null, 0.0);
+            var carried = sameLevel
+                    ? this.sections.values().stream().map(entry -> entry.snapshot).toList()
+                    : java.util.List.<LittleTilesCompat.SectionSnapshot>of();
             clearMeshes();
             this.updates.clear();
+            this.level = mc.level;
             this.storage = engine.storage;
-            this.storageLoaded = false;
+            this.storageLoaded = true;
+            for (var snapshot : LittleTilesStore.loadAll(this.storage)) {
+                this.updates.add(new Update(this.storage, snapshot, false));
+            }
+            for (var snapshot : carried) this.updates.add(new Update(this.storage, snapshot, true));
         }
         if (!this.storageLoaded) {
             this.storageLoaded = true;
             for (var snapshot : LittleTilesStore.loadAll(this.storage)) {
-                this.updates.add(new Update(this.storage, snapshot));
+                this.updates.add(new Update(this.storage, snapshot, false));
             }
         }
 
         var camera = mc.gameRenderer.getMainCamera().getPosition();
         double maxDistance = VoxyConfig.CONFIG.sectionRenderDistance * 32.0 * 16.0;
-        Update update;
-        int applied = 0;
-        while (applied++ < 256 && (update = this.updates.poll()) != null) {
-            if (update.storage != this.storage) continue;
-            long key = LittleTilesStore.key(update.snapshot.sx(), update.snapshot.sy(), update.snapshot.sz());
-            Entry old = this.sections.remove(key);
-            if (old != null && old.mesh != null) old.mesh.free();
-            this.queued.remove(key);
-            if (update.snapshot.cells().isEmpty()) continue;
-            this.sections.put(key, new Entry(update.snapshot, null));
-            if (distanceSq(update.snapshot, camera.x, camera.y, camera.z) <= maxDistance * maxDistance
-                    && this.queued.add(key)) this.bakeQueue.add(key);
-        }
+        drainUpdates(256, camera, maxDistance * maxDistance);
 
         int cx = ((int) Math.floor(camera.x)) >> 4;
         int cz = ((int) Math.floor(camera.z)) >> 4;
@@ -133,8 +138,10 @@ public final class LittleTilesDistantRenderer implements LodPipelineHooks.Render
 
     @SubscribeEvent
     public void logout(ClientPlayerNetworkEvent.LoggingOut event) {
+        checkpoint();
         clearMeshes();
         this.storage = null;
+        this.level = null;
         this.storageLoaded = false;
         this.updates.clear();
     }
@@ -146,9 +153,8 @@ public final class LittleTilesDistantRenderer implements LodPipelineHooks.Render
         if (mc.level == null) return;
         pipeline.setupAndBindOpaque(viewport);
 
-        int cameraSectionX = ((int) Math.floor(viewport.cameraX)) >> 4;
-        int cameraSectionZ = ((int) Math.floor(viewport.cameraZ)) >> 4;
-        int vanillaChunks = mc.options.getEffectiveRenderDistance();
+        double vanillaReach = Math.max(0.0, mc.options.getEffectiveRenderDistance() * 16.0 - 14.0);
+        double vanillaReachSq = vanillaReach * vanillaReach;
         double maxDistance = VoxyConfig.CONFIG.sectionRenderDistance * 32.0 * 16.0;
         double maxDistanceSq = maxDistance * maxDistance;
         boolean bound = false;
@@ -157,12 +163,11 @@ public final class LittleTilesDistantRenderer implements LodPipelineHooks.Render
             for (Entry entry : this.sections.values()) {
                 var source = entry.snapshot;
                 if (entry.mesh == null) continue;
-                if (Math.abs(source.sx() - cameraSectionX) <= vanillaChunks
-                        && Math.abs(source.sz() - cameraSectionZ) <= vanillaChunks) continue;
                 double ox = source.sx() * 16.0, oy = source.sy() * 16.0, oz = source.sz() * 16.0;
                 double dx = ox + 8.0 - viewport.cameraX;
                 double dy = oy + 8.0 - viewport.cameraY;
                 double dz = oz + 8.0 - viewport.cameraZ;
+                if (dx * dx + dz * dz < vanillaReachSq) continue;
                 if (dx * dx + dy * dy + dz * dz > maxDistanceSq) continue;
                 if (!DistantVisibility.isBoxVisible(viewport, ox, oy, oz, ox + 16, oy + 16, oz + 16)) continue;
                 if (!bound) {
@@ -264,6 +269,38 @@ public final class LittleTilesDistantRenderer implements LodPipelineHooks.Render
         this.lastScanX = this.lastScanZ = Integer.MIN_VALUE;
     }
 
+    private void checkpoint() {
+        if (this.storage == null) return;
+        drainUpdates(Integer.MAX_VALUE, null, 0.0);
+        for (var entry : this.sections.values()) {
+            LittleTilesStore.save(this.storage, entry.snapshot);
+        }
+        try {
+            this.storage.flush();
+        } catch (Throwable t) {
+            me.cortex.voxy.common.Logger.error("Flushing LittleTiles LOD snapshots", t);
+        }
+    }
+
+    private void drainUpdates(int limit, net.minecraft.world.phys.Vec3 camera, double maxDistanceSq) {
+        Update update;
+        int applied = 0;
+        while (applied < limit && (update = this.updates.poll()) != null) {
+            if (update.storage != this.storage) continue;
+            applied++;
+            var snapshot = update.snapshot;
+            long key = LittleTilesStore.key(snapshot.sx(), snapshot.sy(), snapshot.sz());
+            Entry old = this.sections.remove(key);
+            if (old != null && old.mesh != null) old.mesh.free();
+            this.queued.remove(key);
+            if (update.persist) LittleTilesStore.save(this.storage, snapshot);
+            if (snapshot.cells().isEmpty()) continue;
+            this.sections.put(key, new Entry(snapshot, null));
+            if (camera != null && distanceSq(snapshot, camera.x(), camera.y(), camera.z()) <= maxDistanceSq
+                    && this.queued.add(key)) this.bakeQueue.add(key);
+        }
+    }
+
     private static double distanceSq(LittleTilesCompat.SectionSnapshot snapshot, double x, double y, double z) {
         double dx = snapshot.sx() * 16.0 + 8.0 - x;
         double dy = snapshot.sy() * 16.0 + 8.0 - y;
@@ -271,7 +308,7 @@ public final class LittleTilesDistantRenderer implements LodPipelineHooks.Render
         return dx * dx + dy * dy + dz * dz;
     }
 
-    private record Update(SectionStorage storage, LittleTilesCompat.SectionSnapshot snapshot) {}
+    private record Update(SectionStorage storage, LittleTilesCompat.SectionSnapshot snapshot, boolean persist) {}
     private static final class Entry {
         final LittleTilesCompat.SectionSnapshot snapshot;
         DistantMesh mesh;

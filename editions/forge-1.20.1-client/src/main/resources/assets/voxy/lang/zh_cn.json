@@ -1,7 +1,7 @@
 {
   "voxy.config.title": "Voxy",
   "voxy.config.general": "常规",
-  "voxy.config.rendering": "渲染",
+  "voxy.config.rendering": "Neo-Voxy",
   "voxy.config.group.general": "基础",
   "voxy.config.group.threads": "线程",
   "voxy.config.group.data": "数据",

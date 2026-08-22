@@ -56,6 +56,16 @@ public final class LittleTilesStore {
         return out;
     }
 
+    public static LittleTilesCompat.SectionSnapshot load(SectionStorage storage, int sx, int sy, int sz) {
+        if (storage == null || !storage.supportsAuxTable(TABLE)) return null;
+        try {
+            return decode(storage.getAux(TABLE, key(sx, sy, sz)));
+        } catch (Throwable t) {
+            Logger.error("Reading LittleTiles LOD section", t);
+            return null;
+        }
+    }
+
     private static byte[] encode(LittleTilesCompat.SectionSnapshot snapshot) throws Exception {
         var root = new CompoundTag();
         var states = new ListTag();
@@ -115,7 +125,16 @@ public final class LittleTilesStore {
                 if (material >= materials.size() || (coordinate & ~0x1FFFFF) != 0) return null;
                 cells.add(new LittleTilesCompat.Cell(coordinate, material, light));
             }
-            return new LittleTilesCompat.SectionSnapshot(sx, sy, sz, materials, cells, new long[64]);
+            long[] holders = new long[64];
+            for (var cell : cells) {
+                int coordinate = cell.coordinate();
+                int bx = (coordinate & 127) >>> 3;
+                int bz = ((coordinate >>> 7) & 127) >>> 3;
+                int by = ((coordinate >>> 14) & 127) >>> 3;
+                int holder = bx | (bz << 4) | (by << 8);
+                holders[holder >>> 6] |= 1L << (holder & 63);
+            }
+            return new LittleTilesCompat.SectionSnapshot(sx, sy, sz, materials, cells, holders);
         } catch (Throwable t) {
             Logger.error("Reading LittleTiles LOD section", t);
             return null;

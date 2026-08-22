@@ -25,7 +25,7 @@ public class VoxyCommon {
         if (modFile == null) {
             IS_IN_MINECRAFT = false;
             Logger.error("Running voxy without minecraft");
-            MOD_VERSION = "0.3.3";
+            MOD_VERSION = "0.4.2-beta.1";
             IS_DEDICATED_SERVER = false;
         } else {
             IS_IN_MINECRAFT = true;
@@ -34,7 +34,7 @@ public class VoxyCommon {
                     .filter(m -> m.getModId().equals("voxy"))
                     .findFirst()
                     .map(m -> m.getVersion().toString())
-                    .orElse("0.3.3");
+                    .orElse("0.4.2-beta.1");
             MOD_VERSION = version;
             IS_DEDICATED_SERVER = FMLLoader.getDist() == Dist.DEDICATED_SERVER;
             Serialization.init();
@@ -47,11 +47,11 @@ public class VoxyCommon {
     public static String displayName() {
         var list = ModList.get();
         if (list == null) {
-            return "voxy";
+            return "Neo-Voxy";
         }
         return list.getModContainerById("voxy")
                 .map(container -> container.getModInfo().getDisplayName())
-                .orElse("voxy");
+                .orElse("Neo-Voxy");
     }
 
     //This is hardcoded like this because people do not understand what they are doing

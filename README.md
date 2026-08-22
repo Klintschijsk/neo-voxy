@@ -12,10 +12,10 @@ Neo Voxy 由 **JohnSnow** 维护，在 [NHblock714/voxy](https://github.com/NHbl
 
 | 版本 | 安装位置 | 渲染依赖 | Java | 发布文件 |
 |---|---|---|---:|---|
-| 1.21.1 NeoForge 联动版 | 客户端与服务端 | Sodium 0.8 / Iris | 21 | `neo-voxy-0.4.1beta-mc1.21.1-neoforge-integrations.jar` |
+| 1.21.1 NeoForge 联动版 | 客户端与服务端 | Sodium 0.8 / Iris | 21 | `neo-voxy-0.4.2-beta.1-mc1.21.1-neoforge-integrations.jar` |
 | 1.21.1 NeoForge 纯客户端版 | 仅客户端 | Sodium 0.8 / Iris | 21 | `neo-voxy-0.3.0-mc1.21.1-neoforge-client.jar` |
-| 1.20.1 Forge 纯客户端版 | 仅客户端 | Embeddium / Oculus | 17 | `neo-voxy-0.3.0-forge-client.jar` |
-| 26.1.2 NeoForge 纯客户端版 | 仅客户端 | Sodium 0.9 / Iris | 25 | `neo-voxy-0.3.0-mc26.1.2-neoforge-client.jar` |
+| 1.20.1 Forge 纯客户端版 | 仅客户端 | Embeddium / Oculus | 17 | `neo-voxy-0.3.1-forge-client.jar` |
+| 26.1.2 NeoForge 纯客户端版 | 仅客户端 | Sodium 0.9 / Iris | 25 | `neo-voxy-0.3.1-mc26.1.2-neoforge-client.jar` |
 
 最终发布 JAR 会剔除不需要的平台原生库、重复模块描述符和构建中间文件；运行所需的着色器、语言、模型与存储依赖不会删除。
 
@@ -27,7 +27,7 @@ Neo Voxy 由 **JohnSnow** 维护，在 [NHblock714/voxy](https://github.com/NHbl
 | Sodium / Embeddium 设置界面集成 | ✅ | ✅ | ✅ | ✅ |
 | Iris / Oculus 光影管线 | ✅ | ✅ | ✅ | ✅ |
 | 环境雾、天空雾与流体修复 | ✅ | ✅ | ✅ | ✅ |
-| 圆形 LOD 淡入 | ✅ | ✅ | ✅ | ✅ |
+| 圆形 LOD 淡入 | ✅ | ✅ | × | ✅ |
 | 地面植物交叉模型 | ✅ | ✅ | ✅ | ✅ |
 | 树叶 LOD 模式 | ✅ | ✅ | ✅ | ✅ |
 | 扩展区块请求（单人，上限 48） | ✅ | ✅ | ✅ | ✅ |
@@ -65,7 +65,7 @@ Neo Voxy 由 **JohnSnow** 维护，在 [NHblock714/voxy](https://github.com/NHbl
 | Sable | 1.21.1 联动版 | 远景物理结构及深度兼容 |
 | Ecliptic Seasons | 1.21.1 联动版 | 远景季节积雪 |
 | Domum Ornamentum | 1.21.1 联动版 | 特殊方块着色与独立 LOD 模型 |
-| LittleTiles | 1.21.1 联动版 | 静态小方块结构使用持久化的 1/8 格轻量 LOD 网格；仅安装 LittleTiles 时启用 |
+| LittleTiles | 1.21.1 联动版（0.4.2-beta.1+） | 静态小方块结构使用持久化的 1/8 格轻量 LOD 网格；仅安装 LittleTiles 时启用 |
 | Photon 等自带 LOD 过渡的光影 | 支持光影的版本 | 关闭 Neo Voxy 的 LOD 淡入，避免重复过渡 |
 
 专项联动仅在对应模组已安装时启用。Create、Sable 与节气兼容来自 **NHblock**。

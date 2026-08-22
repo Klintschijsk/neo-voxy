@@ -5,6 +5,8 @@ import me.cortex.voxy.common.config.section.SectionStorage;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.level.chunk.LevelChunkSection;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.neoforged.fml.ModList;
 import net.neoforged.fml.loading.FMLEnvironment;
 
@@ -36,7 +38,7 @@ public final class LittleTilesCompat {
         private final Map<Integer, SectionSnapshot> sections;
         private CapturedChunk(Map<Integer, SectionSnapshot> sections) { this.sections = sections; }
         public SectionSnapshot section(int y) {
-            return sections.getOrDefault(y, new SectionSnapshot(0, y, 0, List.of(), List.of(), new long[64]));
+            return sections.get(y);
         }
     }
 
@@ -64,20 +66,45 @@ public final class LittleTilesCompat {
         }
     }
 
-    public static void beginSection(SectionStorage storage, SectionSnapshot snapshot, int sx, int sy, int sz) {
-        if (!ENABLED || snapshot == null) return;
+    public static void beginSection(SectionStorage storage, SectionSnapshot snapshot, LevelChunkSection section,
+                                    int sx, int sy, int sz) {
+        if (!ENABLED) return;
+        if (snapshot == null) {
+            if (section != null && section.maybeHas(LittleTilesCompat::isLittleTilesState)) {
+                SectionSnapshot stored = LittleTilesStore.load(storage, sx, sy, sz);
+                if (stored != null) {
+                    ACTIVE_HOLDERS.set(stored.holders());
+                    publish(storage, stored);
+                }
+                return;
+            }
+            snapshot = new SectionSnapshot(sx, sy, sz, List.of(), List.of(), new long[64]);
+        }
         SectionSnapshot positioned = snapshot.sx() == sx && snapshot.sy() == sy && snapshot.sz() == sz
                 ? snapshot : new SectionSnapshot(sx, sy, sz, snapshot.materials(), snapshot.cells(), snapshot.holders());
         if (positioned.cells().isEmpty()) ACTIVE_HOLDERS.remove();
         else ACTIVE_HOLDERS.set(positioned.holders());
         LittleTilesStore.save(storage, positioned);
+        publish(storage, positioned);
+    }
+
+    private static void publish(SectionStorage storage, SectionSnapshot snapshot) {
         if (FMLEnvironment.dist.isClient()) {
             try {
-                me.cortex.voxy.client.compat.littletiles.LittleTilesDistantRenderer.accept(storage, positioned);
+                me.cortex.voxy.client.compat.littletiles.LittleTilesDistantRenderer.accept(storage, snapshot);
             } catch (Throwable t) {
                 Logger.error("Publishing LittleTiles LOD section", t);
             }
         }
+    }
+
+    private static boolean isLittleTilesState(BlockState state) {
+        var id = BuiltInRegistries.BLOCK.getKey(state.getBlock());
+        if (id == null || !"littletiles".equals(id.getNamespace())) return false;
+        return switch (id.getPath()) {
+            case "tiles", "tiles_ticking", "tiles_rendered", "tiles_ticking_rendered" -> true;
+            default -> false;
+        };
     }
 
     public static void endSection() {

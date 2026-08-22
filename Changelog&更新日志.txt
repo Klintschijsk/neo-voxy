@@ -1,16 +1,22 @@
 Neo Voxy 更新日志 / Changelog
 
-## 0.4.1beta（1.21.1 NeoForge 联动版）— 2026-08-22
+## 0.4.2-beta.1（1.21.1 NeoForge 联动版）— 2026-08-22
 
 ### 简体中文
 
 - 新增 LittleTiles 静态小方块远景兼容：区块摄取时一次性量化为 1/8 格稀疏表面网格，保留方块纹理、LittleTiles 颜色、群系染色与光照，并剔除内部相邻面。
 - 小方块网格随 Voxy 世界缓存持久化，每 tick 最多上传两个变化区段；LittleTiles 未安装时不注册渲染器、不扫描方块实体，体素热循环只保留一次区段级空值判断。
+- 修复重进世界时尚未就绪的 LittleTiles 方块实体误删持久化网格，以及原版视距与 LOD 交界处的小方块不可见带；交接改为带安全重叠的圆形距离判定。
+- 修复 LittleTiles 远景仅存在于内存、执行 `/voxy reload` 或原地重进后消失的问题；快照更新会可靠写入 Voxy 辅助存储，并在重载、退出与同世界存储切换前执行检查点。
+- 版本更新至 0.4.2-beta.1；四个版本的模组元数据与配置界面名称统一为 `Neo-Voxy`，并同步更新中英文兼容性表格。
 
 ### English
 
 - Added distant rendering for static LittleTiles microblocks. Geometry is captured once during section ingestion, quantized into sparse 1/8-block surface meshes, and keeps block textures, LittleTiles colours, biome tinting, lighting, and internal-face culling.
 - Microblock meshes persist with the Voxy world cache and upload at most two changed sections per tick. Without LittleTiles, no renderer or block-entity scan is registered and the voxel hot loop retains only one section-level null check.
+- Fixed persisted LittleTiles meshes being deleted when block entities were not ready during world entry, and removed the invisible handoff band with a conservative circular vanilla/LOD overlap.
+- Fixed LittleTiles distant meshes existing only in memory and disappearing after `/voxy reload` or rejoining in place. Snapshot updates are now persisted defensively and checkpointed before reload, logout, and same-world storage replacement.
+- Updated the integrations edition to 0.4.2-beta.1, standardized the mod metadata and configuration-screen name across all four editions as `Neo-Voxy`, and refreshed both compatibility tables.
 
 ## 0.3.1（1.20.1 Forge / 26.1.2 NeoForge 客户端版）— 2026-08-20
 

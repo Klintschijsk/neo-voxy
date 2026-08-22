@@ -6,7 +6,7 @@ issueTrackerURL="https://github.com/JohnSnow14284/neo-voxy/issues"
 [[mods]]
 modId="voxy"
 version="${version}"
-displayName="neo-voxy"
+displayName="Neo-Voxy"
 displayTest="IGNORE_ALL_VERSION"
 description="NeoForge port of Voxy, a far distance rendering mod utilising LoDs"
 authors="Cortex"

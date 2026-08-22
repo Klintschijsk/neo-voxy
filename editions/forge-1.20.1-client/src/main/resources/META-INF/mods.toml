@@ -6,7 +6,7 @@ issueTrackerURL="https://github.com/NHblock-Johnsnow/neo-voxy/issues"
 [[mods]]
 modId="voxy"
 version="${version}"
-displayName="Neo Voxy"
+displayName="Neo-Voxy"
 description="Minecraft 1.20.1 Forge port focused on core Voxy LOD rendering and stability fixes."
 authors="Cortex, JohnSnow"
 logoFile="assets/voxy/icon.png"

@@ -460,6 +460,7 @@ public class VoxyCommands {
             return 1;
         }
         var wr = Minecraft.getInstance().levelRenderer;
+        me.cortex.voxy.client.compat.littletiles.LittleTilesDistantRenderer.checkpointActive();
         if (wr!=null) {
             ((IGetVoxyRenderSystem)wr).voxy$shutdownRenderer();
         }

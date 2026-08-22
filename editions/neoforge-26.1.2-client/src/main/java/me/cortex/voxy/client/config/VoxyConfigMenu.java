@@ -27,7 +27,7 @@ public class VoxyConfigMenu implements ConfigEntryPoint {
    public void registerConfigLate(ConfigBuilder B) {
       if (VoxyCommon.isAvailable()) {
          VoxyConfig CFG = VoxyConfig.CONFIG;
-         ModOptionsBuilder cc = B.registerModOptions("voxy", "Voxy", VoxyCommon.MOD_VERSION).setIcon(Identifier.parse("voxy:icon.png"));
+         ModOptionsBuilder cc = B.registerModOptions("voxy", "Neo-Voxy", VoxyCommon.MOD_VERSION).setIcon(Identifier.parse("voxy:icon.png"));
          String RENDER_RELOAD = OptionFlag.REQUIRES_RENDERER_RELOAD.getId().toString();
          SodiumConfigBuilder.buildToSodium(
             B,

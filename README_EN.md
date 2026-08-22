@@ -12,10 +12,10 @@ Neo Voxy is maintained by **JohnSnow**. It extends [NHblock714/voxy](https://git
 
 | Edition | Install side | Renderer | Java | Release file |
 |---|---|---|---:|---|
-| 1.21.1 NeoForge integrations | Client and server | Sodium 0.8 / Iris | 21 | `neo-voxy-0.4.1beta-mc1.21.1-neoforge-integrations.jar` |
+| 1.21.1 NeoForge integrations | Client and server | Sodium 0.8 / Iris | 21 | `neo-voxy-0.4.2-beta.1-mc1.21.1-neoforge-integrations.jar` |
 | 1.21.1 NeoForge client | Client only | Sodium 0.8 / Iris | 21 | `neo-voxy-0.3.0-mc1.21.1-neoforge-client.jar` |
-| 1.20.1 Forge client | Client only | Embeddium / Oculus | 17 | `neo-voxy-0.3.0-forge-client.jar` |
-| 26.1.2 NeoForge client | Client only | Sodium 0.9 / Iris | 25 | `neo-voxy-0.3.0-mc26.1.2-neoforge-client.jar` |
+| 1.20.1 Forge client | Client only | Embeddium / Oculus | 17 | `neo-voxy-0.3.1-forge-client.jar` |
+| 26.1.2 NeoForge client | Client only | Sodium 0.9 / Iris | 25 | `neo-voxy-0.3.1-mc26.1.2-neoforge-client.jar` |
 
 Release JARs remove unused platform natives, duplicate module descriptors, and build intermediates. Runtime shaders, languages, models, and storage libraries are retained.
 
@@ -27,7 +27,7 @@ Release JARs remove unused platform natives, duplicate module descriptors, and b
 | Sodium / Embeddium settings integration | ✅ | ✅ | ✅ | ✅ |
 | Iris / Oculus shader pipeline | ✅ | ✅ | ✅ | ✅ |
 | Environmental/sky fog and fluid fixes | ✅ | ✅ | ✅ | ✅ |
-| Circular LOD handoff | ✅ | ✅ | ✅ | ✅ |
+| Circular LOD handoff | ✅ | ✅ | × | ✅ |
 | Crossed ground-plant models | ✅ | ✅ | ✅ | ✅ |
 | Leaf LOD modes | ✅ | ✅ | ✅ | ✅ |
 | Extended chunk requests (single-player, max 48) | ✅ | ✅ | ✅ | ✅ |
@@ -65,7 +65,7 @@ Release JARs remove unused platform natives, duplicate module descriptors, and b
 | Sable | 1.21.1 integrations | Distant physics objects and depth integration |
 | Ecliptic Seasons | 1.21.1 integrations | Seasonal snow in distant terrain |
 | Domum Ornamentum | 1.21.1 integrations | Special block coloring and dedicated LOD models |
-| LittleTiles | 1.21.1 integrations | Static microblock structures use persistent lightweight 1/8-block LOD meshes; enabled only when LittleTiles is installed |
+| LittleTiles | 1.21.1 integrations (0.4.2-beta.1+) | Static microblock structures use persistent lightweight 1/8-block LOD meshes; enabled only when LittleTiles is installed |
 | Photon and other shaders with native LOD handoff | Shader-capable editions | Disable Neo Voxy's circular handoff to prevent duplicate transitions |
 
 Optional integrations activate only when the corresponding mod is installed. Create, Sable, and seasonal compatibility originate from **NHblock**.
