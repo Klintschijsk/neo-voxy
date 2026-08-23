@@ -48,7 +48,7 @@ public class SoftwareModelTextureBakery {
     private static final Matrix4f[] VIEWS = new Matrix4f[6];
 
     private final ReuseVertexConsumer opaqueVC = new ReuseVertexConsumer();
-    private final ReuseVertexConsumer translucentVC = new ReuseVertexConsumer(1);
+    private final ReuseVertexConsumer translucentVC = new ReuseVertexConsumer();
     private final SoftwareRasterizer rasterizer = new SoftwareRasterizer(ModelFactory.MODEL_TEXTURE_SIZE);
     private final Mapper mapper;
 

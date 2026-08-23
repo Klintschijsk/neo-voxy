@@ -176,6 +176,12 @@ public final class ReuseVertexConsumer implements VertexConsumer {
         if (forceSolid) {
             return false;
         }
+        // Translucent cube models such as glass still use normal face culling. Treating them like
+        // cutout cards makes the offline projection blend the front, back and overlapping edge
+        // faces together, which changes the texture and quickly drives stained glass to opaque.
+        if (layer == RenderType.translucent()) {
+            return false;
+        }
         if (layer != RenderType.solid()) {
             return true;
         }
