@@ -11,8 +11,15 @@ import me.cortex.voxy.client.core.rendering.Viewport;
 import me.cortex.voxy.common.Logger;
 import me.cortex.voxy.commonImpl.WorldIdentifier;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.client.renderer.RenderBuffers;
+import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.level.block.entity.BeaconBlockEntity;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
 import org.joml.Matrix4f;
 
 import java.util.ArrayList;
@@ -42,14 +49,18 @@ public final class DistantBeaconRenderer implements LodPipelineHooks.Renderer {
             ResourceLocation.withDefaultNamespace("textures/entity/beacon_beam.png");
 
     private static final float CORE_RADIUS = 0.2f;
-    private static final float WIDTH_PER_BLOCK = 0.0006f;
-    private static final float MAX_CORE_RADIUS = 4.8f;
+    private static final float FAR_WIDTH_PER_BLOCK = 0.00022f;
+    private static final double WIDTH_EASE_BLOCKS = 512.0;
+    private static final double HANDOFF_OVERLAP = 32.0;
 
     public static int lastFrameBeamsDrawn;
     //Re-solves per frame. A solve is a bounded column walk, but the first sight of a beacon-heavy
     //world queues them all at once - the budget turns that into a short ramp instead of one frame.
     private static final int SOLVES_PER_FRAME = 4;
     private static final long LOOKUP_RETRY_MS = 5000;
+    private static final long WARM_RETRY_MS = 500;
+
+    private static volatile DistantBeaconRenderer active;
 
     //Beacon pos -> its current verdict. A beam is re-solved only when its column's voxels changed,
     //its index entry changed, or it crossed the LOD range - never on a timer. EMPTY is a cached
@@ -74,6 +85,10 @@ public final class DistantBeaconRenderer implements LodPipelineHooks.Renderer {
     //topY is kept so the draw can frustum-test the beam: it is a tall thin column, and testing only its
     //base rejects it whenever the base is below the view while the visible part is not.
     private record Built(DistantMesh mesh, double x, double y, double z, double topY) {}
+
+    public DistantBeaconRenderer() {
+        active = this;
+    }
 
     @Override
     public void render(AbstractRenderPipeline pipeline, Viewport<?> viewport, int depthFunc) {
@@ -128,6 +143,7 @@ public final class DistantBeaconRenderer implements LodPipelineHooks.Renderer {
     }
 
     private void draw(AbstractRenderPipeline pipeline, Viewport<?> viewport, int depthFunc) {
+        var mc = Minecraft.getInstance();
         var shader = DistantShaders.forPipeline(pipeline, false);
         if (shader == null) {
             return;
@@ -160,12 +176,11 @@ public final class DistantBeaconRenderer implements LodPipelineHooks.Renderer {
             for (var beam : this.built) {
                 double bdx = beam.x - viewport.cameraX, bdz = beam.z - viewport.cameraZ;
                 double horizontalSq = bdx * bdx + bdz * bdz;
-                if (horizontalSq < vanillaRangeSq) {
+                if (vanillaBeamReady(mc, beam, horizontalSq, vanillaRangeSq)) {
                     vanillaOwned++;
                     continue;
                 }
-                float radius = Math.min(MAX_CORE_RADIUS, CORE_RADIUS
-                        + (float) Math.max(0.0, Math.sqrt(horizontalSq) - vanillaRange) * WIDTH_PER_BLOCK);
+                float radius = radiusAt(Math.sqrt(horizontalSq), vanillaRange);
                 //A beam is a 1024-block column, so its box is tall and thin
                 if (!DistantVisibility.isBoxVisible(viewport,
                         beam.x - radius, beam.y, beam.z - radius,
@@ -222,6 +237,14 @@ public final class DistantBeaconRenderer implements LodPipelineHooks.Renderer {
                     BeaconBeamTracker.queueDirty(pos);
                     continue;
                 }
+                if (!BeaconBeamTracker.isTracked(pos)) {
+                    BeaconState stale = this.states.remove(pos);
+                    if (stale != null && stale.mesh != null) {
+                        stale.mesh.free();
+                        this.builtStale = true;
+                    }
+                    continue;
+                }
                 int bx = BlockPos.getX(pos), by = BlockPos.getY(pos), bz = BlockPos.getZ(pos);
                 double dx = (bx + 0.5) - viewport.cameraX;
                 double dz = (bz + 0.5) - viewport.cameraZ;
@@ -250,6 +273,10 @@ public final class DistantBeaconRenderer implements LodPipelineHooks.Renderer {
             state = new BeaconState();
             this.states.put(pos, state);
         }
+        if (result.cacheMissed()) {
+            state.retryAtMs = now + WARM_RETRY_MS;
+            return;
+        }
         if (state.mesh != null) {
             state.mesh.free();
             state.mesh = null;
@@ -275,6 +302,90 @@ public final class DistantBeaconRenderer implements LodPipelineHooks.Renderer {
             state.topY = topY;
             this.builtStale = true;
         }
+    }
+
+    private static boolean vanillaBeamReady(Minecraft mc, Built beam,
+                                             double horizontalSq, double vanillaRangeSq) {
+        double vanillaRange = Math.sqrt(vanillaRangeSq);
+        double readyRange = Math.max(16.0, vanillaRange - HANDOFF_OVERLAP);
+        if (horizontalSq >= readyRange * readyRange || mc.level == null) {
+            return false;
+        }
+        BlockPos pos = BlockPos.containing(beam.x, beam.y, beam.z);
+        if (!mc.level.getChunkSource().hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) {
+            return false;
+        }
+        return mc.level.getBlockEntity(pos) instanceof BeaconBlockEntity beacon
+                && !beacon.getBeamSections().isEmpty();
+    }
+
+    private static float radiusAt(double distance, double vanillaRange) {
+        double excess = Math.max(0.0, distance - vanillaRange);
+        double eased = excess * excess / (excess + WIDTH_EASE_BLOCKS);
+        return CORE_RADIUS + (float) (eased * FAR_WIDTH_PER_BLOCK);
+    }
+
+    /** Adds minimal opaque prisms to Iris' shadow-map batch; called only during a shadow pass. */
+    public static int renderShadowCasters(RenderBuffers buffers, PoseStack poses,
+                                          double cameraX, double cameraY, double cameraZ,
+                                          double shadowDistance) {
+        DistantBeaconRenderer renderer = active;
+        if (renderer == null || renderer.built.isEmpty()
+                || !VoxyConfig.CONFIG.distantBeacons || !VoxyConfig.CONFIG.isRenderingEnabled()) {
+            return 0;
+        }
+        var mc = Minecraft.getInstance();
+        if (mc.level == null || renderer.boundEngine != WorldIdentifier.ofEngineNullable(mc.level)) {
+            return 0;
+        }
+        double rangeSq = shadowDistance * shadowDistance;
+        double vanillaRange = Math.min(VANILLA_BEAM_RANGE,
+                mc.options.getEffectiveRenderDistance() * 16.0);
+        VertexConsumer consumer = buffers.bufferSource().getBuffer(RenderType.entitySolid(BEAM_TEXTURE));
+        int count = 0;
+        for (Built beam : renderer.built) {
+            double dx = beam.x - cameraX;
+            double dz = beam.z - cameraZ;
+            double distanceSq = dx * dx + dz * dz;
+            if (distanceSq > rangeSq) {
+                continue;
+            }
+            float radius = radiusAt(Math.sqrt(distanceSq), vanillaRange);
+            float height = (float) Math.max(0.0, beam.topY - beam.y);
+            if (height <= 0.0f) {
+                continue;
+            }
+            poses.pushPose();
+            poses.translate(dx, beam.y - cameraY, dz);
+            var pose = poses.last();
+            shadowSide(consumer, pose, -radius, -radius, radius, -radius, height, 0.0f, -1.0f);
+            shadowSide(consumer, pose, radius, radius, -radius, radius, height, 0.0f, 1.0f);
+            shadowSide(consumer, pose, radius, -radius, radius, radius, height, 1.0f, 0.0f);
+            shadowSide(consumer, pose, -radius, radius, -radius, -radius, height, -1.0f, 0.0f);
+            poses.popPose();
+            count++;
+        }
+        return count;
+    }
+
+    private static void shadowSide(VertexConsumer consumer, PoseStack.Pose pose,
+                                   float x0, float z0, float x1, float z1, float height,
+                                   float normalX, float normalZ) {
+        shadowVertex(consumer, pose, x0, 0.0f, z0, 0.0f, 0.0f, normalX, normalZ);
+        shadowVertex(consumer, pose, x1, 0.0f, z1, 1.0f, 0.0f, normalX, normalZ);
+        shadowVertex(consumer, pose, x1, height, z1, 1.0f, height, normalX, normalZ);
+        shadowVertex(consumer, pose, x0, height, z0, 0.0f, height, normalX, normalZ);
+    }
+
+    private static void shadowVertex(VertexConsumer consumer, PoseStack.Pose pose,
+                                     float x, float y, float z, float u, float v,
+                                     float normalX, float normalZ) {
+        consumer.addVertex(pose, x, y, z)
+                .setColor(0xFFFFFFFF)
+                .setUv(u, v)
+                .setOverlay(OverlayTexture.NO_OVERLAY)
+                .setLight(LightTexture.FULL_BRIGHT)
+                .setNormal(pose, normalX, 0.0f, normalZ);
     }
 
     //The only thing left on a timer, because distance is the one input with no event: membership of

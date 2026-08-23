@@ -34,6 +34,19 @@ public final class BeaconBeamTracker {
     private BeaconBeamTracker() {
     }
 
+    public static boolean isTracked(long pos) {
+        long[] beacons = columnToBeacons.get(columnKey(BlockPos.getX(pos) >> 5, BlockPos.getZ(pos) >> 5));
+        if (beacons == null) {
+            return false;
+        }
+        for (long beacon : beacons) {
+            if (beacon == pos) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     //Rebuilds the column map from the engine's index and hooks its membership diff. Render thread,
     //once per engine.
     public static void bind(WorldEngine engine) {
@@ -187,5 +200,4 @@ public final class BeaconBeamTracker {
         }
     }
 }
-
 

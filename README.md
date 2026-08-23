@@ -12,7 +12,7 @@ Neo Voxy 由 **JohnSnow** 维护，在 [NHblock714/voxy](https://github.com/NHbl
 
 | 版本 | 安装位置 | 渲染依赖 | Java | 发布文件 |
 |---|---|---|---:|---|
-| 1.21.1 NeoForge 联动版 | 客户端与服务端 | Sodium 0.8 / Iris | 21 | `neo-voxy-0.4.2-beta.1-mc1.21.1-neoforge-integrations.jar` |
+| 1.21.1 NeoForge 联动版 | 客户端与服务端 | Sodium 0.8 / Iris | 21 | `neo-voxy-0.4.3-beta.1-mc1.21.1-neoforge-integrations.jar` |
 | 1.21.1 NeoForge 纯客户端版 | 仅客户端 | Sodium 0.8 / Iris | 21 | `neo-voxy-0.3.0-mc1.21.1-neoforge-client.jar` |
 | 1.20.1 Forge 纯客户端版 | 仅客户端 | Embeddium / Oculus | 17 | `neo-voxy-0.3.1-forge-client.jar` |
 | 26.1.2 NeoForge 纯客户端版 | 仅客户端 | Sodium 0.9 / Iris | 25 | `neo-voxy-0.3.1-mc26.1.2-neoforge-client.jar` |
@@ -34,14 +34,14 @@ Neo Voxy 由 **JohnSnow** 维护，在 [NHblock714/voxy](https://github.com/NHbl
 | LOD 群系水色混合 | ✅ | ✅ | ✅ | ✅ | 构建阶段完成，不逐 tick 遍历 |
 | LOD 构建压力控制 | ✅ | ✅ | ✅ | ✅ | 可侧重帧率或追赶速度 |
 | 世界曲率 | ✅ | ✅ | ✅ | ✅ | GPU 顶点阶段实现 |
-| 远距离信标光束 | ✅ | — | — | — | 随距离调整宽度 |
+| 远距离信标光束 | ✅ | — | — | — | 无限距离连续宽度曲线、光影阴影与无缝交接 |
 | 远距离玩家、乘骑物与动画 | ✅ | — | — | — | 联动版专项功能 |
 | Sodium / Iris | ✅ | ✅ | — | ✅ | 使用对应 Minecraft 版本支持的大版本 |
 | Embeddium / Oculus | — | — | ✅ | — | Embeddium 为渲染后端，Oculus 提供光影支持 |
 | Create | ✅ | — | — | — | 远景列车、轨道、动态结构与动力部件 |
 | Sable | ✅ | — | — | — | 远景物理结构及深度兼容 |
 | Ecliptic Seasons | ✅ | — | — | — | 远景季节积雪 |
-| Domum Ornamentum | 🧪 | — | — | — | 初步兼容：特殊方块着色与独立 LOD 模型 |
+| Domum Ornamentum | ✅ | — | — | — | 完全兼容：精细独立模型、材质与持久缓存 |
 | LittleTiles | 🧪 | — | — | — | 初步兼容：静态结构使用持久化的 1/8 格轻量 LOD 网格 |
 
 `✅` 表示支持，`🧪` 表示初步兼容，`—` 表示未包含专项功能或不适用；后者不代表基础地形 LOD 一定与该模组冲突。专项联动仅在对应模组已安装时启用。Create、Sable 与节气兼容来自 **NHblock**。
@@ -58,6 +58,7 @@ Neo Voxy 由 **JohnSnow** 维护，在 [NHblock714/voxy](https://github.com/NHbl
 - 实验性 LOD 轻量光照：1.21.1 联动版可使用成对的 Lite 程序；默认关闭，加载或编译失败、版本不匹配及过渡条件不安全时自动整套回退。Eclipse Shader 482 由 NeoVoxy 内置补丁支持，无需修改光影包；Complementary Unbound r5.8.1 + Euphoria Patches 1.9.3 使用独立 overlay。
 - 细分尺寸：控制屏幕空间触发更细 LOD 的阈值；数值越小画质越高，构建和渲染开销也越高。
 - 世界曲率：四个版本均可在 GPU 顶点阶段弯曲原版距离外的 LOD；0 为关闭，不增加区块遍历或每 tick 扫描。
+- 远景信标：联动版以缓存列生成光柱；靠近时确认原版光柱已就绪后再交接，极远距离使用平缓且无硬上限的宽度曲线，并在 Iris 阴影阶段提交轻量阴影模型。
 - 进服消息：每次进入服务器或单人世界显示版本提示，默认开启，可在 Sodium/Embeddium 的 Neo Voxy 配置中关闭。
 
 ## 构建

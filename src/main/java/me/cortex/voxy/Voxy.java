@@ -109,6 +109,12 @@ public class Voxy {
                 me.cortex.voxy.client.compat.LodPipelineHooks.register(littleTilesRenderer);
             }
 
+            if (ModList.get().isLoaded("domum_ornamentum")) {
+                var domumRenderer = new me.cortex.voxy.client.compat.domum.DomumDistantRenderer();
+                NeoForge.EVENT_BUS.register(domumRenderer);
+                me.cortex.voxy.client.compat.LodPipelineHooks.register(domumRenderer);
+            }
+
             //Beacon beams derived from the voxel store, so one shows up whether or not its chunk was
             //ever loaded this session. Vanilla, not create - registered unconditionally.
             var beaconRenderer = new me.cortex.voxy.client.core.beacon.DistantBeaconRenderer();

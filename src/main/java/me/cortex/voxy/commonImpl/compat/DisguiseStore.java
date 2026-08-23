@@ -68,12 +68,7 @@ public final class DisguiseStore {
         void accept(int localIndex, int variantId);
     }
 
-    //Feeds back what was stored for this section. Returns how many entries were applied.
-    public static int load(SectionStorage storage, String table, int sx, int sy, int sz, EntryConsumer out) {
-        if (storage == null || !storage.supportsAuxTable(table)) {
-            return 0;
-        }
-        byte[] value = storage.getAux(table, keyOf(sx, sy, sz));
+    public static int decode(byte[] value, EntryConsumer out) {
         if (value == null || value.length < HEADER || value[0] != FORMAT) {
             return 0;
         }
@@ -93,5 +88,13 @@ public final class DisguiseStore {
             }
         }
         return applied;
+    }
+
+    //Feeds back what was stored for this section. Returns how many entries were applied.
+    public static int load(SectionStorage storage, String table, int sx, int sy, int sz, EntryConsumer out) {
+        if (storage == null || !storage.supportsAuxTable(table)) {
+            return 0;
+        }
+        return decode(storage.getAux(table, keyOf(sx, sy, sz)), out);
     }
 }

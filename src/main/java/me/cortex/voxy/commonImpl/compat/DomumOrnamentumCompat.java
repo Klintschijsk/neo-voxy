@@ -125,10 +125,17 @@ public final class DomumOrnamentumCompat {
     private DomumOrnamentumCompat() {
     }
 
+    public interface SectionListener {
+        void changed(SectionStorage storage, int sectionX, int sectionY, int sectionZ);
+    }
+
+    public static volatile SectionListener sectionListener;
+
     public record BakePlan(ModelData modelData, BlockState modelState, BlockState colourState,
-                           int fallbackTintAbgr, boolean forceTint, boolean independentModel) {
+                           int fallbackTintAbgr, boolean forceTint, boolean independentModel,
+                           boolean detailedMesh) {
         private static final BakePlan EMPTY =
-                new BakePlan(ModelData.EMPTY, null, null, -1, false, false);
+                new BakePlan(ModelData.EMPTY, null, null, -1, false, false, false);
 
         public static BakePlan empty() {
             return EMPTY;
@@ -303,6 +310,8 @@ public final class DomumOrnamentumCompat {
                 DisguiseStore.save(storage, DISGUISE_TABLE, sectionX, sectionY, sectionZ,
                         packed, mappings.touchedCount);
             }
+            SectionListener listener = sectionListener;
+            if (listener != null) listener.changed(storage, sectionX, sectionY, sectionZ);
         }
     }
 
@@ -368,13 +377,10 @@ public final class DomumOrnamentumCompat {
         BlockState colourState = selectMaterialState(state, textureData);
         int tintAbgr = resolveTint(colourState);
 
-        // Prefer Domum's actual retextured model. The proxy is only a last-resort shape when
-        // optional model data could not be reconstructed from the saved variant.
-        BlockState proxy = resolved == ModelData.EMPTY ? createStairProxy(state) : null;
-        if (proxy != null && tintAbgr != -1) {
-            return new BakePlan(ModelData.EMPTY, proxy, null, tintAbgr, true, true);
+        if (isDetailedShingle(state)) {
+            return new BakePlan(resolved, null, colourState, tintAbgr, false, true, true);
         }
-        return new BakePlan(resolved, null, colourState, tintAbgr, false, true);
+        return new BakePlan(resolved, null, colourState, tintAbgr, false, true, false);
     }
 
     private static ModelData createModelDataFromDescriptor(VariantDescriptor descriptor) {
@@ -538,28 +544,13 @@ public final class DomumOrnamentumCompat {
         }
     }
 
-    private static BlockState createStairProxy(BlockState state) {
+    private static boolean isDetailedShingle(BlockState state) {
         ResourceLocation id = BuiltInRegistries.BLOCK.getKey(state.getBlock());
         if (id == null || !VARIANT_TYPE.equals(id.getNamespace())) {
-            return null;
+            return false;
         }
         String path = id.getPath();
-        if (!(path.contains("stair") || path.contains("shingle"))
-                || !state.hasProperty(BlockStateProperties.HORIZONTAL_FACING)
-                || !state.hasProperty(BlockStateProperties.HALF)) {
-            return null;
-        }
-
-        BlockState proxy = Blocks.QUARTZ_STAIRS.defaultBlockState()
-                .setValue(BlockStateProperties.HORIZONTAL_FACING, state.getValue(BlockStateProperties.HORIZONTAL_FACING))
-                .setValue(BlockStateProperties.HALF, state.getValue(BlockStateProperties.HALF));
-        if (state.hasProperty(BlockStateProperties.STAIRS_SHAPE)) {
-            proxy = proxy.setValue(BlockStateProperties.STAIRS_SHAPE, state.getValue(BlockStateProperties.STAIRS_SHAPE));
-        }
-        if (state.hasProperty(BlockStateProperties.WATERLOGGED)) {
-            proxy = proxy.setValue(BlockStateProperties.WATERLOGGED, state.getValue(BlockStateProperties.WATERLOGGED));
-        }
-        return proxy;
+        return path.contains("shingle") && !path.contains("slab");
     }
 
     private static String canonicalKey(CompoundTag data) {

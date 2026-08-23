@@ -1,5 +1,23 @@
 Neo Voxy 更新日志 / Changelog
 
+## 0.4.3-beta.1（1.21.1 NeoForge 联动版）— 2026-08-23
+
+### 简体中文
+
+- Domum-Ornamentum 兼容由初步支持提升为完全兼容：特殊组合方块使用精细独立 LOD 模型，正确保留材质、方向、拼接几何、光照与持久缓存。
+- 修复远景信标光柱靠近原版视距边界时短暂消失：只有在原版信标实体和有效光柱均已就绪后才交接，并保留安全重叠距离。
+- 信标列缓存缺失时改为后台低优先级预热；重算期间保留上一份完整光柱，避免存储读取阻塞渲染线程或产生闪烁。
+- 信标宽度改为交界处平缓、极远处持续增长且无硬上限的连续曲线，降低刚超出原版距离时的突兀增粗。
+- 远景信标光柱接入 Iris 阴影图阶段；仅对已缓存光柱提交轻量棱柱阴影几何。
+
+### English
+
+- Promoted Domum-Ornamentum from preliminary to full compatibility. Composite blocks now use detailed dedicated LOD models with correct materials, orientation, joined geometry, lighting, and persistence.
+- Fixed distant beacon beams disappearing while approaching the vanilla boundary. Handoff now waits for a loaded beacon block entity with a valid vanilla beam and keeps a conservative overlap.
+- Cold beacon columns now warm asynchronously at low priority. The last complete beam remains visible during a rebuild, avoiding render-thread storage reads and transient blinking.
+- Replaced the beacon width step with a smooth, unbounded curve that grows gently near the handoff and remains visible at extreme distance.
+- Added distant beacon shadow casters to the Iris shadow-map pass using only lightweight cached prism geometry and no per-tick world scan.
+
 ## 0.4.2-beta.1（1.21.1 NeoForge 联动版）— 2026-08-22
 
 ### 简体中文

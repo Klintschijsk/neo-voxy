@@ -14,6 +14,7 @@
     "iris.MixinPackRenderTargetDirectives",
     "iris.MixinProgramSet",
     "iris.MixinShaderPackSourceNames",
+    "iris.MixinShadowRenderingState",
     "iris.MixinSodiumShadowBoundary",
     "iris.MixinStandardMacros"
   ],

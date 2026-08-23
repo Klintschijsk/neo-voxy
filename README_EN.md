@@ -12,7 +12,7 @@ Neo Voxy is maintained by **JohnSnow**. It extends [NHblock714/voxy](https://git
 
 | Edition | Install side | Renderer | Java | Release file |
 |---|---|---|---:|---|
-| 1.21.1 NeoForge integrations | Client and server | Sodium 0.8 / Iris | 21 | `neo-voxy-0.4.2-beta.1-mc1.21.1-neoforge-integrations.jar` |
+| 1.21.1 NeoForge integrations | Client and server | Sodium 0.8 / Iris | 21 | `neo-voxy-0.4.3-beta.1-mc1.21.1-neoforge-integrations.jar` |
 | 1.21.1 NeoForge client | Client only | Sodium 0.8 / Iris | 21 | `neo-voxy-0.3.0-mc1.21.1-neoforge-client.jar` |
 | 1.20.1 Forge client | Client only | Embeddium / Oculus | 17 | `neo-voxy-0.3.1-forge-client.jar` |
 | 26.1.2 NeoForge client | Client only | Sodium 0.9 / Iris | 25 | `neo-voxy-0.3.1-mc26.1.2-neoforge-client.jar` |
@@ -34,14 +34,14 @@ Release JARs remove unused platform natives, duplicate module descriptors, and b
 | LOD biome water-colour blending | ✅ | ✅ | ✅ | ✅ | Built with the model; no per-tick traversal |
 | LOD build-pressure control | ✅ | ✅ | ✅ | ✅ | Prioritise frame rate or catch-up speed |
 | World curvature | ✅ | ✅ | ✅ | ✅ | Implemented in the GPU vertex stage |
-| Distant beacon beams | ✅ | — | — | — | Width scales with distance |
+| Distant beacon beams | ✅ | — | — | — | Unbounded smooth width curve, shader shadows, and seamless handoff |
 | Distant players, vehicles, and animation | ✅ | — | — | — | Integrations-edition feature |
 | Sodium / Iris | ✅ | ✅ | — | ✅ | Use the renderer major version appropriate for Minecraft |
 | Embeddium / Oculus | — | — | ✅ | — | Embeddium is the renderer; Oculus provides shader support |
 | Create | ✅ | — | — | — | Distant trains, tracks, contraptions, and kinetic components |
 | Sable | ✅ | — | — | — | Distant physics objects and depth integration |
 | Ecliptic Seasons | ✅ | — | — | — | Seasonal snow in distant terrain |
-| Domum Ornamentum | 🧪 | — | — | — | Preliminary: special colouring and dedicated LOD models |
+| Domum Ornamentum | ✅ | — | — | — | Full support: detailed dedicated models, materials, and persistent cache |
 | LittleTiles | 🧪 | — | — | — | Preliminary: persistent lightweight 1/8-block LOD meshes for static structures |
 
 `✅` means supported, `🧪` means preliminary compatibility, and `—` means no dedicated feature or not applicable; it does not necessarily imply incompatibility with basic terrain LOD rendering. Optional integrations activate only when the corresponding mod is installed. Create, Sable, and seasonal compatibility originate from **NHblock**.
@@ -58,6 +58,7 @@ Release JARs remove unused platform natives, duplicate module descriptors, and b
 - Experimental Lite LOD shading: the 1.21.1 integrations build uses paired Lite programs and atomically falls back if loading or compilation fails, the version is unsupported, or the transition is unsafe. Eclipse Shader 482 is supported by a built-in NeoVoxy patch and does not require shader-pack changes; Complementary Unbound r5.8.1 + Euphoria Patches 1.9.3 uses a separate overlay.
 - Subdivision size: controls the screen-space threshold for finer LODs. Lower values improve detail at higher build and rendering cost.
 - World curvature: all four editions curve only the LOD beyond vanilla distance in the GPU vertex stage; 0 disables it, with no chunk scan or per-tick traversal.
+- Distant beacons: the integrations edition builds beams from cached columns, hands off only after the vanilla beam is ready, uses a gentle unbounded width curve at extreme range, and submits lightweight shadow geometry during Iris shadow passes.
 - Join message: shown whenever a server or single-player world is entered, enabled by default and removable from the Neo Voxy Sodium/Embeddium settings.
 
 ## Building

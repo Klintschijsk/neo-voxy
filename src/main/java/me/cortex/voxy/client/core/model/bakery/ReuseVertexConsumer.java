@@ -19,6 +19,8 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 
 public final class ReuseVertexConsumer implements VertexConsumer {
     public static final int VERTEX_FORMAT_SIZE = 28;
+    public static final int META_ALPHA_DISCARD = 1;
+    public static final int META_NO_FACE_CULL = 1 << 3;
     private MemoryBuffer buffer = new MemoryBuffer(8192);
     private long ptr;
     private int count;
@@ -128,8 +130,14 @@ public final class ReuseVertexConsumer implements VertexConsumer {
     }
 
     public ReuseVertexConsumer quad(BakedQuad quad, boolean forceSolid, RenderType layer, BlockState state) {
+        return this.quad(quad, forceSolid, layer, state, false);
+    }
+
+    public ReuseVertexConsumer quad(BakedQuad quad, boolean forceSolid, RenderType layer,
+                                    BlockState state, boolean disableFaceCulling) {
         int meta = 0;
-        meta |= shouldEnableAlphaDiscard(quad, forceSolid, layer) ? 1 : 0;//has discard
+        meta |= shouldEnableAlphaDiscard(quad, forceSolid, layer) ? META_ALPHA_DISCARD : 0;
+        meta |= disableFaceCulling ? META_NO_FACE_CULL : 0;
 
         int tintColour = this.forcedTintColour;
         if (tintColour == -1 && quad.isTinted()) {

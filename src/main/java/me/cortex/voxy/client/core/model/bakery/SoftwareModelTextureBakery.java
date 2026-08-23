@@ -145,7 +145,11 @@ public class SoftwareModelTextureBakery {
         }
 
         var plan = DomumOrnamentumCompat.getBakePlan(this.mapper, blockId);
-        if (plan.isEmpty()) {
+        boolean domumModel = !plan.isEmpty();
+        if (domumModel && plan.detailedMesh()) {
+            return false;
+        }
+        if (!domumModel) {
             plan = me.cortex.voxy.commonImpl.compat.CreateCopycatCompat.getBakePlan(this.mapper, blockId, state);
         }
         BlockState modelState = plan.modelState() == null ? state : plan.modelState();
@@ -207,7 +211,7 @@ public class SoftwareModelTextureBakery {
                     }
 
                     (renderLayer == RenderType.translucent() ? this.translucentVC : this.opaqueVC)
-                            .quad(quad, forceSolidLeaves, renderLayer, modelState);
+                            .quad(quad, forceSolidLeaves, renderLayer, modelState, domumModel);
                 }
             }
         }

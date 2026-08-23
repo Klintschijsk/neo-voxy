@@ -509,6 +509,8 @@ public class ModelFactory {
         boolean leafModel = isLeafBlockState(blockState);
         boolean balancedLeaf = leafModel
                 && VoxyConfig.CONFIG.getLeafLodMode() == VoxyConfig.LeafLodMode.BALANCED;
+        var domumPlan = DomumOrnamentumCompat.getBakePlan(this.mapper, blockId);
+        boolean conservativeComplexModel = !domumPlan.isEmpty() && !domumPlan.detailedMesh();
 
         int modelId = -1;
 
@@ -647,6 +649,9 @@ public class ModelFactory {
         if (balancedLeaf) {
             cullsSame = true;
         }
+        if (conservativeComplexModel) {
+            cullsSame = false;
+        }
 
 
         //Each face gets 1 byte, with the top 2 bytes being for whatever
@@ -681,6 +686,10 @@ public class ModelFactory {
 
             boolean faceCoversFullBlock = faceSize[0] == 0 && faceSize[2] == 0 &&
                     faceSize[1] == (MODEL_TEXTURE_SIZE-1) && faceSize[3] == (MODEL_TEXTURE_SIZE-1);
+            if (conservativeComplexModel) {
+                faceCoversFullBlock &= offset <= (1.0f / 64.0f)
+                        && writeCount == MODEL_TEXTURE_SIZE * MODEL_TEXTURE_SIZE;
+            }
 
             //TODO: use faceSize and the depths to compute if mesh can be correctly rendered
 
@@ -696,6 +705,9 @@ public class ModelFactory {
             if (occludesFace) {
                 occludesFace &= ((float)writeCount)/(MODEL_TEXTURE_SIZE * MODEL_TEXTURE_SIZE) > 0.9;// only occlude if the face covers more than 90% of the face
             }
+            if (conservativeComplexModel) {
+                occludesFace &= faceCoversFullBlock;
+            }
             metadata |= occludesFace?1:0;
             fullyOpaque &= occludesFace;
 
@@ -704,6 +716,9 @@ public class ModelFactory {
             boolean canBeOccluded = true;
             //TODO: make this an option on how far/close
             canBeOccluded &= offset < 0.3;//If the face is rendered far away from the other face, then it cant be occluded
+            if (conservativeComplexModel) {
+                canBeOccluded &= faceCoversFullBlock;
+            }
 
             metadata |= canBeOccluded?4:0;
 

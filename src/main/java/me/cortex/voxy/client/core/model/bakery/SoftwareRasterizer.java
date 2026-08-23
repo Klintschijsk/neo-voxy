@@ -123,9 +123,10 @@ public class SoftwareRasterizer {
 
         float area = edge(v1, v2, v3);
 
-        // Alpha-cutout cross quads are two-sided during offline model baking.
+        // Cutout cards and explicitly marked complex models are two-sided during offline baking.
         int meta = Float.floatToRawIntBits(this.a1.x);
-        if ((meta & 1) == 0 && (area < 0) == this.cullBackFace) {
+        if ((meta & (ReuseVertexConsumer.META_ALPHA_DISCARD | ReuseVertexConsumer.META_NO_FACE_CULL)) == 0
+                && (area < 0) == this.cullBackFace) {
             return;
         }
 
@@ -175,7 +176,8 @@ public class SoftwareRasterizer {
 
 
         final int ALPHA_CUTOFF_THRESHOLD = 0;
-        if ((meta & 1) != 0 && (colour >>> 24) <= ALPHA_CUTOFF_THRESHOLD) {
+        if ((meta & ReuseVertexConsumer.META_ALPHA_DISCARD) != 0
+                && (colour >>> 24) <= ALPHA_CUTOFF_THRESHOLD) {
             return;
         }
 
