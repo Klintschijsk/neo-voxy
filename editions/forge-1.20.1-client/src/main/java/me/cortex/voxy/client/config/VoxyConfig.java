@@ -95,7 +95,6 @@ public class VoxyConfig
                     var conf = GSON.fromJson(reader, VoxyConfig.class);
                     if (conf != null) {
                         conf.sanitize();
-                        conf.save();
                         return conf;
                     } else {
                         Logger.error("Failed to load voxy config, resetting");

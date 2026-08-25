@@ -75,8 +75,12 @@ public final class LiteShaderStatus {
         }
 
         Minecraft minecraft = Minecraft.getInstance();
-        minecraft.execute(() -> minecraft.getChatListener().handleSystemMessage(
-                Component.translatable("voxy.lodLiteShading.chatFailure", reason(failure)), false));
+        minecraft.execute(() -> {
+            if (minecraft.gui != null) {
+                minecraft.gui.getChat().addMessage(
+                        Component.translatable("voxy.lodLiteShading.chatFailure", reason(failure)));
+            }
+        });
     }
 
     private static Component reason(Snapshot failure) {
