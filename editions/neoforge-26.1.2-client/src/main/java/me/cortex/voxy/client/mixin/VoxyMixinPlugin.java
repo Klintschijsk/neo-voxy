@@ -14,12 +14,8 @@ public final class VoxyMixinPlugin implements IMixinConfigPlugin {
    }
 
    private static boolean isClassPresent(String className) {
-      try {
-         Class.forName(className, false, VoxyMixinPlugin.class.getClassLoader());
-         return true;
-      } catch (LinkageError | ClassNotFoundException var2) {
-         return false;
-      }
+      String resourceName = className.replace('.', '/') + ".class";
+      return VoxyMixinPlugin.class.getClassLoader().getResource(resourceName) != null;
    }
 
    public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {

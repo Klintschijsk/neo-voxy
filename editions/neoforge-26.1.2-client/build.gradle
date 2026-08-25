@@ -42,19 +42,16 @@ neoForge {
 }
 
 dependencies {
-    // The recovered production artifact is the source of truth for these
-    // compile-time APIs and bundled runtime libraries.
-    compileOnly files('libs/compile/sodium-neoforge-0.9.1+mc26.1.2-mod.jar')
+    // Compile APIs and runtime libraries.
+    compileOnly files('libs/compile/sodium-neoforge-0.9.2-alpha.4+mc26.1.2-mod.jar')
     compileOnly files('libs/compile/iris-neoforge-1.11.2+mc26.1.2.jar')
     compileOnly fileTree('src/main/resources/META-INF/jarjar') {
         include '*.jar'
-        // Minecraft 26.1.2 already supplies at.yawk.lz4:lz4-java:1.10.1 as
-        // module org.lz4.java. Compiling and packaging the legacy 1.8.0 copy
-        // creates a duplicate JPMS module during NeoForge startup.
+        // Minecraft 26.1.2 already supplies LZ4.
         exclude 'lz4-java-*.jar'
     }
 
-    runtimeOnly files('libs/runtime/sodium-neoforge-0.9.1+mc26.1.2.jar')
+    runtimeOnly files('libs/runtime/sodium-neoforge-0.9.2-alpha.4+mc26.1.2.jar')
     runtimeOnly files('libs/runtime/iris-neoforge-1.11.2+mc26.1.2.jar')
 }
 
@@ -70,9 +67,7 @@ tasks.named('processResources') {
         expand(version: project.version)
     }
 
-    // Keep the recovered legacy binary in the source snapshot, but never put
-    // it in the distributable. The game-provided 1.10.1 remains available to
-    // LZ4Compressor at compile time and runtime.
+    // Keep the legacy binary out of the distributable.
     exclude 'META-INF/jarjar/lz4-java-*.jar'
 }
 

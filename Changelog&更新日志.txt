@@ -1,5 +1,21 @@
 Neo Voxy 更新日志 / Changelog
 
+## 0.3.1（26.1.2 NeoForge 客户端版）— 2026-08-25
+
+### 简体中文
+
+- 修复新版 Iris 在 Mixin 选择阶段被过早加载导致的启动崩溃。
+- 按 26.1.2 的最新源码更新至 Sodium 0.9.2-alpha.4，并同步 Iris 26.1 适配。
+- 服务器数据共享现与 Voxy Server Side 完全兼容，推荐在服务器端部署。
+- 部分代码使用 AI 辅助完成，发布前由维护者审核并进行必要的小幅修改，以提高开发效率。
+
+### English
+
+- Fixed startup crashes caused by the latest Iris being loaded too early during Mixin selection.
+- Updated 26.1.2 compatibility to Sodium 0.9.2-alpha.4 and synchronized the Iris 26.1 integration.
+- Server data sharing is fully compatible with Voxy Server Side, which is recommended on servers.
+- Some code was completed with AI assistance and will be audited and lightly edited by the maintainer before release to improve development efficiency.
+
 ## 0.4.3-beta.1（1.21.1 NeoForge 联动版）— 2026-08-23
 
 ### 简体中文
@@ -16,14 +32,14 @@ Neo Voxy 更新日志 / Changelog
 - Fixed distant beacon beams disappearing while approaching the vanilla boundary. Handoff now waits for a loaded beacon block entity with a valid vanilla beam and keeps a conservative overlap.
 - Cold beacon columns now warm asynchronously at low priority. The last complete beam remains visible during a rebuild, avoiding render-thread storage reads and transient blinking.
 - Replaced the beacon width step with a smooth, unbounded curve that grows gently near the handoff and remains visible at extreme distance.
-- Added distant beacon shadow casters to the Iris shadow-map pass using only lightweight cached prism geometry and no per-tick world scan.
+- Added distant beacon shadow casters to the Iris shadow-map pass using lightweight cached prism geometry.
 
 ## 0.4.2-beta.1（1.21.1 NeoForge 联动版）— 2026-08-22
 
 ### 简体中文
 
 - 新增 LittleTiles 静态小方块远景兼容：区块摄取时一次性量化为 1/8 格稀疏表面网格，保留方块纹理、LittleTiles 颜色、群系染色与光照，并剔除内部相邻面。
-- 小方块网格随 Voxy 世界缓存持久化，每 tick 最多上传两个变化区段；LittleTiles 未安装时不注册渲染器、不扫描方块实体，体素热循环只保留一次区段级空值判断。
+- 小方块网格随 Voxy 世界缓存持久化，每 tick 最多上传两个变化区段；LittleTiles 未安装时不注册相关渲染器。
 - 修复重进世界时尚未就绪的 LittleTiles 方块实体误删持久化网格，以及原版视距与 LOD 交界处的小方块不可见带；交接改为带安全重叠的圆形距离判定。
 - 修复 LittleTiles 远景仅存在于内存、执行 `/voxy reload` 或原地重进后消失的问题；快照更新会可靠写入 Voxy 辅助存储，并在重载、退出与同世界存储切换前执行检查点。
 - 修复 LittleTiles 远景被固定满光照导致夜间或阴影中过亮；现使用快照保存的天空光、方块光和原版动态光照贴图。小方块跳过透明 LOD 淡入，并在淡入起点进行三维硬交接。
@@ -32,7 +48,7 @@ Neo Voxy 更新日志 / Changelog
 ### English
 
 - Added distant rendering for static LittleTiles microblocks. Geometry is captured once during section ingestion, quantized into sparse 1/8-block surface meshes, and keeps block textures, LittleTiles colours, biome tinting, lighting, and internal-face culling.
-- Microblock meshes persist with the Voxy world cache and upload at most two changed sections per tick. Without LittleTiles, no renderer or block-entity scan is registered and the voxel hot loop retains only one section-level null check.
+- Microblock meshes persist with the Voxy world cache and upload at most two changed sections per tick. Without LittleTiles, no related renderer is registered.
 - Fixed persisted LittleTiles meshes being deleted when block entities were not ready during world entry, and removed the invisible handoff band with a conservative circular vanilla/LOD overlap.
 - Fixed LittleTiles distant meshes existing only in memory and disappearing after `/voxy reload` or rejoining in place. Snapshot updates are now persisted defensively and checkpointed before reload, logout, and same-world storage replacement.
 - Fixed LittleTiles distant meshes being forced to full brightness. They now use captured sky/block light with the live vanilla light map, skip translucent LOD fading, and perform a hard 3-D handoff at the fade start.
@@ -66,12 +82,12 @@ Neo Voxy 更新日志 / Changelog
 
 - 将 GPU 世界曲率统一移植至 1.21.1、1.20.1 与 26.1.2；曲率从原版渲染边界外开始，避免边界台阶和按区段跳动。
 - 客户端版统一版本号为 0.3.0，联动版更新为 0.4.1beta，并修复 26.1.2 包内版本元数据。
-- 统一三档树叶 LOD 模式及配置入口；保留隐藏内部面剔除，避免额外的逐帧方块扫描。
+- 统一三档树叶 LOD 模式及配置入口；保留隐藏内部面剔除。
 - 向旧版降级移植水体优先的 LOD 降采样、占用率就近取整和光照选择，减少流体破碎与 LOD 系统性抬升。
 - 进服消息改为每次进入世界显示，默认开启，并可在 Sodium/Embeddium 的 Neo Voxy 设置中关闭；消息会直接提示关闭位置。
 - 将联动版最新圆形 LOD 淡入同步至三个客户端版：使用三维相机距离与世界坐标稳定抖动，水体独立交接，树叶跳过透明淡入，减少空洞、噪点及树叶消失后重现。
 - 将扩展区块请求同步至全部客户端版，默认关闭并限制为 48 区块；移动时暂停扩张，静止后渐进恢复，避免集中请求拖垮帧时间。
-- 将 LOD 群系水色混合同步至全部客户端版；在模型构建时写入紧凑调色板，不增加逐 tick 世界遍历。
+- 将 LOD 群系水色混合同步至全部客户端版；在模型构建时写入紧凑调色板。
 - 修复 1.20.1 与 1.21.1 无光影远景雾距离，补全 1.20.1 水下雾遮罩，并使失明、黑暗正确遮挡 LOD；26.1.2 保留新版原生雾路径。
 - 同步逐面独立 mip、精确逐像素染色掩码、水体边界分类及相关降采样修复，改善植被、水体和原版/LOD 交界质量。
 - 远景信标的完整缓存渲染继续由联动版提供，避免在缺少数据索引的客户端版引入无效选项。
@@ -80,12 +96,12 @@ Neo Voxy 更新日志 / Changelog
 
 - Ported GPU world curvature across 1.21.1, 1.20.1, and 26.1.2. Curvature starts outside the vanilla boundary to avoid a seam and section-relative snapping.
 - Unified client-edition versions at 0.3.0, updated the integrations edition to 0.4.1beta, and fixed embedded 26.1.2 version metadata.
-- Unified the three leaf LOD modes and their settings while retaining hidden internal-face culling and avoiding per-frame block scans.
+- Unified the three leaf LOD modes and their settings while retaining hidden internal-face culling.
 - Down-ported water-aware LOD sampling, nearest occupancy rounding, and light selection to reduce broken fluids and systematic LOD uplift.
 - Join messages now appear on every world entry, are enabled by default, and can be disabled in the Neo Voxy Sodium/Embeddium settings; the message states where to disable it.
 - Synchronized the integrations edition's latest circular LOD handoff to all three client editions: 3D camera distance, world-stable dithering, independent water ownership, and direct leaf replacement reduce holes, noise, and leaf disappear/reappear transitions.
 - Extended chunk requests are now available in every client edition, disabled by default and capped at 48 chunks. Expansion pauses while moving and resumes gradually while stationary to protect frame time.
-- Added build-time LOD biome water-colour blending to every client edition using a compact palette with no per-tick world traversal.
+- Added build-time LOD biome water-colour blending to every client edition using a compact palette.
 - Fixed shader-free distant fog on 1.20.1 and 1.21.1, restored the 1.20.1 underwater fog mask, and made Blindness/Darkness hide LODs correctly. Version 26.1.2 retains its newer native fog path.
 - Synchronized per-face mip generation, exact per-pixel tint masks, fluid boundary classification, and related downsampling fixes for better vegetation, water, and vanilla/LOD boundary quality.
 - Full cache-backed distant beacons remain in the integrations edition instead of exposing a non-functional client-only toggle.

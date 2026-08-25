@@ -6,7 +6,14 @@ Neo-Voxy is an unofficial NeoForge port and compatibility-focused fork of
 [Voxy](https://github.com/MCRcortex/voxy). It currently has separate branches for Minecraft
 **1.21.1** and **26.1.2**.
 
-Maintained by **NHblock714**.
+Maintained by **JohnSnow**.
+
+> [!IMPORTANT]
+> Build artifacts are intentionally removed. Fork the repository to download the GitHub Actions
+> artifact, or build locally by following the build instructions below.
+>
+> Neo-Voxy is fully compatible with **Voxy Server Side**; server deployment is recommended for
+> sharing LOD data.
 
 > [!CAUTION]
 > **Do not enable Neo-Voxy's circular LOD fade together with a shader pack that already implements
@@ -17,7 +24,11 @@ Maintained by **NHblock714**.
 ## 简体中文
 
 Neo-Voxy 为远距离地形提供高性能 LOD 渲染，并针对 NeoForge、Sodium、Iris 以及部分大型模组
-进行兼容性维护，由 **NHblock714** 维护。两个 Minecraft 分支分别构建，**JAR 与缓存不能跨版本混用**。
+进行兼容性维护，由 **JohnSnow** 维护。两个 Minecraft 分支分别构建，**JAR 与缓存不能跨版本混用**。
+
+> [!IMPORTANT]
+> 构建产物已被人为删除。请 Fork 仓库后从 GitHub Actions 下载，或按下方教程手动构建。
+> Neo-Voxy 完全兼容 **Voxy Server Side**，推荐在服务器端部署以共享 LOD 数据。
 
 ### 版本与功能对比
 
@@ -47,8 +58,8 @@ Neo-Voxy 为远距离地形提供高性能 LOD 渲染，并针对 NeoForge、Sod
 
 | 模组或组件 | 1.21.1 | 26.1.2 | 兼容说明 |
 |---|---|---|---|
-| Sodium | ✅ 0.8.12 | ✅ 0.9.1 | 目标版本；不建议跨大版本使用 |
-| Iris | ✅ 1.8.12+ | ✅ 1.11.2 | 光影包需要自行适配远景渲染语义 |
+| Sodium | ✅ 0.8.12 | ✅ 0.9.2-alpha.4+ | 目标版本；不建议跨大版本使用 |
+| Iris | ✅ 1.8.12+ | ✅ 1.11.2+ | 光影包需要自行适配远景渲染语义 |
 | Create | ✅ 6.0.10 专项 | 基础兼容 | 1.21.1 提供远景列车、轨道、动态结构及动力部件交接 |
 | Sable | ⚠️ 2.0.3 专项 | 无专项实现 | 保留远景载具加载与距离扩展；高风险联合深度重定向默认关闭 |
 | Domum Ornamentum | ✅ 专项 | 无专项实现 | 按方块实体材质数据缓存独立颜色与轻量模型 |
@@ -71,7 +82,11 @@ Neo-Voxy 为远距离地形提供高性能 LOD 渲染，并针对 NeoForge、Sod
 | 分支 | Neo-Voxy 版本 | Java | NeoForge |
 |---|---|---:|---|
 | Minecraft 1.21.1 | 0.3.1 | 21 | 21.1.x |
-| Minecraft 26.1.2 | 0.2.18-beta | 25 | 26.1.2.x |
+| Minecraft 26.1.2 | 0.3.1 | 25 | 26.1.2.x |
+
+### 开发说明
+
+部分代码使用了 AI 辅助完成，发布前会由维护者审核并进行必要的小幅修改；源码注释保持简洁。
 
 ### 构建
 
@@ -122,8 +137,8 @@ mod cannot run alongside basic terrain LOD rendering.
 
 | Mod or component | 1.21.1 | 26.1.2 | Compatibility notes |
 |---|---|---|---|
-| Sodium | ✅ 0.8.12 | ✅ 0.9.1 | Target versions; crossing major versions is not recommended |
-| Iris | ✅ 1.8.12+ | ✅ 1.11.2 | Shader packs must understand distant-terrain rendering semantics |
+| Sodium | ✅ 0.8.12 | ✅ 0.9.2-alpha.4+ | Target versions; crossing major versions is not recommended |
+| Iris | ✅ 1.8.12+ | ✅ 1.11.2+ | Shader packs must understand distant-terrain rendering semantics |
 | Create | ✅ 6.0.10 integration | Basic only | 1.21.1 adds distant trains, tracks, contraptions, and kinetic handoff |
 | Sable | ⚠️ 2.0.3 integration | No dedicated support | Distant loading/range remains; unsafe combined-depth redirection is off by default |
 | Domum Ornamentum | ✅ Integrated | No dedicated support | Cached block-entity material colours and lightweight independent models |
@@ -146,7 +161,12 @@ not register its listeners, renderers, or recurring work, and the matching setti
 | Branch | Neo-Voxy version | Java | NeoForge |
 |---|---|---:|---|
 | Minecraft 1.21.1 | 0.3.1 | 21 | 21.1.x |
-| Minecraft 26.1.2 | 0.2.18-beta | 25 | 26.1.2.x |
+| Minecraft 26.1.2 | 0.3.1 | 25 | 26.1.2.x |
+
+### Development note
+
+Some code was completed with AI assistance and will be audited and lightly edited by the maintainer
+before release. Source comments are intentionally concise.
 
 ### Building
 

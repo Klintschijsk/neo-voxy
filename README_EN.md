@@ -6,6 +6,12 @@ Neo Voxy is maintained by **JohnSnow**. It extends [NHblock714/voxy](https://git
 
 > [!IMPORTANT]
 > If an update causes problems, delete the Neo Voxy configuration and the Voxy cache inside the affected world before retrying.
+>
+> **Build artifacts**: Build artifacts are intentionally removed. Fork this repository to download
+> the automatically built artifacts from GitHub Actions, or build locally by following the tutorial.
+>
+> **Server data sharing**: Neo Voxy is fully compatible with **Voxy Server Side**. Deploying it on
+> the server is recommended for sharing LOD data.
 
 
 ## Supported editions
@@ -15,7 +21,7 @@ Neo Voxy is maintained by **JohnSnow**. It extends [NHblock714/voxy](https://git
 | 1.21.1 NeoForge integrations | Client and server | Sodium 0.8 / Iris | 21 | `neo-voxy-0.4.3-beta.1-mc1.21.1-neoforge-integrations.jar` |
 | 1.21.1 NeoForge client | Client only | Sodium 0.8 / Iris | 21 | `neo-voxy-0.3.0-mc1.21.1-neoforge-client.jar` |
 | 1.20.1 Forge client | Client only | Embeddium / Oculus | 17 | `neo-voxy-0.3.1-forge-client.jar` |
-| 26.1.2 NeoForge client | Client only | Sodium 0.9 / Iris | 25 | `neo-voxy-0.3.1-mc26.1.2-neoforge-client.jar` |
+| 26.1.2 NeoForge client | Client only | Sodium 0.9.2-alpha.4+ / Iris 1.11.2+ | 25 | `neo-voxy-0.3.1-mc26.1.2-neoforge-client.jar` |
 
 Release JARs remove unused platform natives, duplicate module descriptors, and build intermediates. Runtime shaders, languages, models, and storage libraries are retained.
 
@@ -31,12 +37,12 @@ Release JARs remove unused platform natives, duplicate module descriptors, and b
 | Crossed ground-plant models | ✅ | ✅ | ✅ | ✅ | Lightweight centred crossed models |
 | Leaf LOD modes | ✅ | ✅ | ✅ | ✅ | Fast, Balanced, and Quality modes |
 | Extended chunk requests (single-player, max 48) | ✅ | ✅ | ✅ | ✅ | Disabled by default |
-| LOD biome water-colour blending | ✅ | ✅ | ✅ | ✅ | Built with the model; no per-tick traversal |
+| LOD biome water-colour blending | ✅ | ✅ | ✅ | ✅ | Built with the model |
 | LOD build-pressure control | ✅ | ✅ | ✅ | ✅ | Prioritise frame rate or catch-up speed |
 | World curvature | ✅ | ✅ | ✅ | ✅ | Implemented in the GPU vertex stage |
 | Distant beacon beams | ✅ | — | — | — | Unbounded smooth width curve, shader shadows, and seamless handoff |
 | Distant players, vehicles, and animation | ✅ | — | — | — | Integrations-edition feature |
-| Sodium / Iris | ✅ | ✅ | — | ✅ | Use the renderer major version appropriate for Minecraft |
+| Sodium / Iris | ✅ | ✅ | — | ✅ | 26.1.2 uses Sodium 0.9.2-alpha.4+ and Iris 1.11.2+ |
 | Embeddium / Oculus | — | — | ✅ | — | Embeddium is the renderer; Oculus provides shader support |
 | Create | ✅ | — | — | — | Distant trains, tracks, contraptions, and kinetic components |
 | Sable | ✅ | — | — | — | Distant physics objects and depth integration |
@@ -50,14 +56,14 @@ Release JARs remove unused platform natives, duplicate module descriptors, and b
 
 - Ground plants and leaves: all four editions provide centered crossed-plant LODs plus Fast, Balanced, and Quality leaf modes. Balanced culls hidden internal faces while keeping stable asymmetric cutouts. Leaves bypass alpha fading and hand directly between vanilla and LOD models, preventing the disappear/reappear cycle.
 - Extended chunk requests: based on the approach used by [FakeSight](https://github.com/MoePus/fakesight), asks for chunks beyond vanilla distance in single-player. It is disabled by default and capped at 48 chunks in all four editions. Expansion pauses while moving and resumes gradually when stationary. High values can still increase CPU, memory, world-generation, and save load substantially.
-- Biome water-colour blending: all four editions smooth LOD water colours across biome borders while models are built. Results use a compact palette and require no per-tick world traversal.
+- Biome water-colour blending: all four editions smooth LOD water colours across biome borders while models are built. Results use a compact palette.
 - LOD build pressure: adjusts per-frame node processing and model-baking budgets from maximum FPS to maximum catch-up speed.
 - Circular LOD handoff: editions containing this feature use 3D camera distance and world-stable dithering. Water and leaves use dedicated non-alpha handoff paths. Disable it when a shader pack already implements its own LOD transition, such as Photon, to avoid duplicate transitions, noise, or shadow seams.
 - Fog and effects: shader-free fog on 1.20.1 and 1.21.1 scales against the LOD radius while preserving required medium masks such as underwater fog. Distant LODs no longer show through Blindness or Darkness. Version 26.1.2 uses the newer native fog path.
 - Model and fluid quality: per-face mip generation and exact per-pixel tint masks reduce grass-side and waterlogged-plant colour errors; nearest rounding, independent fluid boundaries, and biome-colour handling improve distant water and terrain.
 - Experimental Lite LOD shading: the 1.21.1 integrations build uses paired Lite programs and atomically falls back if loading or compilation fails, the version is unsupported, or the transition is unsafe. Eclipse Shader 482 is supported by a built-in NeoVoxy patch and does not require shader-pack changes; Complementary Unbound r5.8.1 + Euphoria Patches 1.9.3 uses a separate overlay.
 - Subdivision size: controls the screen-space threshold for finer LODs. Lower values improve detail at higher build and rendering cost.
-- World curvature: all four editions curve only the LOD beyond vanilla distance in the GPU vertex stage; 0 disables it, with no chunk scan or per-tick traversal.
+- World curvature: all four editions curve only the LOD beyond vanilla distance in the GPU vertex stage; 0 disables it.
 - Distant beacons: the integrations edition builds beams from cached columns, hands off only after the vanilla beam is ready, uses a gentle unbounded width curve at extreme range, and submits lightweight shadow geometry during Iris shadow passes.
 - Join message: shown whenever a server or single-player world is entered, enabled by default and removable from the Neo Voxy Sodium/Embeddium settings.
 
@@ -79,6 +85,12 @@ Build all editions:
 ```
 
 The scripts prefer `JAVA_HOME_17`, `JAVA_HOME_21`, and `JAVA_HOME_25`. Linux/macOS equivalents are available as `scripts/build.sh` and `scripts/build-all.sh`. Final artifacts are copied to `dist/`; GitHub Actions builds the four editions in parallel and publishes one `neo-voxy-multiversion` bundle.
+
+## Development note
+
+Some code was completed with AI assistance and will be audited and lightly edited by the maintainer
+before release. Compared with writing everything by hand, this substantially improves development
+efficiency. Source comments are intentionally concise.
 
 ## License
 
